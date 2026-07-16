@@ -96,6 +96,9 @@ namespace AIVS.Services.Implementations
                     // This must stay as the UserManagement role.
                     Role = result.Role?.Trim(),
 
+
+                    SapNumber = result.SAPNumber?.Trim(),
+
                     // This is only for layout display.
                     Position = result.Position?.Trim(),
 

@@ -65,6 +65,7 @@ builder.Services.AddScoped<ISectorInboxService, SectorInboxService>();
 
 builder.Services.AddScoped<IEmailService, EmailService>();
 
+builder.Services.AddScoped<IValuerInboxService, ValuerInboxService>();
 
 // ─────────────────────────────────────────────
 // Authorisation policies

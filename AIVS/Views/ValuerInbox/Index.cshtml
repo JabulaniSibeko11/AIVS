@@ -1,0 +1,310 @@
+﻿@model List<AIVS.Models.ViewModels.ValuerInbox.ValuerInboxItemVm>
+
+@{
+    ViewData["Title"] = "Valuer Inbox";
+}
+
+<style>
+    .vi-header {
+        background: #ffffff;
+        border: 1px solid #e3e3e3;
+        border-left: 6px solid #e6b000;
+        border-radius: 8px;
+        padding: 18px 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,.04);
+    }
+
+    .vi-title {
+        margin: 0;
+        font-weight: 900;
+        color: #111111;
+        font-size: 26px;
+    }
+
+    .vi-subtitle {
+        margin-top: 4px;
+        color: #666666;
+        font-size: 14px;
+    }
+
+    .vi-card {
+        background: #ffffff;
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,.05);
+    }
+
+    .vi-card-title {
+        background: #111111;
+        color: #ffffff;
+        padding: 14px 18px;
+        font-weight: 900;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .vi-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+        .vi-table th {
+            background: #f7f7f7;
+            font-size: 13px;
+            text-transform: uppercase;
+            color: #333333;
+            border-bottom: 1px solid #dedede;
+            padding: 11px 10px;
+            white-space: nowrap;
+        }
+
+        .vi-table td {
+            padding: 11px 10px;
+            border-bottom: 1px solid #eeeeee;
+            font-size: 14px;
+            vertical-align: middle;
+        }
+
+    .vi-ref {
+        font-weight: 900;
+        color: #000000;
+        white-space: nowrap;
+    }
+
+    .vi-badge {
+        display: inline-block;
+        padding: 5px 9px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 900;
+        white-space: nowrap;
+    }
+
+    .vi-badge-claimed {
+        background: #eeeeee;
+        color: #333333;
+    }
+
+    .vi-badge-review {
+        background: #d9f2ff;
+        color: #004b66;
+    }
+
+    .vi-badge-waiting {
+        background: #fff0bf;
+        color: #5a4100;
+    }
+
+    .vi-badge-confirmed {
+        background: #dbeafe;
+        color: #1d4ed8;
+    }
+
+    .vi-badge-sent {
+        background: #e8f7ee;
+        color: #155724;
+    }
+
+    .vi-badge-default {
+        background: #111111;
+        color: #ffffff;
+    }
+
+    .vi-btn {
+        background: #000000;
+        color: #ffffff;
+        border-radius: 6px;
+        padding: 7px 11px;
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 900;
+        display: inline-block;
+        white-space: nowrap;
+    }
+
+        .vi-btn:hover {
+            background: #e6b000;
+            color: #000000;
+        }
+
+    .vi-empty {
+        background: #ffffff;
+        border: 1px dashed #cfcfcf;
+        border-radius: 10px;
+        padding: 28px;
+        text-align: center;
+        color: #666666;
+        font-weight: 700;
+    }
+
+    .vi-muted {
+        color: #777777;
+        font-weight: 600;
+    }
+
+    .vi-badge-expired {
+        background: #fdecec;
+        color: #842029;
+    }
+</style>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success fw-bold">@TempData["Success"]</div>
+}
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger fw-bold">@TempData["Error"]</div>
+}
+
+<div class="vi-header">
+    <h1 class="vi-title">Valuer Inbox</h1>
+    <div class="vi-subtitle">
+        These are the attribute submissions assigned to you for review and physical inspection follow-up.
+    </div>
+</div>
+
+@if (Model == null || !Model.Any())
+{
+    <div class="vi-empty">
+        No assigned attribute submissions found in your inbox.
+    </div>
+}
+else
+{
+    <div class="vi-card">
+        <div class="vi-card-title">
+            <div>My Assigned Reviews</div>
+            <div>@Model.Count item(s)</div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="vi-table">
+                <thead>
+                    <tr>
+                        <th>Reference No</th>
+                        <th>Property Description</th>
+                        <th>Township</th>
+                        <th>Sector</th>
+                        <th>Assigned Date</th>
+                        <th>Evidence</th>
+                        <th>Status</th>
+                        <th>Assigned By</th>
+                        <th></th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @foreach (var item in Model)
+                    {
+                        var status = item.Status?.Trim();
+
+                        var statusClass = status switch
+                        {
+                            "InspectionConfirmed" => "vi-badge vi-badge-confirmed",
+                            "InspectionDetailsSent" => "vi-badge vi-badge-sent",
+                            "InspectionRequired" => "vi-badge vi-badge-waiting",
+                            "ValuerReview" => "vi-badge vi-badge-review",
+                            "Claimed" => "vi-badge vi-badge-claimed",
+                            "InspectionExpired" => "vi-badge vi-badge-expired",
+                            _ => "vi-badge vi-badge-default"
+                        };
+
+                        var statusText = status switch
+                        {
+                            "InspectionConfirmed" => "Client Confirmed Date",
+                            "InspectionDetailsSent" => "Inspection Details Sent",
+                            "InspectionRequired" => "Waiting for Client Date",
+                            "ValuerReview" => "Under Review",
+                            "InspectionExpired" => "Inspection Request Expired",
+                            "Claimed" => "Claimed",
+                            _ => status ?? "-"
+                        };
+
+                        var buttonText = status switch
+                        {
+                            "InspectionConfirmed" => "Send PIN",
+                            "InspectionDetailsSent" => "View Inspection",
+                            "InspectionRequired" => "Check Response",
+                            "ValuerReview" => "Continue Review",
+                            "Claimed" => "Open Review",
+                            "InspectionExpired" => "Send New Dates",
+                            _ => item.ReviewStarted ? "Continue Review" : "Open Review"
+                        };
+
+                        <tr>
+                            <td class="vi-ref">@item.AttrNo</td>
+
+                            <td>
+                                @if (string.IsNullOrWhiteSpace(item.PropertyDescription))
+                                {
+                                    <span class="vi-muted">-</span>
+                                }
+                                else
+                                {
+                                    @item.PropertyDescription
+                                }
+                            </td>
+
+                            <td>
+                                @if (string.IsNullOrWhiteSpace(item.Township))
+                                {
+                                    <span class="vi-muted">-</span>
+                                }
+                                else
+                                {
+                                    @item.Township
+                                }
+                            </td>
+
+                            <td>
+                                @if (string.IsNullOrWhiteSpace(item.Sector))
+                                {
+                                    <span class="vi-muted">-</span>
+                                }
+                                else
+                                {
+                                    @item.Sector
+                                }
+                            </td>
+
+                            <td>@(item.AssignedDate?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
+
+                            <td>@item.EvidenceCount</td>
+
+                            <td>
+                                <span class="@statusClass">@statusText</span>
+                            </td>
+
+                            <td>
+                                @if (string.IsNullOrWhiteSpace(item.AssignedBy))
+                                {
+                                    <span class="vi-muted">-</span>
+                                }
+                                else
+                                {
+                                    @item.AssignedBy
+                                }
+                            </td>
+
+                            <td>
+                                <a class="vi-btn"
+                                       asp-controller="ValuerInbox"
+                                       asp-action="Review"
+                                       asp-route-id="@item.AttrId">
+                                    @buttonText
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

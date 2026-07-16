@@ -1,0 +1,208 @@
+﻿@model AIVS.Models.ViewModels.ValuerInbox.ValuerReviewSectionVm
+
+@{
+    var attrId = ViewData["AttrId"];
+    var reviewId = ViewData["ReviewId"];
+
+    var decisionLabel = string.IsNullOrWhiteSpace(Model.SectionDecision)
+        ? "Not reviewed"
+        : Model.SectionDecision;
+}
+
+<style>
+    .review-panel {
+        margin-top: 14px;
+        padding: 14px;
+        border: 1px solid #ead17a;
+        border-left: 5px solid #e6b000;
+        border-radius: 8px;
+        background: #fffdf4;
+    }
+
+    .review-panel-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+        font-weight: 900;
+        color: #111111;
+    }
+
+    .review-panel-status {
+        background: #fff0bf;
+        color: #5a4100;
+        border-radius: 999px;
+        padding: 4px 9px;
+        font-size: 12px;
+        font-weight: 900;
+    }
+
+    .review-panel-grid {
+        display: grid;
+        grid-template-columns: minmax(220px, 280px) 1fr;
+        gap: 14px;
+        align-items: start;
+    }
+
+    .review-select {
+        width: 100%;
+        border: 1px solid #cfcfcf;
+        border-radius: 8px;
+        padding: 9px 10px;
+        font-weight: 800;
+        background: #ffffff;
+        color: #111111;
+    }
+
+    .review-comment {
+        width: 100%;
+        min-height: 95px;
+        border: 1px solid #cfcfcf;
+        border-radius: 8px;
+        padding: 10px;
+        background: #ffffff;
+        color: #111111;
+        font-weight: 600;
+    }
+
+    .review-check-row {
+        margin-top: 10px;
+        display: flex;
+        gap: 18px;
+        flex-wrap: wrap;
+    }
+
+    .review-check {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 900;
+        color: #111111;
+        cursor: pointer;
+    }
+
+        .review-check input {
+            width: 17px;
+            height: 17px;
+            accent-color: #e6b000;
+        }
+
+    .review-save {
+        margin-top: 12px;
+        background: #e6b000;
+        color: #000000;
+        border: 0;
+        border-radius: 7px;
+        padding: 8px 14px;
+        font-size: 13px;
+        font-weight: 900;
+        cursor: pointer;
+    }
+
+        .review-save:hover {
+            background: #000000;
+            color: #ffffff;
+        }
+
+    @@media (max-width: 800px) {
+        .review-panel-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="review-panel">
+    <div class="review-panel-head">
+        <div>Valuer Review: @Model.SectionName</div>
+        <div class="review-panel-status">@decisionLabel</div>
+    </div>
+
+    <form asp-controller="ValuerInbox"
+          asp-action="SaveSectionReview"
+          method="post">
+
+        @Html.AntiForgeryToken()
+
+        <input type="hidden" name="AttrId" value="@attrId" />
+        <input type="hidden" name="ReviewId" value="@reviewId" />
+        <input type="hidden" name="SectionId" value="@Model.SectionId" />
+
+        <div class="review-panel-grid">
+            <div>
+                <label class="fw-bold mb-1">Section Decision</label>
+
+                <select name="SectionDecision" class="review-select" required>
+                    <option value="">-- Select decision --</option>
+
+                    @if (Model.SectionDecision == "Accepted")
+                    {
+                        <option value="Accepted" selected>Accepted</option>
+                    }
+                    else
+                    {
+                        <option value="Accepted">Accepted</option>
+                    }
+
+                    @if (Model.SectionDecision == "Needs correction")
+                    {
+                        <option value="Needs correction" selected>Needs correction</option>
+                    }
+                    else
+                    {
+                        <option value="Needs correction">Needs correction</option>
+                    }
+
+                    @if (Model.SectionDecision == "Not applicable")
+                    {
+                        <option value="Not applicable" selected>Not applicable</option>
+                    }
+                    else
+                    {
+                        <option value="Not applicable">Not applicable</option>
+                    }
+
+                    @if (Model.SectionDecision == "Requires inspection")
+                    {
+                        <option value="Requires inspection" selected>Requires inspection</option>
+                    }
+                    else
+                    {
+                        <option value="Requires inspection">Requires inspection</option>
+                    }
+                </select>
+
+                <div class="review-check-row">
+                    <label class="review-check">
+                        <input type="checkbox"
+                               name="RequiresCorrection"
+                               value="true"
+                        @(Model.RequiresCorrection ? "checked" : "") />
+                        Requires Correction
+                    </label>
+                    <input type="hidden" name="RequiresCorrection" value="false" />
+
+                    <label class="review-check">
+                        <input type="checkbox"
+                               name="RequiresInspection"
+                               value="true"
+                        @(Model.RequiresInspection ? "checked" : "") />
+                        Requires Inspection
+                    </label>
+                    <input type="hidden" name="RequiresInspection" value="false" />
+                </div>
+            </div>
+
+            <div>
+                <label class="fw-bold mb-1">Valuer Comment</label>
+                <textarea name="SectionComment"
+                          class="review-comment"
+                          placeholder="Enter your review comment for this section...">@Model.SectionComment</textarea>
+            </div>
+        </div>
+
+        <button type="submit" class="review-save">
+            Save This Section
+        </button>
+    </form>
+</div>

@@ -1,6 +1,7 @@
 ﻿using AIVS.Data;
 using AIVS.Models.Attributes;
 using AIVS.Models.ViewModels.SectorInbox;
+using AIVS.Models.ViewModels.ValuerInbox;
 using AIVS.Services.Interface;
 using Microsoft.EntityFrameworkCore;
 
@@ -329,5 +330,6 @@ namespace AIVS.Services.Implementations
 
             return result;
         }
+     
     }
 }

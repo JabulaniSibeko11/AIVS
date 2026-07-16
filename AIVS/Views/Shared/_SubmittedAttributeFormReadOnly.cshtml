@@ -1,0 +1,650 @@
+﻿@model AIVS.Models.ViewModels.ValuerInbox.ValuerReviewPageVm
+@using Microsoft.AspNetCore.Mvc.ViewFeatures
+
+@{
+    var form = Model.SubmittedForm!;
+
+    bool isRes = form.FormType == "Residential";
+    bool isSt = form.FormType == "ResidentialST";
+    bool isBus = form.FormType == "BusinessCommercial";
+    bool isDrc = form.FormType == "DRCMethod";
+
+    string formLabel = form.FormType switch
+    {
+        "Residential" => "Residential",
+        "ResidentialST" => "Residential — Sectional Title",
+        "BusinessCommercial" => "Non-Residential / Business and Commercial",
+        "DRCMethod" => "DRC Method",
+        _ => "Attribute Submission"
+    };
+}
+
+<style>
+    .sub-card {
+        background: #ffffff;
+        border: 1px solid #dedede;
+        border-radius: 10px;
+        margin-bottom: 16px;
+        overflow: hidden;
+    }
+
+    .sub-head {
+        background: #111111;
+        color: #ffffff;
+        padding: 12px 16px;
+        font-weight: 900;
+    }
+
+        .sub-head span {
+            color: #e6b000;
+        }
+
+    .sub-body {
+        padding: 14px;
+    }
+
+    .sub-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+        .sub-table td {
+            border: 1px solid #e6e6e6;
+            padding: 9px 10px;
+            font-size: 13px;
+            vertical-align: top;
+        }
+
+    .sub-label {
+        background: #f7f7f7;
+        font-weight: 900;
+        width: 18%;
+        color: #333333;
+    }
+
+    .sub-value {
+        background: #ffffff;
+        color: #111111;
+        font-weight: 600;
+    }
+
+    .sub-empty {
+        color: #999999;
+        font-style: italic;
+        font-weight: 500;
+    }
+
+    .sub-section-title {
+        font-weight: 900;
+        margin: 16px 0 8px;
+        color: #111111;
+    }
+</style>
+
+<div class="sub-card">
+    <div class="sub-head">
+        Submitted Form: <span>@formLabel</span>
+    </div>
+
+    <div class="sub-body">
+        <table class="sub-table">
+            <tr>
+                <td class="sub-label">Reference No</td>
+                <td class="sub-value">@Display(form.AttrNo)</td>
+
+                <td class="sub-label">Form Type</td>
+                <td class="sub-value">@Display(formLabel)</td>
+            </tr>
+
+            <tr>
+                <td class="sub-label">Property Description</td>
+                <td class="sub-value" colspan="3">@Display(form.PropertyDetails?.PropertyDesc)</td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+<div class="sub-card">
+    <div class="sub-head">Section 1: <span>Property Details</span></div>
+
+    <div class="sub-body">
+        <table class="sub-table">
+            <tr>
+                <td class="sub-label">H Area</td>
+                <td class="sub-value">@Display(form.PropertyDetails?.HArea)</td>
+
+                <td class="sub-label">Data Controller</td>
+                <td class="sub-value">@Display(form.PropertyDetails?.DataController)</td>
+            </tr>
+
+            <tr>
+                <td class="sub-label">Collection Block</td>
+                <td class="sub-value">@Display(form.PropertyDetails?.CollectionBlock)</td>
+
+                <td class="sub-label">Data Collector</td>
+                <td class="sub-value">@Display(form.PropertyDetails?.DataCollector)</td>
+            </tr>
+
+            <tr>
+                <td class="sub-label">SG Number</td>
+                <td class="sub-value">@Display(form.PropertyDetails?.SGNumber)</td>
+
+                <td class="sub-label">Centroid</td>
+                <td class="sub-value">@Display(form.PropertyDetails?.Centroid)</td>
+            </tr>
+
+            <tr>
+                <td class="sub-label">Erf</td>
+                <td class="sub-value">@Display(form.PropertyDetails?.Erf)</td>
+
+                <td class="sub-label">Extent</td>
+                <td class="sub-value">@Display(form.PropertyDetails?.Extent)</td>
+            </tr>
+
+            <tr>
+                <td class="sub-label">Sectional Title</td>
+                <td class="sub-value">@Display(form.PropertyDetails?.SectionalTitle)</td>
+
+                <td class="sub-label">Land Use Financials</td>
+                <td class="sub-value">@Display(form.PropertyDetails?.LandUseFinancials)</td>
+            </tr>
+
+            <tr>
+                <td class="sub-label">Municipality</td>
+                <td class="sub-value">@Display(form.PropertyDetails?.Municipality)</td>
+
+                <td class="sub-label">Ward</td>
+                <td class="sub-value">@Display(form.PropertyDetails?.Ward)</td>
+            </tr>
+
+            <tr>
+                <td class="sub-label">Township</td>
+                <td class="sub-value">@Display(form.PropertyDetails?.Township)</td>
+
+                <td class="sub-label">Zoning</td>
+                <td class="sub-value">@Display(form.PropertyDetails?.Zoning)</td>
+            </tr>
+
+            <tr>
+                <td class="sub-label">Sources</td>
+                <td class="sub-value">@Display(form.PropertyDetails?.Sources)</td>
+
+                <td class="sub-label">Address</td>
+                <td class="sub-value">@Display(form.PropertyDetails?.Address)</td>
+            </tr>
+        </table>
+
+        @await RenderReviewPanel("PROPERTY_DETAILS")
+
+        <div class="sub-section-title">Valuation Details</div>
+
+        <table class="sub-table">
+            <tr>
+                <td class="sub-label">Valuation Category on Roll</td>
+                <td class="sub-value">@Display(form.ValuationDetails?.ValuationCategoryOnRoll)</td>
+
+                <td class="sub-label">Actual Use</td>
+                <td class="sub-value">@Display(form.ValuationDetails?.ActualUse)</td>
+            </tr>
+
+            <tr>
+                <td class="sub-label">Mixed Use</td>
+                <td class="sub-value">@Display(form.ValuationDetails?.IsMixedUse == true ? "Yes" : "No")</td>
+
+                <td class="sub-label">Alternate Usages</td>
+                <td class="sub-value">@Display(form.ValuationDetails?.AlternateUsages)</td>
+            </tr>
+        </table>
+
+        @await RenderReviewPanel("VALUATION_DETAILS")
+    </div>
+</div>
+
+<div class="sub-card">
+    <div class="sub-head">Section 2: <span>Contact Information</span></div>
+
+    <div class="sub-body">
+        @if (form.ContactInfos == null || !form.ContactInfos.Any())
+        {
+            <div class="sub-empty">No contact information submitted.</div>
+        }
+        else
+        {
+            @for (int i = 0; i < form.ContactInfos.Count; i++)
+            {
+                var c = form.ContactInfos[i];
+
+                <div class="sub-section-title">Contact @(i + 1)</div>
+
+                <table class="sub-table">
+                    <tr>
+                        <td class="sub-label">Contact Type</td>
+                        <td class="sub-value">@Display(c.ContactType)</td>
+
+                        <td class="sub-label">Is Company</td>
+                        <td class="sub-value">@Display(c.IsCompany ? "Yes" : "No")</td>
+                    </tr>
+
+                    <tr>
+                        <td class="sub-label">First Names</td>
+                        <td class="sub-value">@Display(c.FirstNames)</td>
+
+                        <td class="sub-label">Last Name</td>
+                        <td class="sub-value">@Display(c.LastName)</td>
+                    </tr>
+
+                    <tr>
+                        <td class="sub-label">Company Name</td>
+                        <td class="sub-value">@Display(c.CompanyName)</td>
+
+                        <td class="sub-label">Registration No.</td>
+                        <td class="sub-value">@Display(c.CompanyRegistrationNumber)</td>
+                    </tr>
+
+                    <tr>
+                        <td class="sub-label">Physical Address</td>
+                        <td class="sub-value" colspan="3">@Display(c.PhysicalAddress)</td>
+                    </tr>
+
+                    <tr>
+                        <td class="sub-label">Postal Address</td>
+                        <td class="sub-value" colspan="3">@Display(c.PostalAddress)</td>
+                    </tr>
+
+                    <tr>
+                        <td class="sub-label">Email</td>
+                        <td class="sub-value">@Display(c.Email)</td>
+
+                        <td class="sub-label">Cell No</td>
+                        <td class="sub-value">@Display(c.CellNo)</td>
+                    </tr>
+
+                    <tr>
+                        <td class="sub-label">Home Phone</td>
+                        <td class="sub-value">@Display(c.HomePhoneNo)</td>
+
+                        <td class="sub-label">Work Phone</td>
+                        <td class="sub-value">@Display(c.WorkPhoneNo)</td>
+                    </tr>
+                </table>
+            }
+        }
+
+        @await RenderReviewPanel("CONTACT_INFORMATION")
+    </div>
+</div>
+
+@if (isRes || isSt)
+{
+    <div class="sub-card">
+        <div class="sub-head">
+            Section 3:
+            <span>@(isSt ? "Sectional Title Residential Attributes" : "Residential Attributes")</span>
+        </div>
+
+        <div class="sub-body">
+            <div class="sub-section-title">Primary Attributes</div>
+
+            <table class="sub-table">
+                @if (isRes)
+                {
+                    <tr>
+                        <td class="sub-label">TLA 1</td>
+                        <td class="sub-value">@Display(form.PrimaryAttributes?.Tla1)</td>
+
+                        <td class="sub-label">TLA 2</td>
+                        <td class="sub-value">@Display(form.PrimaryAttributes?.Tla2)</td>
+                    </tr>
+
+                    <tr>
+                        <td class="sub-label">TLA 3</td>
+                        <td class="sub-value">@Display(form.PrimaryAttributes?.Tla3)</td>
+
+                        <td class="sub-label">Garage</td>
+                        <td class="sub-value">@Display(form.PrimaryAttributes?.Garage)</td>
+                    </tr>
+
+                    <tr>
+                        <td class="sub-label">Carport</td>
+                        <td class="sub-value">@Display(form.PrimaryAttributes?.CarportCp)</td>
+
+                        <td class="sub-label">Granny Flat</td>
+                        <td class="sub-value">@Display(form.PrimaryAttributes?.GrannyFlatGf)</td>
+                    </tr>
+
+                    <tr>
+                        <td class="sub-label">Staff Quarters</td>
+                        <td class="sub-value">@Display(form.PrimaryAttributes?.StaffQuartersSq)</td>
+
+                        <td class="sub-label">Storage</td>
+                        <td class="sub-value">@Display(form.PrimaryAttributes?.Storage)</td>
+                    </tr>
+                }
+
+                @if (isSt)
+                {
+                    <tr>
+                        <td class="sub-label">ST Main</td>
+                        <td class="sub-value">@Display(form.PrimaryAttributes?.STMain)</td>
+
+                        <td class="sub-label">Garage</td>
+                        <td class="sub-value">@Display(form.PrimaryAttributes?.Garage)</td>
+                    </tr>
+
+                    <tr>
+                        <td class="sub-label">Carport</td>
+                        <td class="sub-value">@Display(form.PrimaryAttributes?.CarportCp)</td>
+
+                        <td class="sub-label">Storage</td>
+                        <td class="sub-value">@Display(form.PrimaryAttributes?.Storage)</td>
+                    </tr>
+                }
+            </table>
+
+            @await RenderReviewPanel("PRIMARY_ATTRIBUTES")
+
+            <div class="sub-section-title">Secondary Attributes</div>
+
+            <table class="sub-table">
+                <tr>
+                    <td class="sub-label">Storeys</td>
+                    <td class="sub-value">@Display(form.SecondaryAttributes?.Storeys)</td>
+
+                    <td class="sub-label">Security</td>
+                    <td class="sub-value">@Display(form.SecondaryAttributes?.Security)</td>
+                </tr>
+
+                <tr>
+                    <td class="sub-label">Noise</td>
+                    <td class="sub-value">@Display(form.SecondaryAttributes?.Noise)</td>
+
+                    <td class="sub-label">Topography</td>
+                    <td class="sub-value">@Display(form.SecondaryAttributes?.Topography)</td>
+                </tr>
+
+                <tr>
+                    <td class="sub-label">Quality</td>
+                    <td class="sub-value">@Display(form.SecondaryAttributes?.Quality)</td>
+
+                    <td class="sub-label">Condition</td>
+                    <td class="sub-value">@Display(form.SecondaryAttributes?.Condition)</td>
+                </tr>
+
+                <tr>
+                    <td class="sub-label">Swimming Pool</td>
+                    <td class="sub-value">@Display(form.SecondaryAttributes?.SwimmingPool == true ? "Yes" : "No")</td>
+
+                    <td class="sub-label">Tennis Court</td>
+                    <td class="sub-value">@Display(form.SecondaryAttributes?.TennisCourt == true ? "Yes" : "No")</td>
+                </tr>
+
+                @if (isSt)
+                {
+                    <tr>
+                        <td class="sub-label">ST Condition</td>
+                        <td class="sub-value">@Display(form.SecondaryAttributes?.STCondition)</td>
+
+                        <td class="sub-label">ST Floor</td>
+                        <td class="sub-value">@Display(form.SecondaryAttributes?.STFloor)</td>
+                    </tr>
+                }
+            </table>
+
+            @await RenderReviewPanel("SECONDARY_ATTRIBUTES")
+        </div>
+    </div>
+}
+
+@if (isBus)
+{
+    <div class="sub-card">
+        <div class="sub-head">Section 3: <span>Non-Residential Buildings & Sections</span></div>
+
+        <div class="sub-body">
+            <div class="sub-section-title">Buildings</div>
+
+            @if (form.BusinessBuildings == null || !form.BusinessBuildings.Any())
+            {
+                <div class="sub-empty">No business building details submitted.</div>
+            }
+            else
+            {
+                <table class="sub-table">
+                    <tr>
+                        <td class="sub-label">Building Nr</td>
+                        <td class="sub-label">Quality</td>
+                        <td class="sub-label">Condition</td>
+                        <td class="sub-label">Year Built</td>
+                        <td class="sub-label">Storeys</td>
+                        <td class="sub-label">GBA</td>
+                    </tr>
+
+                    @foreach (var b in form.BusinessBuildings)
+                    {
+                        <tr>
+                            <td class="sub-value">@Display(b.BuildingNr)</td>
+                            <td class="sub-value">@Display(b.Quality)</td>
+                            <td class="sub-value">@Display(b.Condition)</td>
+                            <td class="sub-value">@Display(b.YearBuilt)</td>
+                            <td class="sub-value">@Display(b.Storeys)</td>
+                            <td class="sub-value">@Display(b.GBA)</td>
+                        </tr>
+                    }
+                </table>
+            }
+
+            @await RenderReviewPanel("BUSINESS_BUILDINGS")
+
+            <div class="sub-section-title">Sections</div>
+
+            @if (form.BusinessSections == null || !form.BusinessSections.Any())
+            {
+                <div class="sub-empty">No business section details submitted.</div>
+            }
+            else
+            {
+                <table class="sub-table">
+                    <tr>
+                        <td class="sub-label">Building Nr</td>
+                        <td class="sub-label">Usage</td>
+                        <td class="sub-label">GBA</td>
+                        <td class="sub-label">NLA</td>
+                        <td class="sub-label">Rental</td>
+                    </tr>
+
+                    @foreach (var s in form.BusinessSections)
+                    {
+                        <tr>
+                            <td class="sub-value">@Display(s.BuildingNr)</td>
+                            <td class="sub-value">@Display(s.Usage)</td>
+                            <td class="sub-value">@Display(s.GBA)</td>
+                            <td class="sub-value">@Display(s.NLA)</td>
+                            <td class="sub-value">@Display(s.Rental)</td>
+                        </tr>
+                    }
+                </table>
+            }
+
+            @await RenderReviewPanel("BUSINESS_SECTIONS")
+
+            <div class="sub-section-title">General</div>
+
+            <table class="sub-table">
+                <tr>
+                    <td class="sub-label">Unutilised Land Extent</td>
+                    <td class="sub-value">@Display(form.BusinessGeneral?.UnutilisedLandExtent)</td>
+
+                    <td class="sub-label">Unutilised Land Rate</td>
+                    <td class="sub-value">@Display(form.BusinessGeneral?.UnutilisedLandRate)</td>
+                </tr>
+            </table>
+
+            @await RenderReviewPanel("BUSINESS_GENERAL")
+        </div>
+    </div>
+}
+
+@if (isDrc)
+{
+    <div class="sub-card">
+        <div class="sub-head">Section 3: <span>DRC Method — Buildings & Land</span></div>
+
+        <div class="sub-body">
+            <div class="sub-section-title">Buildings</div>
+
+            @if (form.DrcBuildings == null || !form.DrcBuildings.Any())
+            {
+                <div class="sub-empty">No DRC building details submitted.</div>
+            }
+            else
+            {
+                <table class="sub-table">
+                    <tr>
+                        <td class="sub-label">Building Description</td>
+                        <td class="sub-label">Quality</td>
+                        <td class="sub-label">GBA</td>
+                        <td class="sub-label">Condition</td>
+                    </tr>
+
+                    @foreach (var b in form.DrcBuildings)
+                    {
+                        <tr>
+                            <td class="sub-value">@Display(b.BuildingDescription)</td>
+                            <td class="sub-value">@Display(b.Quality)</td>
+                            <td class="sub-value">@Display(b.GrossBuildingArea)</td>
+                            <td class="sub-value">@Display(b.Condition)</td>
+                        </tr>
+                    }
+                </table>
+            }
+
+            @await RenderReviewPanel("DRC_BUILDINGS")
+
+            <div class="sub-section-title">Improvements</div>
+
+            @if (form.DrcImprovements == null || !form.DrcImprovements.Any())
+            {
+                <div class="sub-empty">No DRC improvement details submitted.</div>
+            }
+            else
+            {
+                <table class="sub-table">
+                    <tr>
+                        <td class="sub-label">Improvement Description</td>
+                        <td class="sub-label">Quality</td>
+                        <td class="sub-label">Area / Unit</td>
+                        <td class="sub-label">Condition</td>
+                    </tr>
+
+                    @foreach (var i in form.DrcImprovements)
+                    {
+                        <tr>
+                            <td class="sub-value">@Display(i.ImprovementDescription)</td>
+                            <td class="sub-value">@Display(i.Quality)</td>
+                            <td class="sub-value">@Display(i.AreaUnit)</td>
+                            <td class="sub-value">@Display(i.Condition)</td>
+                        </tr>
+                    }
+                </table>
+            }
+
+            @await RenderReviewPanel("DRC_IMPROVEMENTS")
+
+            <div class="sub-section-title">Vacant Land</div>
+
+            @if (form.DrcVacantLands == null || !form.DrcVacantLands.Any())
+            {
+                <div class="sub-empty">No DRC vacant land details submitted.</div>
+            }
+            else
+            {
+                <table class="sub-table">
+                    <tr>
+                        <td class="sub-label">Region</td>
+                        <td class="sub-label">Area</td>
+                        <td class="sub-label">Rate</td>
+                        <td class="sub-label">Vacant Land Cost</td>
+                    </tr>
+
+                    @foreach (var v in form.DrcVacantLands)
+                    {
+                        <tr>
+                            <td class="sub-value">@Display(v.Region)</td>
+                            <td class="sub-value">@Display(v.Area)</td>
+                            <td class="sub-value">@Display(v.Rate)</td>
+                            <td class="sub-value">@Display(v.VacantLandCost)</td>
+                        </tr>
+                    }
+                </table>
+            }
+
+            @await RenderReviewPanel("DRC_VACANT_LAND")
+        </div>
+    </div>
+}
+
+<div class="sub-card">
+    <div class="sub-head">Section 4: <span>Additional Comments</span></div>
+
+    <div class="sub-body">
+        @Display(form.ClientComment)
+
+        @await RenderReviewPanel("ADDITIONAL_COMMENTS")
+    </div>
+</div>
+
+<div class="sub-card">
+    <div class="sub-head">Section 5: <span>Declaration</span></div>
+
+    <div class="sub-body">
+        <table class="sub-table">
+            <tr>
+                <td class="sub-label">Declaration Accepted</td>
+                <td class="sub-value">@Display(form.Declaration?.DeclarationAccepted == true ? "Yes" : "No")</td>
+
+                <td class="sub-label">Signature Name</td>
+                <td class="sub-value">@Display(form.Declaration?.SignatureName)</td>
+            </tr>
+        </table>
+
+        @await RenderReviewPanel("DECLARATION")
+    </div>
+</div>
+
+@functions {
+    private Microsoft.AspNetCore.Html.IHtmlContent Display(object? value)
+    {
+        var text = value?.ToString();
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return new Microsoft.AspNetCore.Html.HtmlString("<span class='sub-empty'>Not supplied</span>");
+        }
+
+        return new Microsoft.AspNetCore.Html.HtmlString(System.Net.WebUtility.HtmlEncode(text));
+    }
+
+    private AIVS.Models.ViewModels.ValuerInbox.ValuerReviewSectionVm? GetReviewSection(string sectionCode)
+    {
+        return Model.Sections.FirstOrDefault(x =>
+            string.Equals(x.SectionCode, sectionCode, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private async Task<Microsoft.AspNetCore.Html.IHtmlContent> RenderReviewPanel(string sectionCode)
+    {
+        var section = GetReviewSection(sectionCode);
+
+        if (section == null)
+        {
+            return Microsoft.AspNetCore.Html.HtmlString.Empty;
+        }
+
+        var viewData = new ViewDataDictionary(ViewData)
+        {
+            ["AttrId"] = Model.AttrId,
+            ["ReviewId"] = Model.ReviewId
+        };
+
+        return await Html.PartialAsync("_SectionReviewPanel", section, viewData);
+    }
+}

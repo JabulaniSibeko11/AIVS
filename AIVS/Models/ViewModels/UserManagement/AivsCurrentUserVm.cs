@@ -35,5 +35,7 @@
         public string? CellNumber { get; set; }
 
         public string? AccessMessage { get; set; }
+
+        public string? SapNumber { get; set; }
     }
 }

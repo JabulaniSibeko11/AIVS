@@ -42,7 +42,13 @@ namespace AIVS.Data
 
         public DbSet<AttrValuerAssignment> AttrValuerAssignments { get; set; } = null!;
 
+        public DbSet<AttrValuerReview> AttrValuerReviews { get; set; } = null!;
+        public DbSet<AttrValuerReviewSection> AttrValuerReviewSections { get; set; } = null!;
 
+        public DbSet<AttrInspectionRequest> AttrInspectionRequests { get; set; } = null!;
+        public DbSet<AttrInspectionRequestSlot> AttrInspectionRequestSlots { get; set; } = null!;
+
+        public DbSet<AttrValuerInspectionDetail> AttrValuerInspectionDetails { get; set; } = null!;
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -90,6 +96,154 @@ namespace AIVS.Data
                 entity.Property(e => e.ReleasedByUserId).HasColumnName("ReleasedByUserId");
                 entity.Property(e => e.ReleaseReason).HasColumnName("ReleaseReason");
 
+                entity.Property(e => e.CreatedBy).HasColumnName("CreatedBy");
+                entity.Property(e => e.CreatedDate).HasColumnName("CreatedDate");
+                entity.Property(e => e.UpdatedBy).HasColumnName("UpdatedBy");
+                entity.Property(e => e.UpdatedDate).HasColumnName("UpdatedDate");
+            });
+            modelBuilder.Entity<AttrValuerReview>(entity =>
+            {
+                entity.ToTable("AttrValuerReviews", "dbo");
+
+                entity.HasKey(e => e.Id);
+
+                entity.Property(e => e.Id).HasColumnName("Id");
+                entity.Property(e => e.Attr_ID).HasColumnName("Attr_ID");
+                entity.Property(e => e.Attr_No).HasColumnName("Attr_No");
+                entity.Property(e => e.AssignmentId).HasColumnName("AssignmentId");
+
+                entity.Property(e => e.ReviewerUserId).HasColumnName("ReviewerUserId");
+                entity.Property(e => e.ReviewerUsername).HasColumnName("ReviewerUsername");
+                entity.Property(e => e.ReviewerName).HasColumnName("ReviewerName");
+                entity.Property(e => e.ReviewerEmail).HasColumnName("ReviewerEmail");
+                entity.Property(e => e.ReviewerRole).HasColumnName("ReviewerRole");
+
+                entity.Property(e => e.ReviewStatus).HasColumnName("ReviewStatus");
+                entity.Property(e => e.StartedAt).HasColumnName("StartedAt");
+                entity.Property(e => e.CompletedAt).HasColumnName("CompletedAt");
+
+                entity.Property(e => e.FinalDecision).HasColumnName("FinalDecision");
+                entity.Property(e => e.FinalComment).HasColumnName("FinalComment");
+
+                entity.Property(e => e.RequiresInspection).HasColumnName("RequiresInspection");
+                entity.Property(e => e.ReturnToClient).HasColumnName("ReturnToClient");
+                entity.Property(e => e.ReadyForOvvioExtract).HasColumnName("ReadyForOvvioExtract");
+
+                entity.Property(e => e.CreatedBy).HasColumnName("CreatedBy");
+                entity.Property(e => e.CreatedDate).HasColumnName("CreatedDate");
+                entity.Property(e => e.UpdatedBy).HasColumnName("UpdatedBy");
+                entity.Property(e => e.UpdatedDate).HasColumnName("UpdatedDate");
+            });
+
+            modelBuilder.Entity<AttrValuerReviewSection>(entity =>
+            {
+                entity.ToTable("AttrValuerReviewSections", "dbo");
+
+                entity.HasKey(e => e.Id);
+
+                entity.Property(e => e.Id).HasColumnName("Id");
+                entity.Property(e => e.ReviewId).HasColumnName("ReviewId");
+                entity.Property(e => e.Attr_ID).HasColumnName("Attr_ID");
+                entity.Property(e => e.Attr_No).HasColumnName("Attr_No");
+
+                entity.Property(e => e.SectionCode).HasColumnName("SectionCode");
+                entity.Property(e => e.SectionName).HasColumnName("SectionName");
+
+                entity.Property(e => e.SectionDecision).HasColumnName("SectionDecision");
+                entity.Property(e => e.SectionComment).HasColumnName("SectionComment");
+
+                entity.Property(e => e.RequiresCorrection).HasColumnName("RequiresCorrection");
+                entity.Property(e => e.RequiresInspection).HasColumnName("RequiresInspection");
+
+                entity.Property(e => e.ReviewedByUserId).HasColumnName("ReviewedByUserId");
+                entity.Property(e => e.ReviewedByName).HasColumnName("ReviewedByName");
+                entity.Property(e => e.ReviewedAt).HasColumnName("ReviewedAt");
+
+                entity.Property(e => e.CreatedBy).HasColumnName("CreatedBy");
+                entity.Property(e => e.CreatedDate).HasColumnName("CreatedDate");
+                entity.Property(e => e.UpdatedBy).HasColumnName("UpdatedBy");
+                entity.Property(e => e.UpdatedDate).HasColumnName("UpdatedDate");
+            });
+            modelBuilder.Entity<AttrInspectionRequest>(entity =>
+            {
+                entity.ToTable("AttrInspectionRequests", "dbo");
+                entity.HasKey(e => e.Id);
+
+                entity.Property(e => e.Id).HasColumnName("Id");
+                entity.Property(e => e.Attr_ID).HasColumnName("Attr_ID");
+                entity.Property(e => e.Attr_No).HasColumnName("Attr_No");
+                entity.Property(e => e.ReviewId).HasColumnName("ReviewId");
+
+                entity.Property(e => e.RequestedByUserId).HasColumnName("RequestedByUserId");
+                entity.Property(e => e.RequestedByUsername).HasColumnName("RequestedByUsername");
+                entity.Property(e => e.RequestedByName).HasColumnName("RequestedByName");
+                entity.Property(e => e.RequestedByEmail).HasColumnName("RequestedByEmail");
+
+                entity.Property(e => e.ClientName).HasColumnName("ClientName");
+                entity.Property(e => e.ClientEmail).HasColumnName("ClientEmail");
+                entity.Property(e => e.ClientCellNo).HasColumnName("ClientCellNo");
+
+                entity.Property(e => e.Status).HasColumnName("Status");
+                entity.Property(e => e.ClientResponseChannel).HasColumnName("ClientResponseChannel");
+                entity.Property(e => e.ClientResponseComment).HasColumnName("ClientResponseComment");
+                entity.Property(e => e.ClientRespondedAt).HasColumnName("ClientRespondedAt");
+
+                entity.Property(e => e.ConfirmedSlotId).HasColumnName("ConfirmedSlotId");
+                entity.Property(e => e.ConfirmedDateTime).HasColumnName("ConfirmedDateTime");
+
+                entity.Property(e => e.RequestComment).HasColumnName("RequestComment");
+                entity.Property(e => e.EmailToken).HasColumnName("EmailToken");
+                entity.Property(e => e.EmailTokenExpiresAt).HasColumnName("EmailTokenExpiresAt");
+
+                entity.Property(e => e.CreatedBy).HasColumnName("CreatedBy");
+                entity.Property(e => e.CreatedDate).HasColumnName("CreatedDate");
+                entity.Property(e => e.UpdatedBy).HasColumnName("UpdatedBy");
+                entity.Property(e => e.UpdatedDate).HasColumnName("UpdatedDate");
+
+                entity.Property(e => e.InspectionPin).HasColumnName("InspectionPin");
+                entity.Property(e => e.InspectionPinGeneratedAt).HasColumnName("InspectionPinGeneratedAt");
+                entity.Property(e => e.ValuerDetailsSent).HasColumnName("ValuerDetailsSent");
+                entity.Property(e => e.ValuerDetailsSentAt).HasColumnName("ValuerDetailsSentAt");
+                entity.Property(e => e.ValuerDetailsSentByUserId).HasColumnName("ValuerDetailsSentByUserId");
+                entity.Property(e => e.ValuerDetailsSentByName).HasColumnName("ValuerDetailsSentByName");
+
+                entity.HasMany(e => e.Slots)
+                    .WithOne(e => e.InspectionRequest)
+                    .HasForeignKey(e => e.InspectionRequestId);
+            });
+
+            modelBuilder.Entity<AttrInspectionRequestSlot>(entity =>
+            {
+                entity.ToTable("AttrInspectionRequestSlots", "dbo");
+                entity.HasKey(e => e.Id);
+
+                entity.Property(e => e.Id).HasColumnName("Id");
+                entity.Property(e => e.InspectionRequestId).HasColumnName("InspectionRequestId");
+                entity.Property(e => e.Attr_ID).HasColumnName("Attr_ID");
+                entity.Property(e => e.Attr_No).HasColumnName("Attr_No");
+                entity.Property(e => e.SlotNo).HasColumnName("SlotNo");
+                entity.Property(e => e.ProposedDateTime).HasColumnName("ProposedDateTime");
+                entity.Property(e => e.SlotStatus).HasColumnName("SlotStatus");
+                entity.Property(e => e.CreatedBy).HasColumnName("CreatedBy");
+                entity.Property(e => e.CreatedDate).HasColumnName("CreatedDate");
+            });
+
+            modelBuilder.Entity<AttrValuerInspectionDetail>(entity =>
+            {
+                entity.ToTable("AttrValuerInspectionDetails", "dbo");
+                entity.HasKey(e => e.Id);
+
+                entity.Property(e => e.Id).HasColumnName("Id");
+                entity.Property(e => e.SapNumber).HasColumnName("SapNumber");
+                entity.Property(e => e.ValuerName).HasColumnName("ValuerName");
+                entity.Property(e => e.EmailAddress).HasColumnName("EmailAddress");
+                entity.Property(e => e.CellNumber).HasColumnName("CellNumber");
+                entity.Property(e => e.VehicleRegistration).HasColumnName("VehicleRegistration");
+                entity.Property(e => e.VehicleMake).HasColumnName("VehicleMake");
+                entity.Property(e => e.VehicleColour).HasColumnName("VehicleColour");
+                entity.Property(e => e.PhotoFileName).HasColumnName("PhotoFileName");
+                entity.Property(e => e.PhotoPath).HasColumnName("PhotoPath");
+                entity.Property(e => e.IsActive).HasColumnName("IsActive");
                 entity.Property(e => e.CreatedBy).HasColumnName("CreatedBy");
                 entity.Property(e => e.CreatedDate).HasColumnName("CreatedDate");
                 entity.Property(e => e.UpdatedBy).HasColumnName("UpdatedBy");
