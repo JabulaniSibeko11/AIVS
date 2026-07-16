@@ -40,6 +40,9 @@ namespace AIVS.Data
 
         public DbSet<Sector> Sectors { get; set; } = null!;
 
+        public DbSet<AttrValuerAssignment> AttrValuerAssignments { get; set; } = null!;
+
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -55,6 +58,42 @@ namespace AIVS.Data
 
                 entity.Property(e => e.SECTOR)
                     .HasColumnName("SECTOR");
+            });
+            modelBuilder.Entity<AttrValuerAssignment>(entity =>
+            {
+                entity.ToTable("AttrValuerAssignments", "dbo");
+
+                entity.HasKey(e => e.Id);
+
+                entity.Property(e => e.Id).HasColumnName("Id");
+                entity.Property(e => e.Attr_ID).HasColumnName("Attr_ID");
+                entity.Property(e => e.Attr_No).HasColumnName("Attr_No");
+
+                entity.Property(e => e.AssignedToUserId).HasColumnName("AssignedToUserId");
+                entity.Property(e => e.AssignedToUsername).HasColumnName("AssignedToUsername");
+                entity.Property(e => e.AssignedToName).HasColumnName("AssignedToName");
+                entity.Property(e => e.AssignedToEmail).HasColumnName("AssignedToEmail");
+                entity.Property(e => e.AssignedToRole).HasColumnName("AssignedToRole");
+
+                entity.Property(e => e.AssignedSector).HasColumnName("AssignedSector");
+
+                entity.Property(e => e.AssignmentType).HasColumnName("AssignmentType");
+                entity.Property(e => e.AssignmentStatus).HasColumnName("AssignmentStatus");
+
+                entity.Property(e => e.AssignedByUserId).HasColumnName("AssignedByUserId");
+                entity.Property(e => e.AssignedByUsername).HasColumnName("AssignedByUsername");
+                entity.Property(e => e.AssignedByName).HasColumnName("AssignedByName");
+
+                entity.Property(e => e.AssignedAt).HasColumnName("AssignedAt");
+
+                entity.Property(e => e.ReleasedAt).HasColumnName("ReleasedAt");
+                entity.Property(e => e.ReleasedByUserId).HasColumnName("ReleasedByUserId");
+                entity.Property(e => e.ReleaseReason).HasColumnName("ReleaseReason");
+
+                entity.Property(e => e.CreatedBy).HasColumnName("CreatedBy");
+                entity.Property(e => e.CreatedDate).HasColumnName("CreatedDate");
+                entity.Property(e => e.UpdatedBy).HasColumnName("UpdatedBy");
+                entity.Property(e => e.UpdatedDate).HasColumnName("UpdatedDate");
             });
         }
     }

@@ -8,9 +8,11 @@
         ? currentUser.FullName
         : User.Identity?.Name ?? "Unknown User";
 
-    var position = currentUser.HasAccess && !string.IsNullOrWhiteSpace(currentUser.Role)
-        ? currentUser.Role
-        : "Access not verified";
+    var position = currentUser.HasAccess && !string.IsNullOrWhiteSpace(currentUser.Position)
+        ? currentUser.Position
+        : currentUser.HasAccess && !string.IsNullOrWhiteSpace(currentUser.Role)
+            ? currentUser.Role
+            : "Access not verified";
 
     var accessMessage = currentUser.AccessMessage ?? "";
 }

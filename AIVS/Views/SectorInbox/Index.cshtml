@@ -1,0 +1,510 @@
+﻿@model AIVS.Models.ViewModels.SectorInbox.SectorInboxPageVm
+
+@{
+    ViewData["Title"] = "Sector Inbox";
+}
+
+<style>
+    .si-page {
+        padding: 8px 4px 30px;
+    }
+
+    .si-header {
+        background: #ffffff;
+        border: 1px solid #e3e3e3;
+        border-left: 6px solid #e6b000;
+        border-radius: 8px;
+        padding: 18px 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,.04);
+    }
+
+    .si-title {
+        margin: 0;
+        font-weight: 900;
+        color: #111111;
+        font-size: 26px;
+    }
+
+    .si-subtitle {
+        margin-top: 4px;
+        color: #666666;
+        font-size: 14px;
+    }
+
+    .si-tiles {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        gap: 14px;
+        margin-bottom: 22px;
+    }
+
+    .si-tile {
+        display: block;
+        text-decoration: none;
+        background: #ffffff;
+        border: 1px solid #dedede;
+        border-radius: 10px;
+        padding: 18px 18px;
+        color: #111111;
+        box-shadow: 0 2px 8px rgba(0,0,0,.05);
+        transition: .15s ease-in-out;
+    }
+
+        .si-tile:hover {
+            transform: translateY(-2px);
+            border-color: #e6b000;
+            box-shadow: 0 5px 14px rgba(0,0,0,.10);
+            color: #111111;
+        }
+
+        .si-tile.active {
+            border: 2px solid #000000;
+            background: #fff8df;
+        }
+
+    .si-tile-name {
+        font-size: 18px;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .si-tile-count {
+        margin-top: 10px;
+        font-size: 34px;
+        font-weight: 900;
+        color: #000000;
+    }
+
+    .si-tile-label {
+        color: #666666;
+        font-weight: 700;
+        font-size: 13px;
+    }
+
+    .si-table-card {
+        background: #ffffff;
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,.05);
+    }
+
+    .si-table-title {
+        background: #111111;
+        color: #ffffff;
+        padding: 14px 18px;
+        font-weight: 900;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+        .si-table-title span {
+            color: #e6b000;
+        }
+
+    .si-actions-panel {
+        padding: 14px;
+        border-bottom: 1px solid #e5e5e5;
+        background: #fffdf4;
+    }
+
+    .si-action-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .si-bulk-text {
+        font-weight: 800;
+        color: #333333;
+    }
+
+    .si-manager-form {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid #eadb9a;
+    }
+
+    .si-manager-label {
+        font-weight: 900;
+        color: #111111;
+    }
+
+    .si-manager-select {
+        min-width: 280px;
+        max-width: 420px;
+        height: 38px;
+        border: 1px solid #cfcfcf;
+        border-radius: 7px;
+        padding: 6px 10px;
+        font-weight: 700;
+    }
+
+    .si-btn-bulk-assign {
+        background: #e6b000;
+        color: #000000;
+        border: 0;
+        border-radius: 7px;
+        padding: 8px 14px;
+        font-size: 13px;
+        font-weight: 900;
+        cursor: pointer;
+    }
+
+        .si-btn-bulk-assign:hover {
+            background: #000000;
+            color: #ffffff;
+        }
+
+    .si-btn-manager-assign {
+        background: #000000;
+        color: #ffffff;
+        border: 0;
+        border-radius: 7px;
+        padding: 8px 14px;
+        font-size: 13px;
+        font-weight: 900;
+        cursor: pointer;
+    }
+
+        .si-btn-manager-assign:hover {
+            background: #e6b000;
+            color: #000000;
+        }
+
+    .si-table {
+        width: 100%;
+        margin: 0;
+        border-collapse: collapse;
+    }
+
+        .si-table th {
+            background: #f7f7f7;
+            font-size: 13px;
+            text-transform: uppercase;
+            color: #333333;
+            border-bottom: 1px solid #dedede;
+            padding: 11px 10px;
+            white-space: nowrap;
+        }
+
+        .si-table td {
+            padding: 11px 10px;
+            border-bottom: 1px solid #eeeeee;
+            font-size: 14px;
+            vertical-align: middle;
+        }
+
+    .si-check-cell {
+        width: 42px;
+        text-align: center;
+    }
+
+    .si-check {
+        width: 17px;
+        height: 17px;
+        cursor: pointer;
+    }
+
+    .si-ref {
+        font-weight: 900;
+        color: #000000;
+    }
+
+    .si-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: #fff0bf;
+        color: #5a4100;
+        font-size: 12px;
+        font-weight: 900;
+    }
+
+    .si-empty {
+        background: #ffffff;
+        border: 1px dashed #cfcfcf;
+        border-radius: 10px;
+        padding: 28px;
+        text-align: center;
+        color: #666666;
+        font-weight: 700;
+    }
+
+    .si-btn-view {
+        background: #000000;
+        color: #ffffff;
+        border-radius: 6px;
+        padding: 6px 10px;
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 800;
+        display: inline-block;
+    }
+
+        .si-btn-view:hover {
+            background: #e6b000;
+            color: #000000;
+        }
+</style>
+
+<div class="si-page">
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success fw-bold">
+            @TempData["Success"]
+        </div>
+    }
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger fw-bold">
+            @TempData["Error"]
+        </div>
+    }
+
+    <div class="si-header">
+        <h1 class="si-title">Sector Inbox</h1>
+        <div class="si-subtitle">
+            Select a sector to view submitted attribute records routed from Genesis.
+        </div>
+    </div>
+
+    <div class="si-tiles">
+        @foreach (var tile in Model.Tiles)
+        {
+            var active = string.Equals(Model.SelectedSector, tile.Sector, StringComparison.OrdinalIgnoreCase)
+                ? "active"
+                : "";
+
+            <a class="si-tile @active"
+                   asp-controller="SectorInbox"
+                   asp-action="Index"
+                   asp-route-sector="@tile.Sector">
+                <div class="si-tile-name">@tile.Sector</div>
+                <div class="si-tile-count">@tile.Total</div>
+                <div class="si-tile-label">records in sector inbox</div>
+            </a>
+        }
+    </div>
+
+    @if (string.IsNullOrWhiteSpace(Model.SelectedSector))
+    {
+        <div class="si-empty">
+            Select a sector tile above to open the routed attribute submissions.
+        </div>
+    }
+    else
+    {
+        <div class="si-table-card">
+            <div class="si-table-title">
+                <div>
+                    Sector: <span>@Model.SelectedSector</span>
+                </div>
+                <div>
+                    @Model.Items.Count record(s)
+                </div>
+            </div>
+
+            @if (!Model.Items.Any())
+            {
+                <div class="si-empty" style="border:0;border-radius:0;">
+                    No routed attribute submissions found for @Model.SelectedSector.
+                </div>
+            }
+            else
+            {
+                @if (Model.CurrentUserCanAssignToValuer)
+                {
+                    <form asp-controller="SectorInbox"
+                          asp-action="AssignSelectedToValuer"
+                          method="post"
+                          id="assignToValuerForm">
+
+                        @Html.AntiForgeryToken()
+
+                        <input type="hidden" name="sector" value="@Model.SelectedSector" />
+                    </form>
+                }
+
+                <form asp-controller="SectorInbox"
+                      asp-action="AssignSelectedToMe"
+                      method="post"
+                      id="assignSelectedForm">
+
+                    @Html.AntiForgeryToken()
+
+                    <input type="hidden" name="sector" value="@Model.SelectedSector" />
+
+                    <div class="si-actions-panel">
+                        <div class="si-action-row">
+                            <div class="si-bulk-text">
+                                Select one or more records, then add them to your Valuer Inbox.
+                            </div>
+
+                            <button type="submit"
+                                    class="si-btn-bulk-assign"
+                                    onclick="return confirmBulkAssign();">
+                                Add selected to my inbox
+                            </button>
+                        </div>
+
+                        @if (Model.CurrentUserCanAssignToValuer)
+                        {
+                            <div class="si-manager-form">
+                                <div class="si-manager-label">
+                                    Sector Manager:
+                                </div>
+
+                                <select name="selectedValuerUserId"
+                                        form="assignToValuerForm"
+                                        class="si-manager-select">
+                                    <option value="">-- Select Valuer --</option>
+
+                                    @foreach (var valuer in Model.Valuers)
+                                    {
+                                        <option value="@valuer.UserId">
+                                            @valuer.FullName (@valuer.Username)
+                                        </option>
+                                    }
+                                </select>
+
+                                <button type="submit"
+                                        form="assignToValuerForm"
+                                        class="si-btn-manager-assign"
+                                        onclick="return copySelectedAndConfirmManagerAssign();">
+                                    Assign selected to valuer
+                                </button>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="si-table">
+                            <thead>
+                                <tr>
+                                    <th class="si-check-cell">
+                                        <input type="checkbox"
+                                               id="selectAllRows"
+                                               class="si-check"
+                                               onclick="toggleAllRows(this)" />
+                                    </th>
+                                    <th>Reference No</th>
+                                    <th>Property Description</th>
+                                    <th>Township</th>
+                                    <th>Sector</th>
+                                    <th>Submitted</th>
+                                    <th>Routed</th>
+                                    <th>Evidence</th>
+                                    <th>Status</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in Model.Items)
+                                {
+                                    <tr>
+                                        <td class="si-check-cell">
+                                            <input type="checkbox"
+                                                   name="selectedAttrIds"
+                                                   value="@item.AttrId"
+                                                   class="si-check row-check" />
+                                        </td>
+                                        <td class="si-ref">@item.AttrNo</td>
+                                        <td>@item.PropertyDescription</td>
+                                        <td>@item.Township</td>
+                                        <td>@item.RoutedSector</td>
+                                        <td>@item.SubmittedDate.ToString("yyyy-MM-dd HH:mm")</td>
+                                        <td>@(item.RoutedDate?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
+                                        <td>@item.EvidenceCount</td>
+                                        <td>
+                                            <span class="si-badge">@item.Status</span>
+                                        </td>
+                                        <td style="white-space:nowrap;">
+                                            <a class="si-btn-view"
+                                                   asp-controller="SectorInbox"
+                                                   asp-action="Details"
+                                                   asp-route-id="@item.AttrId">
+                                                View
+                                            </a>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </form>
+            }
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        function toggleAllRows(source) {
+            document.querySelectorAll('.row-check').forEach(function (checkbox) {
+                checkbox.checked = source.checked;
+            });
+        }
+
+        function getSelectedRows() {
+            return Array.from(document.querySelectorAll('.row-check:checked'));
+        }
+
+        function confirmBulkAssign() {
+            var selected = getSelectedRows().length;
+
+            if (selected === 0) {
+                alert('Please select at least one record before assigning.');
+                return false;
+            }
+
+            return confirm('Assign ' + selected + ' selected item(s) to your inbox?');
+        }
+
+        function copySelectedAndConfirmManagerAssign() {
+            var selected = getSelectedRows();
+
+            if (selected.length === 0) {
+                alert('Please select at least one record before assigning.');
+                return false;
+            }
+
+            var form = document.getElementById('assignToValuerForm');
+
+            if (!form) {
+                alert('The manager assignment form could not be found.');
+                return false;
+            }
+
+            var valuerSelect = document.querySelector('select[name="selectedValuerUserId"]');
+
+            if (!valuerSelect || !valuerSelect.value) {
+                alert('Please select a valuer.');
+                return false;
+            }
+
+            form.querySelectorAll('input[name="selectedAttrIds"]').forEach(function (x) {
+                x.remove();
+            });
+
+            selected.forEach(function (checkbox) {
+                var hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = 'selectedAttrIds';
+                hidden.value = checkbox.value;
+                form.appendChild(hidden);
+            });
+
+            return confirm('Assign ' + selected.length + ' selected item(s) to the selected valuer?');
+        }
+    </script>
+}

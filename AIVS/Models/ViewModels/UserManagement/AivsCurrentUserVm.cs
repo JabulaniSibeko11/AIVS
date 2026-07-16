@@ -14,7 +14,13 @@
 
         public string? Email { get; set; }
 
+        // This is the UserManagement role.
+        // Example: SECTOR MANAGER, VALUER, ADMIN
         public string? Role { get; set; }
+
+        // This is only for display.
+        // Example: Professional Valuer, Data Manager, Admin Officer
+        public string? Position { get; set; }
 
         public string? Sector { get; set; }
 

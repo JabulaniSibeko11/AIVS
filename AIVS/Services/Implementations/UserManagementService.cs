@@ -1,6 +1,7 @@
 ﻿using AIVS.Data;
 using AIVS.Models.Configuration;
 using AIVS.Models.UserManagement;
+using AIVS.Models.ViewModels.SectorInbox;
 using AIVS.Models.ViewModels.UserManagement;
 using AIVS.Services.Interface;
 using Dapper;
@@ -17,14 +18,17 @@ namespace AIVS.Services.Implementations
         private readonly string _connString;
         private readonly AivsSettings _settings;
         private readonly ILogger<UserManagementService> _logger;
-
+        private readonly string _attributesConnString;
         public UserManagementService(
-            IConfiguration config,
-            IOptions<AivsSettings> settings,
-            ILogger<UserManagementService> logger)
+     IConfiguration config,
+     IOptions<AivsSettings> settings,
+     ILogger<UserManagementService> logger)
         {
             _connString = config.GetConnectionString("UserManagementConnection")
                 ?? throw new InvalidOperationException("UserManagementConnection is missing.");
+
+            _attributesConnString = config.GetConnectionString("AttributesConnection")
+                ?? throw new InvalidOperationException("AttributesConnection is missing.");
 
             _settings = settings.Value;
             _logger = logger;
@@ -82,18 +86,18 @@ namespace AIVS.Services.Implementations
 
                     UserId = result.UserID,
                     Username = result.Username?.Trim(),
+
                     FullName = string.IsNullOrWhiteSpace(result.FullName)
-                        ? result.Username?.Trim()
-                        : result.FullName,
+         ? result.Username?.Trim()
+         : result.FullName,
 
                     Email = result.EmailAddress?.Trim(),
 
-                    // Important:
-                    // Genesis layout usually displays Position.
-                    // For AIVS top-left, use Position first, then Role.
-                    Role = !string.IsNullOrWhiteSpace(result.Position)
-                        ? result.Position.Trim()
-                        : result.Role?.Trim(),
+                    // This must stay as the UserManagement role.
+                    Role = result.Role?.Trim(),
+
+                    // This is only for layout display.
+                    Position = result.Position?.Trim(),
 
                     AccessMessage = "Access granted."
                 };
@@ -128,6 +132,20 @@ namespace AIVS.Services.Implementations
                 commandType: CommandType.StoredProcedure);
 
             return result;
+        }
+        public async Task<List<SectorValuerVm>> GetValuersAsync(string? sector)
+        {
+            await using var conn = new SqlConnection(_attributesConnString);
+
+            var result = await conn.QueryAsync<SectorValuerVm>(
+                "[dbo].[AIVS_GetActiveValuers]",
+                new
+                {
+                    SystemId = _settings.SystemId
+                },
+                commandType: CommandType.StoredProcedure);
+
+            return result.ToList();
         }
     }
 }

@@ -55,6 +55,17 @@ builder.Services.AddAuthentication(NegotiateDefaults.AuthenticationScheme)
 // User Management Service
 // ─────────────────────────────────────────────
 builder.Services.AddScoped<IUserManagementService, UserManagementService>();
+
+
+
+// ─────────────────────────────────────────────
+// Sector Inbox Service
+// ─────────────────────────────────────────────
+builder.Services.AddScoped<ISectorInboxService, SectorInboxService>();
+
+builder.Services.AddScoped<IEmailService, EmailService>();
+
+
 // ─────────────────────────────────────────────
 // Authorisation policies
 // ─────────────────────────────────────────────
