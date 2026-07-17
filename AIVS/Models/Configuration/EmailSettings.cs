@@ -19,6 +19,9 @@
         public List<string> DefaultBcc { get; set; } = new();
 
         public string? SystemSupportEmail { get; set; }
+        public bool TestMode { get; set; }
+
+        public string? TestRecipient { get; set; }
 
         public EmailTemplateSettings Templates { get; set; } = new();
     }

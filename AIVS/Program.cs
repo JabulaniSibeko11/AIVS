@@ -37,6 +37,7 @@ var allSectorAccessPolicy = policiesSection["AllSectorAccess"] ?? "AllSectorAcce
 builder.Services.Configure<AivsSettings>(builder.Configuration.GetSection("AivsSettings"));
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.Configure<AttributeStorageSettings>(builder.Configuration.GetSection("AttributeStorage"));
+builder.Services.Configure<ValuerPhotoStorageSettings>(builder.Configuration.GetSection("ValuerPhotoStorage"));
 
 builder.Services.AddDbContext<UserManagementDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("UserManagementConnection")));

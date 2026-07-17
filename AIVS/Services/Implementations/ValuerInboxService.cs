@@ -1,5 +1,6 @@
 ﻿using AIVS.Data;
 using AIVS.Models.Attributes;
+using AIVS.Models.Configuration;
 using AIVS.Models.ViewModels.UserManagement;
 using AIVS.Models.ViewModels.ValuerInbox;
 using AIVS.Services.Interface;
@@ -11,13 +12,17 @@ namespace AIVS.Services.Implementations
     {
         private readonly AttributesDbContext _context;
         private readonly ILogger<ValuerInboxService> _logger;
+        private readonly IEmailService _emailService;
+        private readonly AttributeStorageSettings _storageSettings;
 
         public ValuerInboxService(
             AttributesDbContext context,
-            ILogger<ValuerInboxService> logger)
+            ILogger<ValuerInboxService> logger, IEmailService emailService, AttributeStorageSettings storageSettings)
         {
             _context = context;
             _logger = logger;
+            _emailService = emailService;
+            _storageSettings = storageSettings;
         }
 
         public async Task<List<ValuerInboxItemVm>> GetMyInboxAsync(AivsCurrentUserVm currentUser)
@@ -246,6 +251,7 @@ namespace AIVS.Services.Implementations
                     RequiresInspection = x.RequiresInspection
                 })
                 .ToListAsync();
+
             var requiredSectionCodes = GetRequiredReviewSectionCodes(item.Property_Type);
 
             var requiredSections = sections
@@ -285,6 +291,7 @@ namespace AIVS.Services.Implementations
 
             var submittedForm = await BuildSubmittedAttributeViewModelAsync(item.Attr_ID);
 
+            var evidenceFiles = await BuildEvidenceFilesAsync(item.Attr_ID);
 
             var activeInspectionRequest = await _context.AttrInspectionRequests
                 .AsNoTracking()
@@ -294,6 +301,7 @@ namespace AIVS.Services.Implementations
                     (
                         x.Status == "PendingClientResponse" ||
                         x.Status == "Confirmed" ||
+                        x.Status == "InspectionDetailsSent" ||
                         x.Status == "Expired"
                     ))
                 .OrderByDescending(x => x.CreatedDate)
@@ -337,10 +345,13 @@ namespace AIVS.Services.Implementations
                 ReviewStatus = review.ReviewStatus,
                 StartedAt = review.StartedAt,
 
-                // THIS WAS MISSING
                 SubmittedForm = submittedForm,
 
                 Sections = sections,
+                EvidenceFiles = evidenceFiles,
+
+                ActiveInspectionRequest = activeInspectionRequest,
+
                 CanSubmitToOvvio = canSubmitToOvvio,
                 HasRequiredCorrections = hasRequiredCorrections,
                 HasInspectionRequired = hasInspectionRequired,
@@ -355,7 +366,104 @@ namespace AIVS.Services.Implementations
                 FinalComment = review.FinalComment,
             };
         }
+        private async Task<List<ValuerEvidenceFileVm>> BuildEvidenceFilesAsync(long attrId)
+        {
+            var rows = await _context.AttrFiles
+                .AsNoTracking()
+                .Where(x =>
+                    x.Attr_ID == attrId &&
+                    x.IsActive == true &&
+                    x.IsDeleted == false)
+                .OrderByDescending(x => x.UploadedDateTime)
+                .ToListAsync();
 
+            var files = new List<ValuerEvidenceFileVm>();
+
+            foreach (var row in rows)
+            {
+                AddEvidenceFile(files, row, row.Files1, "Evidence 1");
+                AddEvidenceFile(files, row, row.Files2, "Evidence 2");
+                AddEvidenceFile(files, row, row.Files3, "Evidence 3");
+                AddEvidenceFile(files, row, row.Files4, "Evidence 4");
+                AddEvidenceFile(files, row, row.Files5, "Evidence 5");
+                AddEvidenceFile(files, row, row.Files6, "Evidence 6");
+                AddEvidenceFile(files, row, row.Files7, "Evidence 7");
+                AddEvidenceFile(files, row, row.Files8, "Evidence 8");
+                AddEvidenceFile(files, row, row.Files9, "Evidence 9");
+                AddEvidenceFile(files, row, row.Files10, "Evidence 10");
+
+                AddEvidenceFile(files, row, row.Rep_Letter, "Representative Letter");
+                AddEvidenceFile(files, row, row.Acknowledgement_FileName, "Acknowledgement");
+                AddEvidenceFile(files, row, row.Bulk_File_Name, "Bulk File");
+            }
+
+            return files;
+        }
+        private void AddEvidenceFile(
+    List<ValuerEvidenceFileVm> files,
+    AttrFiles row,
+    string? fileName,
+    string label)
+        {
+            if (string.IsNullOrWhiteSpace(fileName))
+                return;
+
+            var fullPath = ResolveEvidenceFilePath(row, fileName);
+
+            files.Add(new ValuerEvidenceFileVm
+            {
+                Id = row.ID,
+                AttrFileId = row.ID,
+                FileName = fileName,
+                DisplayName = label,
+                FilePath = fullPath,
+                FileType = GetContentType(fileName),
+                UploadedDateTime = row.UploadedDateTime,
+                UploadedBy = row.UploadedByName ?? row.CreatedBy
+            });
+        }
+        private string ResolveEvidenceFilePath(AttrFiles row, string fileName)
+        {
+            if (Path.IsPathRooted(fileName))
+                return fileName;
+
+            if (!string.IsNullOrWhiteSpace(row.RootFolder))
+            {
+                return Path.Combine(row.RootFolder, fileName);
+            }
+
+            var attrNo = row.Attr_No;
+
+            if (string.IsNullOrWhiteSpace(attrNo))
+                attrNo = row.Attr_Ref_Files;
+
+            if (string.IsNullOrWhiteSpace(attrNo))
+                attrNo = "Unknown";
+
+            return Path.Combine(
+                _storageSettings.PhysicalRootPath,
+                attrNo,
+                _storageSettings.EvidenceFolderName,
+                fileName);
+        }
+        private static string GetContentType(string fileName)
+        {
+            var ext = Path.GetExtension(fileName).ToLowerInvariant();
+
+            return ext switch
+            {
+                ".pdf" => "application/pdf",
+                ".jpg" => "image/jpeg",
+                ".jpeg" => "image/jpeg",
+                ".png" => "image/png",
+                ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ".xls" => "application/vnd.ms-excel",
+                ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ".doc" => "application/msword",
+                ".txt" => "text/plain",
+                _ => "application/octet-stream"
+            };
+        }
         private static List<(string Code, string Name)> GetSectionsForFormType(string? formType)
         {
             var common = new List<(string Code, string Name)>
@@ -735,8 +843,8 @@ namespace AIVS.Services.Implementations
         }
 
         public async Task SubmitFinalReviewAsync(
-    SubmitFinalReviewVm vm,
-    AivsCurrentUserVm currentUser)
+        SubmitFinalReviewVm vm,
+        AivsCurrentUserVm currentUser)
         {
             if (currentUser.UserId == null)
                 throw new InvalidOperationException("Your AIVS user could not be verified.");
@@ -751,7 +859,6 @@ namespace AIVS.Services.Implementations
             {
         "SubmitToOvvio",
         "ReturnToClient",
-        "ScheduleInspection",
         "Reject"
     };
 
@@ -770,10 +877,19 @@ namespace AIVS.Services.Implementations
                 throw new InvalidOperationException("This review is not assigned to you.");
 
             var item = await _context.AttrPropertyInfo
+                .Include(x => x.PropertyDetails)
                 .FirstOrDefaultAsync(x => x.Attr_ID == vm.AttrId && x.IsActive == true);
 
             if (item == null)
                 throw new InvalidOperationException("Attribute submission could not be found.");
+
+            var contact = item.PropertyDetails == null
+                ? null
+                : await _context.AttrContactInfo
+                    .AsNoTracking()
+                    .Where(x => x.PropertyDetailsId == item.PropertyDetails.Id)
+                    .OrderBy(x => x.Id)
+                    .FirstOrDefaultAsync();
 
             var sections = await _context.AttrValuerReviewSections
                 .Where(x => x.ReviewId == vm.ReviewId)
@@ -810,11 +926,21 @@ namespace AIVS.Services.Implementations
 
             var now = DateTime.Now;
             var oldStatus = item.Attr_Status;
+            var finalComment = vm.FinalComment.Trim();
+
+            var currentUserName = currentUser.Username
+                ?? currentUser.WindowsUsername
+                ?? currentUser.FullName
+                ?? "AIVS";
+
+            var currentUserId = currentUser.UserId.Value.ToString();
 
             review.FinalDecision = vm.FinalDecision;
-            review.FinalComment = vm.FinalComment.Trim();
+            review.FinalComment = finalComment;
             review.CompletedAt = now;
-            review.UpdatedBy = currentUser.Username ?? currentUser.WindowsUsername;
+            review.ReviewerUserId = currentUser.UserId ?? 0;
+            review.ReviewerName = currentUser.FullName;
+            review.UpdatedBy = currentUserName;
             review.UpdatedDate = now;
 
             switch (vm.FinalDecision)
@@ -826,48 +952,140 @@ namespace AIVS.Services.Implementations
                     review.RequiresInspection = false;
 
                     item.Attr_Status = "ReadyForOvvioExtract";
+
+                    item.Valuer = currentUser.FullName;
+                    item.ValuerUserId = currentUserId;
+                    item.ValuerComment = finalComment;
+                    item.ValuerDecision = "Accepted";
+                    item.RejectionReason = null;
+                    item.ValuerDecisionDateTime = now;
+
+                    item.ReadyForOvvioExtract = true;
+                    item.OvvioExtractStatus = "Pending";
+                    item.OvvioExtractBatchNo = null;
+                    item.OvvioExtractDateTime = null;
+                    item.OvvioExtractedBy = null;
+                    item.OvvioExtractError = null;
+
+                    item.Physical_Inspection_Required = false;
+
                     break;
 
                 case "ReturnToClient":
                     review.ReviewStatus = "ReturnedToClient";
+                    review.ReadyForOvvioExtract = false;
                     review.ReturnToClient = true;
 
                     item.Attr_Status = "ReturnedToClient";
-                    break;
 
-                case "ScheduleInspection":
-                    review.ReviewStatus = "InspectionRequired";
-                    review.RequiresInspection = true;
+                    item.Valuer = currentUser.FullName;
+                    item.ValuerUserId = currentUserId;
+                    item.ValuerComment = finalComment;
+                    item.ValuerDecision = "ReturnedToClient";
+                    item.RejectionReason = null;
+                    item.ValuerDecisionDateTime = now;
 
-                    item.Attr_Status = "InspectionRequired";
+                    item.ReadyForOvvioExtract = false;
+                    item.OvvioExtractStatus = null;
+                    item.OvvioExtractBatchNo = null;
+                    item.OvvioExtractDateTime = null;
+                    item.OvvioExtractedBy = null;
+                    item.OvvioExtractError = null;
+
+                    item.RevisionRequired = true;
+                    item.RevisionRequestedBy = currentUser.FullName;
+                    item.RevisionRequestedDateTime = now;
+                    item.RevisionReason = finalComment;
+
                     break;
 
                 case "Reject":
                     review.ReviewStatus = "Rejected";
+                    review.ReadyForOvvioExtract = false;
+                    review.ReturnToClient = false;
+                    review.RequiresInspection = false;
 
                     item.Attr_Status = "Rejected";
+
+                    item.Valuer = currentUser.FullName;
+                    item.ValuerUserId = currentUserId;
+                    item.ValuerComment = finalComment;
+                    item.ValuerDecision = "Rejected";
+                    item.RejectionReason = finalComment;
+                    item.ValuerDecisionDateTime = now;
+
+                    item.ReadyForOvvioExtract = false;
+                    item.OvvioExtractStatus = null;
+                    item.OvvioExtractBatchNo = null;
+                    item.OvvioExtractDateTime = null;
+                    item.OvvioExtractedBy = null;
+                    item.OvvioExtractError = null;
+
                     break;
             }
 
-            item.UpdatedBy = currentUser.Username ?? currentUser.WindowsUsername;
+            item.UpdatedBy = currentUserName;
             item.UpdatedDate = now;
+
+            var auditAction = vm.FinalDecision switch
+            {
+                "SubmitToOvvio" => "Submitted to OVVIO Extract",
+                "ReturnToClient" => "Returned to Client",
+                "Reject" => "Attribute Submission Rejected",
+                _ => "Final Review Decision"
+            };
 
             _context.AttrPropertyInfoAuditTrail.Add(new AttrPropertyInfoAuditTrail
             {
                 Attr_ID = item.Attr_ID,
                 Attr_No = item.Attr_No,
-                Action = "Final Review Decision",
+                Action = auditAction,
                 OldStatus = oldStatus,
                 NewStatus = item.Attr_Status,
-                ActionByUserId = currentUser.Username ?? currentUser.WindowsUsername,
+                ActionByUserId = currentUserId,
                 ActionByName = currentUser.FullName,
                 ActionRole = currentUser.Role ?? "Valuer",
-                Comment = vm.FinalComment,
+                Comment = finalComment,
                 ActionDateTime = now
             });
 
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
+
+            if (contact != null && !string.IsNullOrWhiteSpace(contact.Email))
+            {
+                var clientName = BuildClientName(contact);
+                var attrNo = item.Attr_No ?? "-";
+                var propertyDescription = item.Property_Desc;
+
+                if (vm.FinalDecision == "SubmitToOvvio")
+                {
+                    await _emailService.SendAcceptedEmailAsync(
+                        contact.Email,
+                        clientName,
+                        attrNo,
+                        propertyDescription,
+                        finalComment);
+                }
+                else if (vm.FinalDecision == "ReturnToClient")
+                {
+                    await _emailService.SendReturnedToClientEmailAsync(
+                        contact.Email,
+                        clientName,
+                        attrNo,
+                        propertyDescription,
+                        finalComment);
+                }
+                else if (vm.FinalDecision == "Reject")
+                {
+                    await _emailService.SendRejectedEmailAsync(
+                        contact.Email,
+                        clientName,
+                        attrNo,
+                        propertyDescription,
+                        finalComment);
+                }
+            }
         }
         private static HashSet<string> GetRequiredReviewSectionCodes(string? formType)
         {
@@ -1026,7 +1244,15 @@ namespace AIVS.Services.Implementations
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
 
+
             // Email sending will be added after this works.
+            await _emailService.SendInspectionDateOptionsEmailAsync(
+    contact.Email,
+    BuildClientName(contact),
+    item.Attr_No ?? "-",
+    item.Property_Desc,
+    options.OrderBy(x => x).ToList(),
+    vm.RequestComment);
         }
         private static string BuildClientName(dynamic contact)
         {
@@ -1042,14 +1268,14 @@ namespace AIVS.Services.Implementations
         }
 
         public async Task SendInspectionDetailsToClientAsync(
-    long inspectionRequestId,
-    AivsCurrentUserVm currentUser)
+        long inspectionRequestId,
+        AivsCurrentUserVm currentUser)
         {
             if (currentUser.UserId == null)
-                throw new InvalidOperationException("Your AIVS user could not be verified.");
+                throw new InvalidOperationException("Current AIVS user could not be resolved.");
 
             if (string.IsNullOrWhiteSpace(currentUser.SapNumber))
-                throw new InvalidOperationException("Your SAP number could not be found in UserManagement.");
+                throw new InvalidOperationException("Current user SAP number could not be resolved. Please check User Management mapping.");
 
             await using var transaction = await _context.Database.BeginTransactionAsync();
 
@@ -1063,19 +1289,46 @@ namespace AIVS.Services.Implementations
                 throw new InvalidOperationException("Confirmed inspection request could not be found.");
 
             if (request.RequestedByUserId != currentUser.UserId.Value)
-                throw new InvalidOperationException("Only the valuer who requested this inspection can send the inspection details.");
+                throw new InvalidOperationException("You can only send inspection details for your own inspection requests.");
 
             if (request.ConfirmedDateTime == null)
-                throw new InvalidOperationException("The client has not confirmed an inspection date yet.");
+                throw new InvalidOperationException("Inspection date has not been confirmed yet.");
+
+            if (request.ValuerDetailsSent)
+                throw new InvalidOperationException("Inspection details have already been sent to the client.");
+
+            var property = await _context.AttrPropertyInfo
+                .Include(x => x.PropertyDetails)
+                .FirstOrDefaultAsync(x =>
+                    x.Attr_ID == request.Attr_ID &&
+                    x.IsActive == true);
+
+            if (property == null)
+                throw new InvalidOperationException("Attribute property could not be found.");
+
+            if (property.PropertyDetails == null)
+                throw new InvalidOperationException("Property details could not be found.");
+
+            var contact = await _context.AttrContactInfo
+                .AsNoTracking()
+                .Where(x => x.PropertyDetailsId == property.PropertyDetails.Id)
+                .OrderBy(x => x.Id)
+                .FirstOrDefaultAsync();
+
+            if (contact == null)
+                throw new InvalidOperationException("Client contact details could not be found.");
+
+            if (string.IsNullOrWhiteSpace(contact.Email))
+                throw new InvalidOperationException("Client email address could not be found.");
 
             var valuerDetails = await _context.AttrValuerInspectionDetails
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x =>
-                    x.SapNumber == currentUser.SapNumber &&
-                    x.IsActive);
+                    x.SapNumber == currentUser.SapNumber.Trim() &&
+                    x.IsActive == true);
 
             if (valuerDetails == null)
-                throw new InvalidOperationException("Your valuer inspection details could not be found. Please ask admin to capture your SAP number and vehicle details.");
+                throw new InvalidOperationException("Your valuer inspection profile could not be found. Please create your valuer profile first.");
 
             var now = DateTime.Now;
             var pin = GenerateInspectionPin();
@@ -1086,39 +1339,47 @@ namespace AIVS.Services.Implementations
             request.ValuerDetailsSentAt = now;
             request.ValuerDetailsSentByUserId = currentUser.UserId.Value;
             request.ValuerDetailsSentByName = currentUser.FullName;
-            request.UpdatedBy = currentUser.Username ?? currentUser.WindowsUsername;
+            request.UpdatedBy = currentUser.Username ?? currentUser.WindowsUsername ?? currentUser.FullName;
             request.UpdatedDate = now;
 
-            var property = await _context.AttrPropertyInfo
-                .FirstOrDefaultAsync(x => x.Attr_ID == request.Attr_ID);
+            var oldStatus = property.Attr_Status;
 
-            if (property != null)
+            property.Attr_Status = "InspectionDetailsSent";
+            property.UpdatedBy = currentUser.Username ?? currentUser.WindowsUsername ?? currentUser.FullName;
+            property.UpdatedDate = now;
+
+            _context.AttrPropertyInfoAuditTrail.Add(new AttrPropertyInfoAuditTrail
             {
-                var oldStatus = property.Attr_Status;
-
-                property.Attr_Status = "InspectionDetailsSent";
-                property.UpdatedBy = currentUser.Username ?? currentUser.WindowsUsername;
-                property.UpdatedDate = now;
-
-                _context.AttrPropertyInfoAuditTrail.Add(new AttrPropertyInfoAuditTrail
-                {
-                    Attr_ID = property.Attr_ID,
-                    Attr_No = property.Attr_No,
-                    Action = "Inspection Details Sent",
-                    OldStatus = oldStatus,
-                    NewStatus = "InspectionDetailsSent",
-                    ActionByUserId = currentUser.Username ?? currentUser.WindowsUsername,
-                    ActionByName = currentUser.FullName,
-                    ActionRole = currentUser.Role ?? "Valuer",
-                    Comment = $"Inspection details sent to client. PIN: {pin}",
-                    ActionDateTime = now
-                });
-            }
+                Attr_ID = property.Attr_ID,
+                Attr_No = property.Attr_No,
+                Action = "Inspection Details Sent",
+                OldStatus = oldStatus,
+                NewStatus = "InspectionDetailsSent",
+                ActionByUserId = currentUser.UserId.Value.ToString(),
+                ActionByName = currentUser.FullName,
+                ActionRole = currentUser.Role,
+                Comment = "Inspection PIN and secure appointment instructions sent to client.",
+                ActionDateTime = now
+            });
 
             await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
 
-            // Email sending comes after this save process is tested.
+            await _emailService.SendInspectionDetailsEmailAsync(
+                contact.Email,
+                BuildClientName(contact),
+                request.Attr_No ?? property.Attr_No ?? "-",
+                property.Property_Desc,
+                request.ConfirmedDateTime.Value,
+                pin,
+                valuerDetails.ValuerName,
+                valuerDetails.EmailAddress,
+                valuerDetails.CellNumber,
+                valuerDetails.VehicleRegistration,
+                valuerDetails.VehicleMake,
+                valuerDetails.VehicleColour,
+                valuerDetails.PhotoFileName);
+
+            await transaction.CommitAsync();
         }
 
         private static string GenerateInspectionPin()

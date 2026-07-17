@@ -49,6 +49,7 @@ namespace AIVS.Data
         public DbSet<AttrInspectionRequestSlot> AttrInspectionRequestSlots { get; set; } = null!;
 
         public DbSet<AttrValuerInspectionDetail> AttrValuerInspectionDetails { get; set; } = null!;
+        public DbSet<AivsEmailLog> AivsEmailLogs { get; set; } = null!;
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -248,6 +249,28 @@ namespace AIVS.Data
                 entity.Property(e => e.CreatedDate).HasColumnName("CreatedDate");
                 entity.Property(e => e.UpdatedBy).HasColumnName("UpdatedBy");
                 entity.Property(e => e.UpdatedDate).HasColumnName("UpdatedDate");
+            });
+            modelBuilder.Entity<AivsEmailLog>(entity =>
+            {
+                entity.ToTable("AivsEmailLogs", "dbo");
+                entity.HasKey(e => e.Id);
+
+                entity.Property(e => e.Id).HasColumnName("Id");
+                entity.Property(e => e.EmailType).HasColumnName("EmailType");
+                entity.Property(e => e.Attr_No).HasColumnName("Attr_No");
+                entity.Property(e => e.Attr_ID).HasColumnName("Attr_ID");
+                entity.Property(e => e.OriginalToEmail).HasColumnName("OriginalToEmail");
+                entity.Property(e => e.ActualToEmail).HasColumnName("ActualToEmail");
+                entity.Property(e => e.CcEmails).HasColumnName("CcEmails");
+                entity.Property(e => e.BccEmails).HasColumnName("BccEmails");
+                entity.Property(e => e.Subject).HasColumnName("Subject");
+                entity.Property(e => e.BodyPreview).HasColumnName("BodyPreview");
+                entity.Property(e => e.IsTestMode).HasColumnName("IsTestMode");
+                entity.Property(e => e.SendStatus).HasColumnName("SendStatus");
+                entity.Property(e => e.ErrorMessage).HasColumnName("ErrorMessage");
+                entity.Property(e => e.CreatedBy).HasColumnName("CreatedBy");
+                entity.Property(e => e.CreatedDate).HasColumnName("CreatedDate");
+                entity.Property(e => e.SentDate).HasColumnName("SentDate");
             });
         }
     }
