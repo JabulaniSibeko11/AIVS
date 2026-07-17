@@ -15,6 +15,20 @@
             : "Access not verified";
 
     var accessMessage = currentUser.AccessMessage ?? "";
+
+    var currentController = ViewContext.RouteData.Values["Controller"]?.ToString() ?? "";
+    var currentAction = ViewContext.RouteData.Values["Action"]?.ToString() ?? "";
+
+    Func<string, string> navActive = controllerName =>
+        string.Equals(currentController, controllerName, StringComparison.OrdinalIgnoreCase)
+            ? "active"
+            : "";
+
+    Func<string, string, string> navActiveExact = (controllerName, actionName) =>
+        string.Equals(currentController, controllerName, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(currentAction, actionName, StringComparison.OrdinalIgnoreCase)
+            ? "active"
+            : "";
 }
 
 <!DOCTYPE html>
@@ -27,145 +41,21 @@
 
     <script type="importmap"></script>
 
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" />
+
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/AIVS.styles.css" asp-append-version="true" />
-
-    <style>
-            :root {
-                --aivs-black: #000000;
-                --aivs-gold: #e6b000;
-                --aivs-gold-dark: #c89a00;
-                --aivs-white: #ffffff;
-                --aivs-page-bg: #f4f5f7;
-            }
-
-            html, body {
-                min-height: 100%;
-                background: var(--aivs-page-bg);
-                margin: 0;
-                font-family: "Segoe UI", Arial, sans-serif;
-            }
-
-            .aivs-topbar {
-                background: var(--aivs-black);
-                color: var(--aivs-white);
-                min-height: 44px;
-                padding: 0 22px;
-                display: flex;
-                align-items: center;
-            }
-
-            .aivs-topbar-inner {
-                width: 100%;
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: 15px;
-            }
-
-            .aivs-user-position {
-                font-size: 14px;
-                font-weight: 800;
-                text-transform: uppercase;
-                letter-spacing: .3px;
-                color: #ffffff;
-            }
-
-            .aivs-sector {
-                margin-left: 10px;
-                font-size: 12px;
-                font-weight: 600;
-                color: #d6d6d6;
-                text-transform: none;
-            }
-
-            .aivs-user-name {
-                font-size: 14px;
-                font-weight: 800;
-                color: #ffffff;
-                white-space: nowrap;
-            }
-
-            .aivs-goldbar {
-                background: var(--aivs-gold);
-                border-bottom: 1px solid var(--aivs-gold-dark);
-                box-shadow: 0 2px 8px rgba(0,0,0,.12);
-                min-height: 56px;
-            }
-
-                .aivs-goldbar .navbar-brand {
-                    color: #111111 !important;
-                    font-size: 22px;
-                    font-weight: 900;
-                    letter-spacing: .4px;
-                    margin-right: 24px;
-                }
-
-                .aivs-goldbar .nav-link {
-                    color: #111111 !important;
-                    font-weight: 800;
-                    padding: 10px 13px !important;
-                    border-radius: 6px;
-                    margin-right: 4px;
-                }
-
-                    .aivs-goldbar .nav-link:hover {
-                        background: rgba(255,255,255,.38);
-                        color: #000000 !important;
-                    }
-
-                .aivs-goldbar .navbar-toggler {
-                    border-color: rgba(0,0,0,.45);
-                }
-
-            .aivs-access-warning {
-                background: #fff3cd;
-                border-bottom: 1px solid #e0b000;
-                color: #5c4300;
-                padding: 9px 22px;
-                font-size: 13px;
-                font-weight: 700;
-            }
-
-            .aivs-main-container {
-                padding-top: 24px;
-                padding-bottom: 48px;
-            }
-
-            .aivs-footer {
-                background: #ffffff;
-                border-top: 1px solid #dedede;
-                color: #555555;
-                padding: 14px 0;
-                font-size: 13px;
-            }
-
-            @@media (max-width: 576px) {
-                .aivs-topbar {
-                    padding: 8px 14px;
-                }
-
-                .aivs-topbar-inner {
-                    flex-direction: column;
-                    align-items: flex-start;
-                    gap: 4px;
-                }
-
-                .aivs-user-name {
-                    white-space: normal;
-                }
-
-                .aivs-goldbar .navbar-brand {
-                    font-size: 20px;
-                }
-            }
-    </style>
+    <link href="~/css/_layout.css" rel="stylesheet" asp-append-version="true" />
 </head>
 
 <body>
+    <div id="aivsPageLoader" class="aivs-loader" aria-hidden="true"></div>
+
     <header>
-        <!-- BLACK TOP NAV -->
+        <!-- BLACK IDENTITY BAR -->
         <div class="aivs-topbar">
             <div class="aivs-topbar-inner">
                 <div class="aivs-user-position">
@@ -178,7 +68,7 @@
             </div>
         </div>
 
-        <!-- GOLD BOTTOM NAV -->
+        <!-- GOLD NAV BAR -->
         <nav class="navbar navbar-expand-sm navbar-toggleable-sm aivs-goldbar">
             <div class="container-fluid">
                 <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">
@@ -197,51 +87,47 @@
                 <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
                     <ul class="navbar-nav flex-grow-1">
                         <li class="nav-item">
-                            <a class="nav-link" asp-area="" asp-controller="Home" asp-action="Index">
+                            <a class="nav-link @navActiveExact("Home", "Index")" asp-area="" asp-controller="Home" asp-action="Index">
                                 Dashboard
                             </a>
                         </li>
 
                         <li class="nav-item">
-                            <a class="nav-link" asp-area="" asp-controller="SectorInbox" asp-action="Index">
+                            <a class="nav-link @navActive("SectorInbox")" asp-area="" asp-controller="SectorInbox" asp-action="Index">
                                 Sector Inbox
                             </a>
                         </li>
 
                         <li class="nav-item">
-                            <a class="nav-link" asp-area="" asp-controller="ValuerInbox" asp-action="Index">
+                            <a class="nav-link @navActive("ValuerInbox")" asp-area="" asp-controller="ValuerInbox" asp-action="Index">
                                 Valuer Inbox
                             </a>
                         </li>
 
                         <li class="nav-item">
-                            <a class="nav-link" asp-area="" asp-controller="Schedule" asp-action="Index">
-                                Schedule
-                            </a>
-                        </li>
-
-                        <li class="nav-item">
-                            <a class="nav-link" asp-area="" asp-controller="Reports" asp-action="Index">
-                                Reports
-                            </a>
-                        </li>
-
-                        <li class="nav-item">
-                            <a class="nav-link" asp-area="" asp-controller="Account" asp-action="Me">
+                            <a class="nav-link @navActive("Account")" asp-area="" asp-controller="Account" asp-action="Me">
                                 My Access
+                            </a>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link @navActiveExact("Home", "Help")" asp-area="" asp-controller="Home" asp-action="Help">
+                                Help
                             </a>
                         </li>
                     </ul>
                 </div>
+
                 <a asp-controller="Notifications"
                        asp-action="Index"
-                       class="nav-link position-relative">
-                    <i class="fa-solid fa-bell"></i>
-                    <span id="aivsNotificationBadge"
-                          class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
-                          style="display:none;">
-                        0
-                    </span>
+                       class="aivs-bell"
+                       aria-label="Notifications">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 3C9.79 3 8 4.79 8 7v2.34C8 10.7 7.53 12 6.7 13l-1.2 1.44C4.9 15.1 5.36 16 6.13 16h11.74c.77 0 1.23-.9.63-1.56L17.3 13c-.83-1-1.3-2.3-1.3-3.66V7c0-2.21-1.79-4-4-4z"
+                              stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
+                        <path d="M10 18.5a2 2 0 0 0 4 0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+                    </svg>
+                    <span id="aivsNotificationBadge" class="aivs-bell-badge" style="display:none;">0</span>
                 </a>
             </div>
         </nav>
@@ -261,8 +147,15 @@
     </div>
 
     <footer class="aivs-footer">
-        <div class="container-fluid">
-            &copy; 2026 - AIVS - Attribute Inspection & Verification System
+        <div class="container-fluid aivs-footer-inner">
+            <div class="aivs-footer-left">
+                <span class="aivs-footer-mark">AIVS</span>
+                <span class="aivs-footer-sep">&middot;</span>
+                <span class="aivs-footer-copy">&copy; 2026 City of Johannesburg</span>
+            </div>
+            <div class="aivs-footer-links">
+                <a asp-controller="Home" asp-action="Privacy">Privacy</a>
+            </div>
         </div>
     </footer>
 
@@ -295,6 +188,39 @@
             }
 
             document.addEventListener('DOMContentLoaded', loadAivsNotificationCount);
+
+            // Page loader — thin gold sweep shown on navigation
+            (function () {
+                const loader = document.getElementById('aivsPageLoader');
+                if (!loader) return;
+
+                function showLoader() {
+                    loader.classList.add('active');
+                }
+
+                function hideLoader() {
+                    loader.classList.remove('active');
+                }
+
+                document.addEventListener('click', function (e) {
+                    const link = e.target.closest('a');
+                    if (!link) return;
+
+                    const href = link.getAttribute('href');
+                    if (!href || href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('mailto:')) return;
+                    if (link.target === '_blank' || link.hasAttribute('download') || link.dataset.noLoader) return;
+
+                    showLoader();
+                });
+
+                document.addEventListener('submit', function (e) {
+                    if (e.target && e.target.tagName === 'FORM') {
+                        showLoader();
+                    }
+                });
+
+                window.addEventListener('pageshow', hideLoader);
+            })();
     </script>
 </body>
 </html>

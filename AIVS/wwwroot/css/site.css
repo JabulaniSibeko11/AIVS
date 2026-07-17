@@ -1,31 +1,316 @@
+/* ==========================================================================
+   AIVS — Brand Foundation
+   Based on City of Johannesburg brand guideline (Primary Elements)
+   Primary:   Black, Golden Yellow (Pantone 130C)
+   Secondary: Grey (Pantone 405C), Breakfast Orange, African Turquoise,
+              Evening Green
+   Typeface:  Poppins
+   ========================================================================== */
+
+:root {
+    /* --- Brand: primary --- */
+    --aivs-black: #0d0d0d;
+    --aivs-black-soft: #1a1a1a;
+    --aivs-gold: #e6b000;
+    --aivs-gold-dark: #b98900;
+    --aivs-gold-light: #fdf3d7;
+    /* --- Brand: secondary --- */
+    --aivs-grey: #645a50; /* Pantone 405C */
+    --aivs-grey-light: #948a80;
+    --aivs-orange: #bb4722; /* Breakfast Orange */
+    --aivs-turquoise: #89b7b2; /* African Turquoise */
+    --aivs-evening: #36626d; /* Evening Green */
+    /* --- Neutrals / surfaces --- */
+    --aivs-white: #ffffff;
+    --aivs-page-bg: #f6f6f4;
+    --aivs-border: #e7e3dc;
+    --aivs-text: #171412;
+    --aivs-text-muted: #6b6459;
+    /* --- Semantic status (kept universally legible) --- */
+    --aivs-success: #157a4a;
+    --aivs-success-bg: #e8f7ee;
+    --aivs-success-border: #b9e5c8;
+    --aivs-danger: #b3261e;
+    --aivs-danger-bg: #fbeaea;
+    --aivs-danger-border: #f0c2bd;
+    --aivs-warning: #b98900;
+    --aivs-warning-bg: #fdf3d7;
+    --aivs-warning-border: #ecd88f;
+    --aivs-info: #2a5a63;
+    --aivs-info-bg: #eaf3f2;
+    --aivs-info-border: #cfe3e0;
+    /* --- Radius / shadow / motion --- */
+    --aivs-radius-sm: 8px;
+    --aivs-radius: 12px;
+    --aivs-radius-lg: 16px;
+    --aivs-shadow-sm: 0 1px 3px rgba(13,13,13,.06);
+    --aivs-shadow: 0 6px 18px rgba(13,13,13,.06);
+    --aivs-ease: 160ms ease;
+    /* --- Type --- */
+    --aivs-font: "Poppins", "Segoe UI", Arial, sans-serif;
+}
+
 html {
-  font-size: 14px;
+    font-size: 14px;
 }
 
 @media (min-width: 768px) {
-  html {
-    font-size: 16px;
-  }
+    html {
+        font-size: 16px;
+    }
 }
 
-.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+html, body {
+    min-height: 100%;
+    background: var(--aivs-page-bg);
+    color: var(--aivs-text);
+    font-family: var(--aivs-font);
 }
 
-html {
-  position: relative;
-  min-height: 100%;
+h1, h2, h3, h4, h5, h6,
+.fw-900, strong, b {
+    font-family: var(--aivs-font);
 }
 
 body {
-  margin-bottom: 60px;
+    margin: 0;
+}
+
+a {
+    color: var(--aivs-evening);
+}
+
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
+    box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem var(--aivs-gold-dark);
 }
 
 .form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
-  color: var(--bs-secondary-color);
-  text-align: end;
+    color: var(--bs-secondary-color);
+    text-align: end;
 }
 
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
-  text-align: start;
+    text-align: start;
+}
+
+/* ==========================================================================
+   Shared components — reused across Dashboard / Sector Inbox / Valuer Inbox
+   ========================================================================== */
+
+/* Page wrapper */
+.aivs-page {
+    padding: 6px 2px 30px;
+}
+
+/* Header card — used at the top of every page */
+.aivs-page-header {
+    background: var(--aivs-white);
+    border: 1px solid var(--aivs-border);
+    border-left: 5px solid var(--aivs-gold);
+    border-radius: var(--aivs-radius-sm);
+    padding: 20px 22px;
+    margin-bottom: 22px;
+    box-shadow: var(--aivs-shadow-sm);
+}
+
+.aivs-page-title {
+    margin: 0;
+    font-weight: 700;
+    color: var(--aivs-black);
+    font-size: 24px;
+    letter-spacing: -.01em;
+}
+
+.aivs-page-subtitle {
+    margin-top: 4px;
+    color: var(--aivs-text-muted);
+    font-size: 14px;
+    font-weight: 400;
+}
+
+/* Stat tiles grid */
+.aivs-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 14px;
+    margin-bottom: 22px;
+}
+
+.aivs-tile {
+    display: block;
+    text-decoration: none;
+    background: var(--aivs-white);
+    border: 1px solid var(--aivs-border);
+    border-radius: var(--aivs-radius-sm);
+    padding: 18px;
+    color: var(--aivs-text);
+    box-shadow: var(--aivs-shadow-sm);
+    transition: transform var(--aivs-ease), box-shadow var(--aivs-ease), border-color var(--aivs-ease);
+}
+
+    .aivs-tile:hover {
+        transform: translateY(-2px);
+        border-color: var(--aivs-gold);
+        box-shadow: var(--aivs-shadow);
+        color: var(--aivs-text);
+    }
+
+    .aivs-tile.active {
+        border: 2px solid var(--aivs-black);
+        background: var(--aivs-gold-light);
+    }
+
+.aivs-tile-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--aivs-text-muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.aivs-tile-count {
+    margin-top: 8px;
+    font-size: 30px;
+    font-weight: 700;
+    color: var(--aivs-black);
+}
+
+/* Card / panel */
+.aivs-panel {
+    background: var(--aivs-white);
+    border: 1px solid var(--aivs-border);
+    border-radius: var(--aivs-radius);
+    padding: 18px;
+    margin-bottom: 20px;
+    box-shadow: var(--aivs-shadow-sm);
+}
+
+.aivs-panel-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 14px;
+    color: var(--aivs-black);
+}
+
+/* Dark card header variant (table headers etc.) */
+.aivs-panel-title-dark {
+    background: var(--aivs-black);
+    color: var(--aivs-white);
+    padding: 14px 18px;
+    font-weight: 700;
+    border-radius: var(--aivs-radius) var(--aivs-radius) 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+    .aivs-panel-title-dark span {
+        color: var(--aivs-gold);
+    }
+
+/* Table */
+.aivs-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+    .aivs-table th {
+        background: #faf9f7;
+        color: var(--aivs-text-muted);
+        text-align: left;
+        padding: 10px;
+        border-bottom: 1px solid var(--aivs-border);
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .03em;
+    }
+
+    .aivs-table td {
+        padding: 10px;
+        border-bottom: 1px solid #f1efeb;
+        vertical-align: top;
+    }
+
+/* Badges */
+.aivs-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #f1efeb;
+    color: var(--aivs-text);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.aivs-badge-success {
+    background: var(--aivs-success-bg);
+    color: var(--aivs-success);
+    border: 1px solid var(--aivs-success-border);
+}
+
+.aivs-badge-danger {
+    background: var(--aivs-danger-bg);
+    color: var(--aivs-danger);
+    border: 1px solid var(--aivs-danger-border);
+}
+
+.aivs-badge-warning {
+    background: var(--aivs-warning-bg);
+    color: var(--aivs-warning);
+    border: 1px solid var(--aivs-warning-border);
+}
+
+.aivs-badge-info {
+    background: var(--aivs-info-bg);
+    color: var(--aivs-info);
+    border: 1px solid var(--aivs-info-border);
+}
+
+/* Buttons */
+.aivs-btn {
+    background: var(--aivs-black);
+    color: var(--aivs-white);
+    border: 0;
+    border-radius: var(--aivs-radius-sm);
+    padding: 9px 16px;
+    font-weight: 600;
+    font-family: var(--aivs-font);
+    transition: background var(--aivs-ease);
+}
+
+    .aivs-btn:hover {
+        background: var(--aivs-black-soft);
+        color: var(--aivs-white);
+    }
+
+.aivs-btn-gold {
+    background: var(--aivs-gold);
+    color: var(--aivs-black);
+}
+
+    .aivs-btn-gold:hover {
+        background: var(--aivs-gold-dark);
+        color: var(--aivs-black);
+    }
+
+.aivs-link {
+    color: var(--aivs-evening);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+    .aivs-link:hover {
+        text-decoration: underline;
+        color: var(--aivs-evening);
+    }
+
+/* Form controls used in filter bars */
+.aivs-select,
+.aivs-input {
+    border: 1px solid var(--aivs-border);
+    border-radius: var(--aivs-radius-sm);
+    padding: 8px 10px;
+    font-family: var(--aivs-font);
 }

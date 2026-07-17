@@ -1,280 +1,60 @@
 ﻿@model AIVS.Models.ViewModels.SectorInbox.SectorInboxPageVm
+@using System.Globalization
 
 @{
     ViewData["Title"] = "Sector Inbox";
+
+    string N(int n) => n.ToString("N0", CultureInfo.InvariantCulture);
+
+    var totalAcrossSectors = Model.Tiles.Sum(t => t.Total);
+    var maxTileTotal = Model.Tiles.Any() ? Model.Tiles.Max(t => t.Total) : 0;
+
+    string StatusBadgeClass(string? status)
+    {
+        var s = (status ?? "").Trim().ToUpperInvariant();
+        return s switch
+        {
+            "SECTORINBOX" => "aivs-badge-info",
+            "VALUERREVIEW" => "aivs-badge-warning",
+            "INSPECTIONREQUIRED" => "aivs-badge-warning",
+            "INSPECTIONCONFIRMED" => "aivs-badge-success",
+            "INSPECTIONDETAILSSENT" => "aivs-badge-info",
+            "INSPECTIONEXPIRED" => "aivs-badge-danger",
+            "RETURNEDTOCLIENT" => "aivs-badge-warning",
+            "READYFOROVVIOEXTRACT" => "aivs-badge-success",
+            "REJECTED" => "aivs-badge-danger",
+            _ => "aivs-badge"
+        };
+    }
 }
 
-<style>
-    .si-page {
-        padding: 8px 4px 30px;
-    }
-
-    .si-header {
-        background: #ffffff;
-        border: 1px solid #e3e3e3;
-        border-left: 6px solid #e6b000;
-        border-radius: 8px;
-        padding: 18px 20px;
-        margin-bottom: 20px;
-        box-shadow: 0 2px 8px rgba(0,0,0,.04);
-    }
-
-    .si-title {
-        margin: 0;
-        font-weight: 900;
-        color: #111111;
-        font-size: 26px;
-    }
-
-    .si-subtitle {
-        margin-top: 4px;
-        color: #666666;
-        font-size: 14px;
-    }
-
-    .si-tiles {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-        gap: 14px;
-        margin-bottom: 22px;
-    }
-
-    .si-tile {
-        display: block;
-        text-decoration: none;
-        background: #ffffff;
-        border: 1px solid #dedede;
-        border-radius: 10px;
-        padding: 18px 18px;
-        color: #111111;
-        box-shadow: 0 2px 8px rgba(0,0,0,.05);
-        transition: .15s ease-in-out;
-    }
-
-        .si-tile:hover {
-            transform: translateY(-2px);
-            border-color: #e6b000;
-            box-shadow: 0 5px 14px rgba(0,0,0,.10);
-            color: #111111;
-        }
-
-        .si-tile.active {
-            border: 2px solid #000000;
-            background: #fff8df;
-        }
-
-    .si-tile-name {
-        font-size: 18px;
-        font-weight: 900;
-        text-transform: uppercase;
-    }
-
-    .si-tile-count {
-        margin-top: 10px;
-        font-size: 34px;
-        font-weight: 900;
-        color: #000000;
-    }
-
-    .si-tile-label {
-        color: #666666;
-        font-weight: 700;
-        font-size: 13px;
-    }
-
-    .si-table-card {
-        background: #ffffff;
-        border: 1px solid #e0e0e0;
-        border-radius: 10px;
-        overflow: hidden;
-        box-shadow: 0 2px 8px rgba(0,0,0,.05);
-    }
-
-    .si-table-title {
-        background: #111111;
-        color: #ffffff;
-        padding: 14px 18px;
-        font-weight: 900;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-        .si-table-title span {
-            color: #e6b000;
-        }
-
-    .si-actions-panel {
-        padding: 14px;
-        border-bottom: 1px solid #e5e5e5;
-        background: #fffdf4;
-    }
-
-    .si-action-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 12px;
-        flex-wrap: wrap;
-    }
-
-    .si-bulk-text {
-        font-weight: 800;
-        color: #333333;
-    }
-
-    .si-manager-form {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        flex-wrap: wrap;
-        margin-top: 12px;
-        padding-top: 12px;
-        border-top: 1px solid #eadb9a;
-    }
-
-    .si-manager-label {
-        font-weight: 900;
-        color: #111111;
-    }
-
-    .si-manager-select {
-        min-width: 280px;
-        max-width: 420px;
-        height: 38px;
-        border: 1px solid #cfcfcf;
-        border-radius: 7px;
-        padding: 6px 10px;
-        font-weight: 700;
-    }
-
-    .si-btn-bulk-assign {
-        background: #e6b000;
-        color: #000000;
-        border: 0;
-        border-radius: 7px;
-        padding: 8px 14px;
-        font-size: 13px;
-        font-weight: 900;
-        cursor: pointer;
-    }
-
-        .si-btn-bulk-assign:hover {
-            background: #000000;
-            color: #ffffff;
-        }
-
-    .si-btn-manager-assign {
-        background: #000000;
-        color: #ffffff;
-        border: 0;
-        border-radius: 7px;
-        padding: 8px 14px;
-        font-size: 13px;
-        font-weight: 900;
-        cursor: pointer;
-    }
-
-        .si-btn-manager-assign:hover {
-            background: #e6b000;
-            color: #000000;
-        }
-
-    .si-table {
-        width: 100%;
-        margin: 0;
-        border-collapse: collapse;
-    }
-
-        .si-table th {
-            background: #f7f7f7;
-            font-size: 13px;
-            text-transform: uppercase;
-            color: #333333;
-            border-bottom: 1px solid #dedede;
-            padding: 11px 10px;
-            white-space: nowrap;
-        }
-
-        .si-table td {
-            padding: 11px 10px;
-            border-bottom: 1px solid #eeeeee;
-            font-size: 14px;
-            vertical-align: middle;
-        }
-
-    .si-check-cell {
-        width: 42px;
-        text-align: center;
-    }
-
-    .si-check {
-        width: 17px;
-        height: 17px;
-        cursor: pointer;
-    }
-
-    .si-ref {
-        font-weight: 900;
-        color: #000000;
-    }
-
-    .si-badge {
-        display: inline-block;
-        padding: 4px 8px;
-        border-radius: 999px;
-        background: #fff0bf;
-        color: #5a4100;
-        font-size: 12px;
-        font-weight: 900;
-    }
-
-    .si-empty {
-        background: #ffffff;
-        border: 1px dashed #cfcfcf;
-        border-radius: 10px;
-        padding: 28px;
-        text-align: center;
-        color: #666666;
-        font-weight: 700;
-    }
-
-    .si-btn-view {
-        background: #000000;
-        color: #ffffff;
-        border-radius: 6px;
-        padding: 6px 10px;
-        text-decoration: none;
-        font-size: 13px;
-        font-weight: 800;
-        display: inline-block;
-    }
-
-        .si-btn-view:hover {
-            background: #e6b000;
-            color: #000000;
-        }
-</style>
+<link href="~/css/sector-inbox.css" rel="stylesheet" asp-append-version="true"/>
 
 <div class="si-page">
     @if (TempData["Success"] != null)
     {
-        <div class="alert alert-success fw-bold">
+        <div class="si-banner si-banner-success">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg>
             @TempData["Success"]
         </div>
     }
 
     @if (TempData["Error"] != null)
     {
-        <div class="alert alert-danger fw-bold">
+        <div class="si-banner si-banner-danger">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" /><path d="M12 8v5M12 16h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
             @TempData["Error"]
         </div>
     }
 
-    <div class="si-header">
-        <h1 class="si-title">Sector Inbox</h1>
-        <div class="si-subtitle">
-            Select a sector to view submitted attribute records routed from City Of Johannesburg Valuation Portal.
+    <div class="aivs-page-header">
+        <h1 class="aivs-page-title">Sector Inbox</h1>
+        <div class="aivs-page-subtitle">
+            Select a sector to view submitted attribute records routed from the City of Johannesburg Valuation Portal.
+        </div>
+        <div class="si-header-stats">
+            <div class="si-header-stat"><strong>@Model.Tiles.Count</strong> sectors</div>
+            <div class="si-header-stat"><strong>@N(totalAcrossSectors)</strong> total records routed</div>
         </div>
     </div>
 
@@ -284,14 +64,18 @@
             var active = string.Equals(Model.SelectedSector, tile.Sector, StringComparison.OrdinalIgnoreCase)
                 ? "active"
                 : "";
+            var barPct = maxTileTotal == 0 ? 0 : (double)tile.Total / maxTileTotal * 100;
 
             <a class="si-tile @active"
                    asp-controller="SectorInbox"
                    asp-action="Index"
                    asp-route-sector="@tile.Sector">
                 <div class="si-tile-name">@tile.Sector</div>
-                <div class="si-tile-count">@tile.Total</div>
+                <div class="si-tile-count">@N(tile.Total)</div>
                 <div class="si-tile-label">records in sector inbox</div>
+                <div class="si-tile-bar">
+                    <div class="si-tile-bar-fill" style="width:@(barPct.ToString("0.###", CultureInfo.InvariantCulture))%;"></div>
+                </div>
             </a>
         }
     </div>
@@ -309,7 +93,7 @@
                 <div>
                     Sector: <span>@Model.SelectedSector</span>
                 </div>
-                <div>
+                <div class="si-table-title-count">
                     @Model.Items.Count record(s)
                 </div>
             </div>
@@ -347,11 +131,14 @@
                     <div class="si-actions-panel">
                         <div class="si-action-row">
                             <div class="si-bulk-text">
-                                Select one or more records, then add them to your Valuer Inbox.
+                                <span id="siSelectedCount" class="si-selected-count">0</span> selected &mdash;
+                                add them to your Valuer Inbox.
                             </div>
 
                             <button type="submit"
+                                    id="siBulkAssignBtn"
                                     class="si-btn-bulk-assign"
+                                    disabled
                                     onclick="return confirmBulkAssign();">
                                 Add selected to my inbox
                             </button>
@@ -378,8 +165,10 @@
                                 </select>
 
                                 <button type="submit"
+                                        id="siManagerAssignBtn"
                                         form="assignToValuerForm"
                                         class="si-btn-manager-assign"
+                                        disabled
                                         onclick="return copySelectedAndConfirmManagerAssign();">
                                     Assign selected to valuer
                                 </button>
@@ -387,7 +176,7 @@
                         }
                     </div>
 
-                    <div class="table-responsive">
+                    <div class="si-table-scroll">
                         <table class="si-table">
                             <thead>
                                 <tr>
@@ -422,11 +211,11 @@
                                         <td>@item.PropertyDescription</td>
                                         <td>@item.Township</td>
                                         <td>@item.RoutedSector</td>
-                                        <td>@item.SubmittedDate.ToString("yyyy-MM-dd HH:mm")</td>
-                                        <td>@(item.RoutedDate?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
+                                        <td class="si-muted">@item.SubmittedDate.ToString("yyyy-MM-dd HH:mm")</td>
+                                        <td class="si-muted">@(item.RoutedDate?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
                                         <td>@item.EvidenceCount</td>
                                         <td>
-                                            <span class="si-badge">@item.Status</span>
+                                            <span class="aivs-badge @StatusBadgeClass(item.Status)">@item.Status</span>
                                         </td>
                                         <td style="white-space:nowrap;">
                                             <a class="si-btn-view"
@@ -449,10 +238,37 @@
 
 @section Scripts {
     <script>
+        function updateSelectionState() {
+            var selected = getSelectedRows();
+            var count = selected.length;
+
+            var countEl = document.getElementById('siSelectedCount');
+            if (countEl) countEl.textContent = count;
+
+            var bulkBtn = document.getElementById('siBulkAssignBtn');
+            if (bulkBtn) bulkBtn.disabled = count === 0;
+
+            var managerBtn = document.getElementById('siManagerAssignBtn');
+            if (managerBtn) managerBtn.disabled = count === 0;
+
+            document.querySelectorAll('.row-check').forEach(function (checkbox) {
+                var row = checkbox.closest('tr');
+                if (row) row.classList.toggle('is-selected', checkbox.checked);
+            });
+
+            var all = document.querySelectorAll('.row-check');
+            var selectAll = document.getElementById('selectAllRows');
+            if (selectAll) {
+                selectAll.checked = all.length > 0 && count === all.length;
+                selectAll.indeterminate = count > 0 && count < all.length;
+            }
+        }
+
         function toggleAllRows(source) {
             document.querySelectorAll('.row-check').forEach(function (checkbox) {
                 checkbox.checked = source.checked;
             });
+            updateSelectionState();
         }
 
         function getSelectedRows() {
@@ -506,5 +322,13 @@
 
             return confirm('Assign ' + selected.length + ' selected item(s) to the selected valuer?');
         }
+
+        document.addEventListener('change', function (e) {
+            if (e.target.classList && e.target.classList.contains('row-check')) {
+                updateSelectionState();
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', updateSelectionState);
     </script>
 }

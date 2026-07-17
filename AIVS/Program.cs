@@ -11,7 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 // MVC
 builder.Services.AddControllersWithViews();
 builder.Services.AddRazorPages();
-
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 // ─────────────────────────────────────────────
 // Read roles and policy names from appsettings
 // ─────────────────────────────────────────────
@@ -69,7 +69,8 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IValuerInboxService, ValuerInboxService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IHomeDashboardService, HomeDashboardService>();
-
+builder.Services.AddScoped<IStatsExtractService, StatsExtractService>();
+builder.Services.AddScoped<IValuerReviewPdfService, ValuerReviewPdfService>();
 // ─────────────────────────────────────────────
 // Authorisation policies
 // ─────────────────────────────────────────────

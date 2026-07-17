@@ -61,7 +61,33 @@
         public int? ValuerDetailsSentByUserId { get; set; }
 
         public string? ValuerDetailsSentByName { get; set; }
+        public string? ValuerSapNumber { get; set; }
 
+      
+
+        public DateTime? ExpiredAt { get; set; }
+
+        public string? ExpiryReason { get; set; }
+
+        public DateTime? PinVerifiedAt { get; set; }
+
+        public string? PinVerifiedByEmail { get; set; }
+
+        public int PinFailedAttempts { get; set; }
+
+        public DateTime? PinValidFrom { get; set; }
+
+        public DateTime? PinValidUntil { get; set; }
+
+        public DateTime? PinUsedAt { get; set; }
+
+        public string? PinUsedByEmail { get; set; }
+
+        public string? PinUsedIpAddress { get; set; }
+
+        public string? PinUsedUserAgent { get; set; }
         public List<AttrInspectionRequestSlot> Slots { get; set; } = new();
+
+        
     }
 }

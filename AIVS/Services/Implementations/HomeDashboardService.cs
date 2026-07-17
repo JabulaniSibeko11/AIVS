@@ -23,12 +23,9 @@ namespace AIVS.Services.Implementations
             var sector = Clean(currentUser.Sector);
             var userId = currentUser.UserId?.ToString();
 
-            var isValuer = role == "VALUER";
-            var isManager = role == "SECTOR MANAGER" || role == "AREA MANAGER";
-            var isExecutive =
-                role == "EXECUTIVE" ||
-                role == "SYSTEM ADMIN" ||
-                role == "VALUATION ADMIN";
+            var isValuer = IsValuerRole(role);
+            var isManager = IsManagerRole(role);
+            var isExecutive = IsExecutiveRole(role);
 
             var query = _context.AttrPropertyInfo
                 .AsNoTracking()
@@ -130,7 +127,28 @@ namespace AIVS.Services.Implementations
 
             return model;
         }
+        private static bool IsValuerRole(string role)
+        {
+            return role == "VALUER";
+        }
 
+        private static bool IsManagerRole(string role)
+        {
+            return role == "SECTOR MANAGER" ||
+                   role == "AREA MANAGER" ||
+                   role == "OPERATIONAL MANAGER";
+        }
+
+        private static bool IsExecutiveRole(string role)
+        {
+            return role == "EXECUTIVE" ||
+                   role == "SYSTEM ADMIN" ||
+                   role == "VALUATION ADMIN" ||
+                   role == "ADMIN" ||
+                   role == "ADMINISTRATOR" ||
+                   role == "IT MANAGER" ||
+                   role == "MANAGER";
+        }
         private static void PopulateMainCounts(
             AivsHomeDashboardVm model,
             List<HomeDashboardRow> rows)

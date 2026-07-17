@@ -1,0 +1,82 @@
+﻿@{
+    ViewData["Title"] = "Help";
+}
+
+<div class="aivs-page">
+    <div class="aivs-page-header">
+        <h1 class="aivs-page-title">@ViewData["Title"]</h1>
+        <div class="aivs-page-subtitle">
+            A quick guide to how records move through AIVS.
+        </div>
+    </div>
+
+    <div class="aivs-panel">
+        <h2 class="aivs-panel-title">The review workflow</h2>
+        <table class="aivs-table">
+            <thead>
+                <tr>
+                    <th style="width:160px;">Stage</th>
+                    <th>What happens</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><span class="aivs-badge aivs-badge-info">Sector Inbox</span></td>
+                    <td>
+                        Submitted attribute records land here, grouped by sector. A sector
+                        manager assigns individual records, or a selected batch, to a valuer.
+                    </td>
+                </tr>
+                <tr>
+                    <td><span class="aivs-badge aivs-badge-info">Valuer Inbox</span></td>
+                    <td>
+                        Records assigned to a valuer appear here. Opening a record moves into
+                        the review screen, where each section of the submission is checked
+                        against the declared property attributes.
+                    </td>
+                </tr>
+                <tr>
+                    <td><span class="aivs-badge aivs-badge-warning">Inspection</span></td>
+                    <td>
+                        If a physical inspection is required, the valuer schedules a slot and
+                        the applicant is notified of the confirmed date and time.
+                    </td>
+                </tr>
+                <tr>
+                    <td><span class="aivs-badge aivs-badge-success">Final review</span></td>
+                    <td>
+                        Once every section has been checked, the valuer submits a final
+                        review — the record is confirmed, returned to the client for
+                        correction, or rejected.
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="aivs-panel">
+        <h2 class="aivs-panel-title">Dashboard</h2>
+        <p>
+            The Dashboard summarises record counts by status. Sector managers and
+            executives can also generate per-valuer performance statistics from here.
+        </p>
+    </div>
+
+    <div class="aivs-panel">
+        <h2 class="aivs-panel-title">Notifications</h2>
+        <p>
+            The bell icon in the navigation bar shows a count of unread notifications —
+            for example, when a record is assigned to you or an inspection is confirmed.
+            Selecting it opens your full notification list.
+        </p>
+    </div>
+
+    <div class="aivs-panel">
+        <h2 class="aivs-panel-title">Access issues</h2>
+        <p>
+            If a page shows an access warning, or a record you expect to see is missing,
+            your account may not yet have the correct sector or role assigned. Contact
+            your sector manager or the AIVS system administrator to have this corrected.
+        </p>
+    </div>
+</div>

@@ -1,185 +1,105 @@
 ﻿@model AIVS.Models.ViewModels.Home.AivsHomeDashboardVm
+@using System.Globalization
 
 @{
     ViewData["Title"] = "AIVS Dashboard";
+
+    string F(double d) => d.ToString("0.###", CultureInfo.InvariantCulture);
+    string N(int n) => n.ToString("N0", CultureInfo.InvariantCulture);
+
+    // ---- Status donut ------------------------------------------------
+    var statusColorMap = new Dictionary<string, (string Label, string Color)>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["SectorInbox"]           = ("Sector Inbox",        "var(--aivs-evening)"),
+        ["Claimed"]               = ("Claimed",             "var(--aivs-turquoise)"),
+        ["ValuerReview"]          = ("Under Review",        "var(--aivs-orange)"),
+        ["InspectionRequired"]    = ("Inspection Required",  "var(--aivs-gold-dark)"),
+        ["InspectionConfirmed"]   = ("Inspection Confirmed", "var(--aivs-success)"),
+        ["InspectionDetailsSent"] = ("Details Sent",         "var(--aivs-info)"),
+        ["InspectionExpired"]     = ("Inspection Expired",   "var(--aivs-grey-light)"),
+        ["ReturnedToClient"]      = ("Returned",             "#8a7355"),
+        ["ReadyForOvvioExtract"]  = ("Ready for OVVIO",      "var(--aivs-gold)"),
+        ["Rejected"]              = ("Rejected",             "var(--aivs-danger)"),
+        ["Unknown"]               = ("Unknown",              "var(--aivs-border)")
+    };
+
+    var fallbackPalette = new[]
+    {
+        "var(--aivs-evening)", "var(--aivs-turquoise)", "var(--aivs-orange)",
+        "var(--aivs-grey)", "var(--aivs-gold-dark)"
+    };
+
+    var statusTotal = Model.StatusCounts.Sum(s => s.Count);
+    var donutR = 80.0;
+    var donutStroke = 22.0;
+    var circumference = 2 * Math.PI * donutR;
+    double cumulative = 0;
+    var fallbackIdx = 0;
+
+    var donutSegments = new List<(string Label, int Count, string Color, double Dash, double Gap, double Offset)>();
+
+    foreach (var s in Model.StatusCounts)
+    {
+        string label; string color;
+        if (statusColorMap.TryGetValue(s.Status, out var mapped))
+        {
+            label = mapped.Label;
+            color = mapped.Color;
+        }
+        else
+        {
+            label = s.Status;
+            color = fallbackPalette[fallbackIdx % fallbackPalette.Length];
+            fallbackIdx++;
+        }
+
+        var fraction = statusTotal == 0 ? 0 : (double)s.Count / statusTotal;
+        var dash = fraction * circumference;
+        var gap = circumference - dash;
+        var offset = -(cumulative * circumference);
+        cumulative += fraction;
+
+        donutSegments.Add((label, s.Count, color, dash, gap, offset));
+    }
+
+    // ---- Role-dependent secondary chart -------------------------------
+    var sectorMax = Model.SectorStats.Any() ? Model.SectorStats.Max(s => s.Total) : 0;
+    var topValuers = Model.ValuerStats
+        .OrderByDescending(v => v.TotalAssigned)
+        .Take(8)
+        .ToList();
+    var valuerMax = topValuers.Any() ? topValuers.Max(v => v.TotalAssigned) : 0;
+
+    var workloadTiles = Model.Tiles.Where(t => t.CssClass != "tile-total").ToList();
+    var workloadMax = workloadTiles.Any() ? workloadTiles.Max(t => t.Count) : 0;
+
+    var tileTotalForBars = Model.TotalSubmissions == 0 ? 1 : Model.TotalSubmissions;
 }
 
-<style>
-    .dash-wrap {
-        padding: 22px;
-    }
-
-    .dash-head {
-        background: #111827;
-        color: #fff;
-        border-radius: 18px;
-        padding: 22px;
-        margin-bottom: 18px;
-    }
-
-    .dash-title {
-        font-size: 26px;
-        font-weight: 900;
-        margin-bottom: 4px;
-    }
-
-    .dash-sub {
-        color: #d1d5db;
-        font-size: 14px;
-    }
-
-    .dash-grid {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 14px;
-        margin-bottom: 18px;
-    }
-
-    .dash-tile {
-        background: #fff;
-        border-radius: 16px;
-        padding: 16px;
-        border: 1px solid #e5e7eb;
-        box-shadow: 0 8px 20px rgba(0,0,0,.04);
-    }
-
-    .dash-tile-title {
-        font-size: 12px;
-        color: #6b7280;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: .04em;
-    }
-
-    .dash-tile-count {
-        font-size: 30px;
-        font-weight: 900;
-        margin-top: 4px;
-        color: #111827;
-    }
-
-    .tile-total { border-left: 5px solid #111827; }
-    .tile-inbox { border-left: 5px solid #2563eb; }
-    .tile-claimed { border-left: 5px solid #0f766e; }
-    .tile-review { border-left: 5px solid #7c3aed; }
-    .tile-inspection { border-left: 5px solid #d97706; }
-    .tile-confirmed { border-left: 5px solid #059669; }
-    .tile-ovvio { border-left: 5px solid #16a34a; }
-    .tile-returned { border-left: 5px solid #f59e0b; }
-    .tile-rejected { border-left: 5px solid #dc2626; }
-
-    .dash-panel {
-        background: #fff;
-        border: 1px solid #e5e7eb;
-        border-radius: 16px;
-        padding: 16px;
-        margin-bottom: 18px;
-        box-shadow: 0 8px 20px rgba(0,0,0,.04);
-    }
-
-    .dash-panel-title {
-        font-size: 18px;
-        font-weight: 900;
-        margin-bottom: 12px;
-        color: #111827;
-    }
-
-    .dash-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 13px;
-    }
-
-    .dash-table th {
-        background: #f9fafb;
-        color: #374151;
-        text-align: left;
-        padding: 10px;
-        border-bottom: 1px solid #e5e7eb;
-        font-size: 12px;
-        text-transform: uppercase;
-    }
-
-    .dash-table td {
-        padding: 10px;
-        border-bottom: 1px solid #f3f4f6;
-        vertical-align: top;
-    }
-
-    .dash-badge {
-        display: inline-block;
-        padding: 4px 8px;
-        border-radius: 999px;
-        background: #f3f4f6;
-        font-size: 12px;
-        font-weight: 800;
-    }
-
-    .dash-filter {
-        display: flex;
-        gap: 10px;
-        align-items: end;
-        margin-bottom: 12px;
-    }
-
-    .dash-filter select {
-        min-width: 300px;
-        padding: 8px;
-        border: 1px solid #d1d5db;
-        border-radius: 10px;
-    }
-
-    .dash-btn {
-        background: #111827;
-        color: #fff;
-        border: 0;
-        border-radius: 10px;
-        padding: 9px 14px;
-        font-weight: 800;
-    }
-
-    .dash-link {
-        color: #2563eb;
-        font-weight: 800;
-        text-decoration: none;
-    }
-
-    .dash-link:hover {
-        text-decoration: underline;
-    }
-
-    @@media (max-width: 1100px) {
-        .dash-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-    }
-
-    @@media (max-width: 650px) {
-        .dash-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .dash-filter {
-            display: block;
-        }
-
-        .dash-filter select {
-            width: 100%;
-            min-width: unset;
-            margin-bottom: 8px;
-        }
-    }
-</style>
+<link href="~/css/home-dashboard.css" rel="stylesheet" asp-append-version="true" />
 
 <div class="dash-wrap">
     <div class="dash-head">
-        <div class="dash-title">@Model.DashboardTitle</div>
-        <div class="dash-sub">
-            @Model.DashboardScope
-            @if (!string.IsNullOrWhiteSpace(Model.CurrentRole))
-            {
-                <span> • Role: @Model.CurrentRole</span>
-            }
+        <div>
+            <div class="dash-title">@Model.DashboardTitle</div>
+            <div class="dash-sub">
+                @Model.DashboardScope
+                @if (!string.IsNullOrWhiteSpace(Model.CurrentRole))
+                {
+                    <span> &bull; Role: @Model.CurrentRole</span>
+                }
+            </div>
+        </div>
+
+        <div class="dash-hero-stats">
+            <div class="dash-hero-stat">
+                <div class="dash-hero-stat-value">@N(Model.TotalSubmissions)</div>
+                <div class="dash-hero-stat-label">Total records</div>
+            </div>
+            <div class="dash-hero-stat">
+                <div class="dash-hero-stat-value">@N(Model.CompletedThisMonth)</div>
+                <div class="dash-hero-stat-label">Completed this month</div>
+            </div>
         </div>
     </div>
 
@@ -229,21 +149,158 @@
     <div class="dash-grid">
         @foreach (var tile in Model.Tiles)
         {
+            var pct = tileTotalForBars == 0 ? 0 : Math.Min(100, (double)tile.Count / tileTotalForBars * 100);
+
             <div class="dash-tile @tile.CssClass">
                 <div class="dash-tile-title">@tile.Title</div>
-                <div class="dash-tile-count">@tile.Count</div>
+                <div class="dash-tile-count">@N(tile.Count)</div>
+                <div class="dash-tile-bar">
+                    <div class="dash-tile-bar-fill" style="width:@(F(pct))%;"></div>
+                </div>
             </div>
         }
     </div>
 
-    @if (Model.IsManagerDashboard || Model.IsExecutiveDashboard)
+    <div class="dash-insights">
+        <div class="dash-panel">
+            <div class="dash-panel-title">Status Breakdown</div>
+
+            @if (statusTotal == 0)
+            {
+                <div class="dash-empty">No records to summarise yet.</div>
+            }
+            else
+            {
+                <div class="donut-wrap">
+                    <div class="donut-figure">
+                        <svg viewBox="0 0 200 200">
+                            <circle cx="100" cy="100" r="@F(donutR)" fill="none" stroke="#f1efeb" stroke-width="@F(donutStroke)" />
+                            @foreach (var seg in donutSegments)
+                            {
+                                <circle cx="100" cy="100" r="@F(donutR)" fill="none"
+                                        stroke="@seg.Color" stroke-width="@F(donutStroke)"
+                                        stroke-dasharray="@F(seg.Dash) @F(seg.Gap)"
+                                        stroke-dashoffset="@F(seg.Offset)"
+                                        transform="rotate(-90 100 100)"
+                                        stroke-linecap="butt" />
+                            }
+                        </svg>
+                        <div class="donut-center">
+                            <div class="donut-center-value">@N(statusTotal)</div>
+                            <div class="donut-center-label">Records</div>
+                        </div>
+                    </div>
+
+                    <div class="donut-legend">
+                        @foreach (var seg in donutSegments)
+                        {
+                            <div class="donut-legend-row">
+                                <span class="donut-legend-label">
+                                    <span class="donut-legend-swatch" style="background:@seg.Color;"></span>
+                                    @seg.Label
+                                </span>
+                                <span class="donut-legend-count">@N(seg.Count)</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        @if (Model.IsExecutiveDashboard)
+        {
+            <div class="dash-panel">
+                <div class="dash-panel-title">Sector Performance</div>
+
+                @if (!Model.SectorStats.Any())
+                {
+                    <div class="dash-empty">No sector data available.</div>
+                }
+                else
+                {
+                    <div class="bar-chart">
+                        @foreach (var sector in Model.SectorStats.OrderByDescending(s => s.Total))
+                        {
+                            var pct = sectorMax == 0 ? 0 : (double)sector.Total / sectorMax * 100;
+
+                            <div class="bar-row">
+                                <div class="bar-label">@sector.Sector</div>
+                                <div class="bar-track">
+                                    <div class="bar-fill" style="width:@(F(pct))%; background: var(--aivs-evening);"></div>
+                                </div>
+                                <div class="bar-value">@N(sector.Total)</div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        else if (Model.IsManagerDashboard)
+        {
+            <div class="dash-panel">
+                <div class="dash-panel-title">Valuer Performance</div>
+
+                @if (!topValuers.Any())
+                {
+                    <div class="dash-empty">No valuer assignments in your sector yet.</div>
+                }
+                else
+                {
+                    <div class="bar-chart">
+                        @foreach (var valuer in topValuers)
+                        {
+                            var pct = valuerMax == 0 ? 0 : (double)valuer.TotalAssigned / valuerMax * 100;
+
+                            <div class="bar-row">
+                                <div class="bar-label">@valuer.ValuerName</div>
+                                <div class="bar-track">
+                                    <div class="bar-fill" style="width:@(F(pct))%; background: var(--aivs-turquoise);"></div>
+                                </div>
+                                <div class="bar-value">@N(valuer.TotalAssigned)</div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="dash-panel">
+                <div class="dash-panel-title">Your Workload</div>
+
+                @if (!workloadTiles.Any())
+                {
+                    <div class="dash-empty">No records assigned to you yet.</div>
+                }
+                else
+                {
+                    <div class="bar-chart">
+                        @foreach (var tile in workloadTiles)
+                        {
+                            var pct = workloadMax == 0 ? 0 : (double)tile.Count / workloadMax * 100;
+
+                            <div class="bar-row">
+                                <div class="bar-label">@tile.Title</div>
+                                <div class="bar-track">
+                                    <div class="bar-fill" style="width:@(F(pct))%; background: var(--aivs-gold-dark);"></div>
+                                </div>
+                                <div class="bar-value">@N(tile.Count)</div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    @if (Model.IsExecutiveDashboard)
     {
         <div class="dash-panel">
             <div class="dash-panel-title">Valuer Performance Stats</div>
 
             @if (Model.ValuerStats == null || !Model.ValuerStats.Any())
             {
-                <div class="text-muted">No valuer stats found.</div>
+                <div class="dash-empty">No valuer stats found.</div>
             }
             else
             {
@@ -269,25 +326,22 @@
                             <tr>
                                 <td>@valuer.ValuerName</td>
                                 <td>@valuer.Sector</td>
-                                <td><strong>@valuer.TotalAssigned</strong></td>
-                                <td>@valuer.Claimed</td>
-                                <td>@valuer.UnderReview</td>
-                                <td>@valuer.InspectionRequired</td>
-                                <td>@valuer.InspectionConfirmed</td>
-                                <td>@valuer.InspectionExpired</td>
-                                <td>@valuer.ReturnedToClient</td>
-                                <td>@valuer.ReadyForOvvio</td>
-                                <td>@valuer.Rejected</td>
+                                <td><strong>@N(valuer.TotalAssigned)</strong></td>
+                                <td>@N(valuer.Claimed)</td>
+                                <td>@N(valuer.UnderReview)</td>
+                                <td>@N(valuer.InspectionRequired)</td>
+                                <td>@N(valuer.InspectionConfirmed)</td>
+                                <td>@N(valuer.InspectionExpired)</td>
+                                <td>@N(valuer.ReturnedToClient)</td>
+                                <td>@N(valuer.ReadyForOvvio)</td>
+                                <td>@N(valuer.Rejected)</td>
                             </tr>
                         }
                     </tbody>
                 </table>
             }
         </div>
-    }
 
-    @if (Model.IsExecutiveDashboard)
-    {
         <div class="dash-panel">
             <div class="dash-panel-title">Sector Stats</div>
 
@@ -309,48 +363,75 @@
                     {
                         <tr>
                             <td>@sector.Sector</td>
-                            <td><strong>@sector.Total</strong></td>
-                            <td>@sector.SectorInbox</td>
-                            <td>@sector.Assigned</td>
-                            <td>@sector.UnderReview</td>
-                            <td>@sector.Inspections</td>
-                            <td>@sector.ReadyForOvvio</td>
-                            <td>@sector.Rejected</td>
+                            <td><strong>@N(sector.Total)</strong></td>
+                            <td>@N(sector.SectorInbox)</td>
+                            <td>@N(sector.Assigned)</td>
+                            <td>@N(sector.UnderReview)</td>
+                            <td>@N(sector.Inspections)</td>
+                            <td>@N(sector.ReadyForOvvio)</td>
+                            <td>@N(sector.Rejected)</td>
                         </tr>
                     }
                 </tbody>
             </table>
         </div>
     }
+    else if (Model.IsManagerDashboard)
+    {
+        <div class="dash-panel">
+            <div class="dash-panel-title">Valuer Performance Stats</div>
 
-    <div class="dash-panel">
-        <div class="dash-panel-title">Status Breakdown</div>
-
-        <table class="dash-table">
-            <thead>
-                <tr>
-                    <th>Status</th>
-                    <th>Total</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var status in Model.StatusCounts)
-                {
-                    <tr>
-                        <td><span class="dash-badge">@status.Status</span></td>
-                        <td><strong>@status.Count</strong></td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
+            @if (Model.ValuerStats == null || !Model.ValuerStats.Any())
+            {
+                <div class="dash-empty">No valuer stats found.</div>
+            }
+            else
+            {
+                <table class="dash-table">
+                    <thead>
+                        <tr>
+                            <th>Valuer</th>
+                            <th>Sector</th>
+                            <th>Total</th>
+                            <th>Claimed</th>
+                            <th>Under Review</th>
+                            <th>Inspection Required</th>
+                            <th>Inspection Confirmed</th>
+                            <th>Expired</th>
+                            <th>Returned</th>
+                            <th>Ready OVVIO</th>
+                            <th>Rejected</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var valuer in Model.ValuerStats)
+                        {
+                            <tr>
+                                <td>@valuer.ValuerName</td>
+                                <td>@valuer.Sector</td>
+                                <td><strong>@N(valuer.TotalAssigned)</strong></td>
+                                <td>@N(valuer.Claimed)</td>
+                                <td>@N(valuer.UnderReview)</td>
+                                <td>@N(valuer.InspectionRequired)</td>
+                                <td>@N(valuer.InspectionConfirmed)</td>
+                                <td>@N(valuer.InspectionExpired)</td>
+                                <td>@N(valuer.ReturnedToClient)</td>
+                                <td>@N(valuer.ReadyForOvvio)</td>
+                                <td>@N(valuer.Rejected)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
 
     <div class="dash-panel">
         <div class="dash-panel-title">Recent Activity</div>
 
         @if (Model.RecentItems == null || !Model.RecentItems.Any())
         {
-            <div class="text-muted">No recent activity found.</div>
+            <div class="dash-empty">No recent activity found.</div>
         }
         else
         {

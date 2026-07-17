@@ -578,17 +578,20 @@ END:VCALENDAR";
                     BodyPreview = BuildBodyPreview(body),
                     IsTestMode = _settings.TestMode,
                     SendStatus = "Failed",
-                    ErrorMessage = ex.Message,
+                    ErrorMessage = ex.InnerException == null
+    ? ex.Message
+    : $"{ex.Message} | Inner: {ex.InnerException.Message}",
                     CreatedBy = "AIVS"
                 });
 
                 _logger.LogError(
-                    ex,
-                    "Failed to send {EmailType} email. Actual recipient: {ActualEmail}. Original recipient: {OriginalEmail}. TestMode: {TestMode}.",
-                    emailType,
-                    actualToEmail,
-                    originalToEmail,
-                    _settings.TestMode);
+      ex,
+      "Failed to send {EmailType} email. Actual recipient: {ActualEmail}. Original recipient: {OriginalEmail}. TestMode: {TestMode}. Error: {Error}",
+      emailType,
+      actualToEmail,
+      originalToEmail,
+      _settings.TestMode,
+      ex.InnerException == null ? ex.Message : $"{ex.Message} | Inner: {ex.InnerException.Message}");
             }
         }
         private async Task SaveEmailLogAsync(AivsEmailLog log)

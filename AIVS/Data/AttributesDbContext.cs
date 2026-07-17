@@ -208,10 +208,51 @@ namespace AIVS.Data
                 entity.Property(e => e.ValuerDetailsSentAt).HasColumnName("ValuerDetailsSentAt");
                 entity.Property(e => e.ValuerDetailsSentByUserId).HasColumnName("ValuerDetailsSentByUserId");
                 entity.Property(e => e.ValuerDetailsSentByName).HasColumnName("ValuerDetailsSentByName");
+                
+                entity.Property(e => e.ValuerSapNumber)
+    .HasColumnName("ValuerSapNumber")
+    .HasMaxLength(50);
+
+                entity.Property(e => e.ExpiredAt)
+                    .HasColumnName("ExpiredAt");
+
+                entity.Property(e => e.ExpiryReason)
+                    .HasColumnName("ExpiryReason")
+                    .HasMaxLength(500);
+
+                entity.Property(e => e.PinVerifiedAt)
+                    .HasColumnName("PinVerifiedAt");
+
+                entity.Property(e => e.PinVerifiedByEmail)
+                    .HasColumnName("PinVerifiedByEmail")
+                    .HasMaxLength(255);
+
+                entity.Property(e => e.PinFailedAttempts)
+                    .HasColumnName("PinFailedAttempts");
 
                 entity.HasMany(e => e.Slots)
                     .WithOne(e => e.InspectionRequest)
                     .HasForeignKey(e => e.InspectionRequestId);
+                entity.Property(e => e.PinValidFrom)
+    .HasColumnName("PinValidFrom");
+
+                entity.Property(e => e.PinValidUntil)
+                    .HasColumnName("PinValidUntil");
+
+                entity.Property(e => e.PinUsedAt)
+                    .HasColumnName("PinUsedAt");
+
+                entity.Property(e => e.PinUsedByEmail)
+                    .HasColumnName("PinUsedByEmail")
+                    .HasMaxLength(255);
+
+                entity.Property(e => e.PinUsedIpAddress)
+                    .HasColumnName("PinUsedIpAddress")
+                    .HasMaxLength(100);
+
+                entity.Property(e => e.PinUsedUserAgent)
+                    .HasColumnName("PinUsedUserAgent")
+                    .HasMaxLength(500);
             });
 
             modelBuilder.Entity<AttrInspectionRequestSlot>(entity =>

@@ -1,0 +1,242 @@
+﻿/* AIVS chrome — identity bar, nav, footer.
+Colors and type come from wwwroot/css/site.css design tokens. */
+
+.aivs-topbar {
+    background: var(--aivs-black);
+    color: var(--aivs-white);
+    min-height: 40px;
+    padding: 0 22px;
+    display: flex;
+    align-items: center;
+}
+
+.aivs-topbar-inner {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+}
+
+.aivs-user-position {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: #c9c9c9;
+}
+
+.aivs-user-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--aivs-white);
+    white-space: nowrap;
+}
+
+/* --- Nav bar --- */
+.aivs-goldbar {
+    background: var(--aivs-gold);
+    border-bottom: 1px solid var(--aivs-gold-dark);
+    min-height: 54px;
+    padding: 0 22px;
+}
+
+    .aivs-goldbar .navbar-brand {
+        color: var(--aivs-black) !important;
+        font-size: 19px;
+        font-weight: 700;
+        letter-spacing: .06em;
+        margin-right: 28px;
+    }
+
+    .aivs-goldbar .nav-link {
+        color: var(--aivs-black) !important;
+        font-weight: 500;
+        font-size: 14px;
+        padding: 9px 14px !important;
+        border-radius: var(--aivs-radius-sm);
+        margin-right: 2px;
+        transition: background 120ms ease;
+    }
+
+        .aivs-goldbar .nav-link:hover {
+            background: rgba(0,0,0,.08);
+        }
+
+        .aivs-goldbar .nav-item.active .nav-link,
+        .aivs-goldbar .nav-link.active {
+            font-weight: 700;
+            background: rgba(0,0,0,.10);
+        }
+
+    .aivs-goldbar .navbar-toggler {
+        border-color: rgba(0,0,0,.35);
+    }
+
+/* --- Notification bell --- */
+.aivs-bell {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    color: var(--aivs-black);
+    text-decoration: none;
+    transition: background 120ms ease;
+}
+
+    .aivs-bell:hover {
+        background: rgba(0,0,0,.08);
+        color: var(--aivs-black);
+    }
+
+.aivs-bell-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--aivs-danger);
+    color: var(--aivs-white);
+    font-size: 10px;
+    line-height: 16px;
+    font-weight: 700;
+    text-align: center;
+}
+
+/* --- Access warning --- */
+.aivs-access-warning {
+    background: var(--aivs-warning-bg);
+    border-bottom: 1px solid var(--aivs-warning-border);
+    color: #5c4300;
+    padding: 9px 22px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* --- Main content area --- */
+.aivs-main-container {
+    padding-top: 24px;
+    padding-bottom: 48px;
+}
+
+/* --- Page loader --- */
+.aivs-loader {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    z-index: 2000;
+    overflow: hidden;
+    pointer-events: none;
+    background: transparent;
+}
+
+    .aivs-loader::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: -35%;
+        height: 100%;
+        width: 35%;
+        background: linear-gradient(90deg, transparent, var(--aivs-gold), var(--aivs-gold-dark), transparent);
+    }
+
+    .aivs-loader.active::before {
+        animation: aivs-loader-sweep 850ms ease-in-out infinite;
+    }
+
+@keyframes aivs-loader-sweep {
+    0% {
+        left: -35%;
+    }
+
+    100% {
+        left: 100%;
+    }
+}
+
+/* --- Footer --- */
+.aivs-footer {
+    background: var(--aivs-white);
+    border-top: 1px solid var(--aivs-border);
+    padding: 14px 0;
+}
+
+.aivs-footer-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.aivs-footer-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.aivs-footer-mark {
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: .06em;
+    color: var(--aivs-black);
+}
+
+.aivs-footer-sep {
+    color: var(--aivs-border);
+}
+
+.aivs-footer-copy {
+    color: var(--aivs-text-muted);
+    font-size: 12px;
+}
+
+.aivs-footer-links {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+}
+
+    .aivs-footer-links a {
+        color: var(--aivs-text-muted);
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+        .aivs-footer-links a:hover {
+            color: var(--aivs-black);
+            text-decoration: underline;
+        }
+
+@media (max-width: 576px) {
+    .aivs-topbar {
+        padding: 8px 14px;
+    }
+
+    .aivs-topbar-inner {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+
+    .aivs-user-name {
+        white-space: normal;
+    }
+
+    .aivs-goldbar .navbar-brand {
+        font-size: 17px;
+    }
+
+    .aivs-footer-inner {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
