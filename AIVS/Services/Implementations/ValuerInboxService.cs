@@ -14,15 +14,16 @@ namespace AIVS.Services.Implementations
         private readonly ILogger<ValuerInboxService> _logger;
         private readonly IEmailService _emailService;
         private readonly AttributeStorageSettings _storageSettings;
-
+        private readonly INotificationService _notificationService;
         public ValuerInboxService(
             AttributesDbContext context,
-            ILogger<ValuerInboxService> logger, IEmailService emailService, AttributeStorageSettings storageSettings)
+            ILogger<ValuerInboxService> logger, IEmailService emailService, AttributeStorageSettings storageSettings, INotificationService notificationService)
         {
             _context = context;
             _logger = logger;
             _emailService = emailService;
             _storageSettings = storageSettings;
+            _notificationService = notificationService;
         }
 
         public async Task<List<ValuerInboxItemVm>> GetMyInboxAsync(AivsCurrentUserVm currentUser)
@@ -1066,6 +1067,17 @@ namespace AIVS.Services.Implementations
                         attrNo,
                         propertyDescription,
                         finalComment);
+                    await _notificationService.CreateNotificationAsync(
+    currentUser.UserId,
+    currentUser.Username ?? currentUser.WindowsUsername,
+    currentUser.Role,
+    "Ready for OVVIO extract",
+    $"{item.Attr_No} has been marked as ready for OVVIO extract.",
+    "ReadyForOvvioExtract",
+    item.Attr_ID,
+    item.Attr_No,
+    null,
+    currentUser.FullName);
                 }
                 else if (vm.FinalDecision == "ReturnToClient")
                 {
@@ -1075,6 +1087,18 @@ namespace AIVS.Services.Implementations
                         attrNo,
                         propertyDescription,
                         finalComment);
+
+                    await _notificationService.CreateNotificationAsync(
+    currentUser.UserId,
+    currentUser.Username ?? currentUser.WindowsUsername,
+    currentUser.Role,
+    "Returned to client",
+    $"{item.Attr_No} has been returned to the client for correction.",
+    "ReturnedToClient",
+    item.Attr_ID,
+    item.Attr_No,
+    null,
+    currentUser.FullName);
                 }
                 else if (vm.FinalDecision == "Reject")
                 {
@@ -1084,8 +1108,21 @@ namespace AIVS.Services.Implementations
                         attrNo,
                         propertyDescription,
                         finalComment);
+
+                    await _notificationService.CreateNotificationAsync(
+    currentUser.UserId,
+    currentUser.Username ?? currentUser.WindowsUsername,
+    currentUser.Role,
+    "Attribute submission rejected",
+    $"{item.Attr_No} has been rejected.",
+    "Rejected",
+    item.Attr_ID,
+    item.Attr_No,
+    null,
+    currentUser.FullName);
                 }
             }
+
         }
         private static HashSet<string> GetRequiredReviewSectionCodes(string? formType)
         {
@@ -1156,9 +1193,16 @@ namespace AIVS.Services.Implementations
                 throw new InvalidOperationException("Attribute submission could not be found.");
 
             var existingOpenRequest = await _context.AttrInspectionRequests
-                .FirstOrDefaultAsync(x =>
-                    x.Attr_ID == vm.AttrId &&
-                    x.Status == "PendingClientResponse");
+      .FirstOrDefaultAsync(x =>
+          x.Attr_ID == vm.AttrId &&
+          (
+              x.Status == "PendingClientResponse" ||
+              x.Status == "Confirmed" ||
+              x.Status == "InspectionDetailsSent"
+          ));
+
+            if (existingOpenRequest != null)
+                throw new InvalidOperationException("There is already an active physical inspection request for this submission.");
 
             if (existingOpenRequest != null)
                 throw new InvalidOperationException("There is already a pending physical inspection request for this submission.");
@@ -1171,6 +1215,10 @@ namespace AIVS.Services.Implementations
 
             if (contact == null || string.IsNullOrWhiteSpace(contact.Email))
                 throw new InvalidOperationException("Client email could not be found. The physical inspection request cannot be sent.");
+
+
+            if (string.IsNullOrWhiteSpace(contact.Email))
+                throw new InvalidOperationException("Client email address could not be found.");
 
             var now = DateTime.Now;
             var oldStatus = item.Attr_Status;
@@ -1253,6 +1301,19 @@ namespace AIVS.Services.Implementations
     item.Property_Desc,
     options.OrderBy(x => x).ToList(),
     vm.RequestComment);
+
+            await _notificationService.CreateNotificationAsync(
+                currentUser.UserId,
+                currentUser.Username ?? currentUser.WindowsUsername,
+                currentUser.Role,
+                "Inspection date options sent",
+                $"Three inspection date options were sent to the client for {item.Attr_No}.",
+                "InspectionDateOptionsSent",
+                item.Attr_ID,
+                item.Attr_No,
+                request.Id,
+                currentUser.FullName);
+
         }
         private static string BuildClientName(dynamic contact)
         {
@@ -1379,6 +1440,18 @@ namespace AIVS.Services.Implementations
                 valuerDetails.VehicleColour,
                 valuerDetails.PhotoFileName);
 
+
+            await _notificationService.CreateNotificationAsync(
+    currentUser.UserId,
+    currentUser.Username ?? currentUser.WindowsUsername,
+    currentUser.Role,
+    "Inspection details sent",
+    $"Inspection PIN and secure appointment instructions were sent to the client for {property.Attr_No}.",
+    "InspectionDetailsSent",
+    property.Attr_ID,
+    property.Attr_No,
+    request.Id,
+    currentUser.FullName);
             await transaction.CommitAsync();
         }
 

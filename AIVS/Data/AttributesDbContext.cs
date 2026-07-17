@@ -50,6 +50,7 @@ namespace AIVS.Data
 
         public DbSet<AttrValuerInspectionDetail> AttrValuerInspectionDetails { get; set; } = null!;
         public DbSet<AivsEmailLog> AivsEmailLogs { get; set; } = null!;
+        public DbSet<AivsNotification> AivsNotifications { get; set; } = null!;
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -271,6 +272,26 @@ namespace AIVS.Data
                 entity.Property(e => e.CreatedBy).HasColumnName("CreatedBy");
                 entity.Property(e => e.CreatedDate).HasColumnName("CreatedDate");
                 entity.Property(e => e.SentDate).HasColumnName("SentDate");
+            });
+            modelBuilder.Entity<AivsNotification>(entity =>
+            {
+                entity.ToTable("AivsNotifications", "dbo");
+                entity.HasKey(e => e.Id);
+
+                entity.Property(e => e.Id).HasColumnName("Id");
+                entity.Property(e => e.TargetUserId).HasColumnName("TargetUserId");
+                entity.Property(e => e.TargetUsername).HasColumnName("TargetUsername");
+                entity.Property(e => e.TargetRole).HasColumnName("TargetRole");
+                entity.Property(e => e.Title).HasColumnName("Title");
+                entity.Property(e => e.Message).HasColumnName("Message");
+                entity.Property(e => e.NotificationType).HasColumnName("NotificationType");
+                entity.Property(e => e.Attr_ID).HasColumnName("Attr_ID");
+                entity.Property(e => e.Attr_No).HasColumnName("Attr_No");
+                entity.Property(e => e.InspectionRequestId).HasColumnName("InspectionRequestId");
+                entity.Property(e => e.IsRead).HasColumnName("IsRead");
+                entity.Property(e => e.ReadDateTime).HasColumnName("ReadDateTime");
+                entity.Property(e => e.CreatedBy).HasColumnName("CreatedBy");
+                entity.Property(e => e.CreatedDateTime).HasColumnName("CreatedDateTime");
             });
         }
     }

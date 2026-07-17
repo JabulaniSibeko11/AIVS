@@ -606,7 +606,7 @@
                                 <div class="rv-evidence-meta">
                                     @Display(file.FileType)
                                     ·
-                                    @(file.UploadedDate?.ToString("yyyy-MM-dd HH:mm") ?? "-")
+                                    @(file.UploadedDateTime?.ToString("yyyy-MM-dd HH:mm") ?? "-")
                                 </div>
 
                                 @if (!string.IsNullOrWhiteSpace(file.FilePath))
@@ -622,7 +622,20 @@
                     }
                 </div>
             </div>
+            @if (Model.ActiveInspectionRequest != null &&
+                string.Equals(Model.ActiveInspectionRequest.Status, "Expired", StringComparison.OrdinalIgnoreCase))
+            {
+                <div class="rv-block-note">
+                    The client did not select any of the proposed inspection dates before they expired.
+                    You can send a new set of inspection date options.
+                </div>
 
+                <button type="button"
+                        class="rv-final-btn rv-final-btn-inspection"
+                        onclick="openInspectionModal();">
+                    Send New Inspection Date Options
+                </button>
+            }
             <div class="rv-side-card">
                 <div class="rv-side-head">
                     Final <span>Decision</span>

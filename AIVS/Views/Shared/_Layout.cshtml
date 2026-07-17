@@ -233,6 +233,16 @@
                         </li>
                     </ul>
                 </div>
+                <a asp-controller="Notifications"
+                       asp-action="Index"
+                       class="nav-link position-relative">
+                    <i class="fa-solid fa-bell"></i>
+                    <span id="aivsNotificationBadge"
+                          class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                          style="display:none;">
+                        0
+                    </span>
+                </a>
             </div>
         </nav>
 
@@ -261,5 +271,30 @@
     <script src="~/js/site.js" asp-append-version="true"></script>
 
     @await RenderSectionAsync("Scripts", required: false)
+
+    <script>
+            async function loadAivsNotificationCount() {
+                try {
+                    const response = await fetch('/Notifications/UnreadCount');
+                    if (!response.ok) return;
+
+                    const data = await response.json();
+                    const badge = document.getElementById('aivsNotificationBadge');
+
+                    if (!badge) return;
+
+                    if (data.count && data.count > 0) {
+                        badge.textContent = data.count;
+                        badge.style.display = 'inline-block';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                } catch {
+                    // silent
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', loadAivsNotificationCount);
+    </script>
 </body>
 </html>

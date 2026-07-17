@@ -1,0 +1,75 @@
+﻿@model List<AIVS.Models.ViewModels.Notifications.AivsNotificationVm>
+
+@{
+    ViewData["Title"] = "Notifications";
+}
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2>Notifications</h2>
+            <p class="text-muted mb-0">Your latest AIVS alerts and updates.</p>
+        </div>
+
+        <form asp-action="MarkAllAsRead" method="post">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn btn-outline-primary btn-sm">
+                Mark all as read
+            </button>
+        </form>
+    </div>
+
+    @if (Model == null || !Model.Any())
+    {
+        <div class="alert alert-light border">
+            No notifications found.
+        </div>
+    }
+    else
+    {
+        <div class="list-group">
+            @foreach (var item in Model)
+            {
+                <div class="list-group-item @(item.IsRead ? "" : "list-group-item-warning")">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="mb-1">@item.Title</h6>
+                            <p class="mb-1">@item.Message</p>
+
+                            <small class="text-muted">
+                                @item.CreatedDateTime.ToString("yyyy-MM-dd HH:mm")
+                                @if (!string.IsNullOrWhiteSpace(item.AttrNo))
+                                {
+                                    <span> • @item.AttrNo</span>
+                                }
+                            </small>
+                        </div>
+
+                        <div class="text-end">
+                            @if (!item.IsRead)
+                            {
+                                <form asp-action="MarkAsRead" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@item.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary">
+                                        Mark read
+                                    </button>
+                                </form>
+                            }
+
+                            @if (item.AttrId != null)
+                            {
+                                <a asp-controller="ValuerInbox"
+                                       asp-action="Review"
+                                       asp-route-id="@item.AttrId"
+                                       class="btn btn-sm btn-primary mt-2">
+                                    Open
+                                </a>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
