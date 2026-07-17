@@ -5,6 +5,7 @@ using AIVS.Models.ViewModels.UserManagement;
 using AIVS.Models.ViewModels.ValuerInbox;
 using AIVS.Services.Interface;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace AIVS.Services.Implementations
 {
@@ -17,12 +18,12 @@ namespace AIVS.Services.Implementations
         private readonly INotificationService _notificationService;
         public ValuerInboxService(
             AttributesDbContext context,
-            ILogger<ValuerInboxService> logger, IEmailService emailService, AttributeStorageSettings storageSettings, INotificationService notificationService)
+            ILogger<ValuerInboxService> logger, IEmailService emailService, IOptions<AttributeStorageSettings> storageSettings, INotificationService notificationService)
         {
             _context = context;
             _logger = logger;
             _emailService = emailService;
-            _storageSettings = storageSettings;
+            _storageSettings = storageSettings.Value;
             _notificationService = notificationService;
         }
 

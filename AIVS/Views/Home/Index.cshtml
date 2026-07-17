@@ -1,8 +1,391 @@
-﻿@{
-    ViewData["Title"] = "Home Page";
+﻿@model AIVS.Models.ViewModels.Home.AivsHomeDashboardVm
+
+@{
+    ViewData["Title"] = "AIVS Dashboard";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<style>
+    .dash-wrap {
+        padding: 22px;
+    }
+
+    .dash-head {
+        background: #111827;
+        color: #fff;
+        border-radius: 18px;
+        padding: 22px;
+        margin-bottom: 18px;
+    }
+
+    .dash-title {
+        font-size: 26px;
+        font-weight: 900;
+        margin-bottom: 4px;
+    }
+
+    .dash-sub {
+        color: #d1d5db;
+        font-size: 14px;
+    }
+
+    .dash-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+        margin-bottom: 18px;
+    }
+
+    .dash-tile {
+        background: #fff;
+        border-radius: 16px;
+        padding: 16px;
+        border: 1px solid #e5e7eb;
+        box-shadow: 0 8px 20px rgba(0,0,0,.04);
+    }
+
+    .dash-tile-title {
+        font-size: 12px;
+        color: #6b7280;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+
+    .dash-tile-count {
+        font-size: 30px;
+        font-weight: 900;
+        margin-top: 4px;
+        color: #111827;
+    }
+
+    .tile-total { border-left: 5px solid #111827; }
+    .tile-inbox { border-left: 5px solid #2563eb; }
+    .tile-claimed { border-left: 5px solid #0f766e; }
+    .tile-review { border-left: 5px solid #7c3aed; }
+    .tile-inspection { border-left: 5px solid #d97706; }
+    .tile-confirmed { border-left: 5px solid #059669; }
+    .tile-ovvio { border-left: 5px solid #16a34a; }
+    .tile-returned { border-left: 5px solid #f59e0b; }
+    .tile-rejected { border-left: 5px solid #dc2626; }
+
+    .dash-panel {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
+        padding: 16px;
+        margin-bottom: 18px;
+        box-shadow: 0 8px 20px rgba(0,0,0,.04);
+    }
+
+    .dash-panel-title {
+        font-size: 18px;
+        font-weight: 900;
+        margin-bottom: 12px;
+        color: #111827;
+    }
+
+    .dash-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+
+    .dash-table th {
+        background: #f9fafb;
+        color: #374151;
+        text-align: left;
+        padding: 10px;
+        border-bottom: 1px solid #e5e7eb;
+        font-size: 12px;
+        text-transform: uppercase;
+    }
+
+    .dash-table td {
+        padding: 10px;
+        border-bottom: 1px solid #f3f4f6;
+        vertical-align: top;
+    }
+
+    .dash-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: #f3f4f6;
+        font-size: 12px;
+        font-weight: 800;
+    }
+
+    .dash-filter {
+        display: flex;
+        gap: 10px;
+        align-items: end;
+        margin-bottom: 12px;
+    }
+
+    .dash-filter select {
+        min-width: 300px;
+        padding: 8px;
+        border: 1px solid #d1d5db;
+        border-radius: 10px;
+    }
+
+    .dash-btn {
+        background: #111827;
+        color: #fff;
+        border: 0;
+        border-radius: 10px;
+        padding: 9px 14px;
+        font-weight: 800;
+    }
+
+    .dash-link {
+        color: #2563eb;
+        font-weight: 800;
+        text-decoration: none;
+    }
+
+    .dash-link:hover {
+        text-decoration: underline;
+    }
+
+    @@media (max-width: 1100px) {
+        .dash-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @@media (max-width: 650px) {
+        .dash-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .dash-filter {
+            display: block;
+        }
+
+        .dash-filter select {
+            width: 100%;
+            min-width: unset;
+            margin-bottom: 8px;
+        }
+    }
+</style>
+
+<div class="dash-wrap">
+    <div class="dash-head">
+        <div class="dash-title">@Model.DashboardTitle</div>
+        <div class="dash-sub">
+            @Model.DashboardScope
+            @if (!string.IsNullOrWhiteSpace(Model.CurrentRole))
+            {
+                <span> • Role: @Model.CurrentRole</span>
+            }
+        </div>
+    </div>
+
+    @if (Model.IsManagerDashboard || Model.IsExecutiveDashboard)
+    {
+        <div class="dash-panel">
+            <div class="dash-panel-title">Generate Valuer Stats</div>
+
+            <form asp-controller="Home" asp-action="Index" method="get" class="dash-filter">
+                <div>
+                    <label class="form-label fw-bold">Select Valuer</label>
+                    <select name="valuerUserId">
+                        <option value="">All valuers</option>
+
+                        @foreach (var valuer in Model.ValuerStats)
+                        {
+                            if (Model.SelectedValuerUserId == valuer.ValuerUserId)
+                            {
+                                <option value="@valuer.ValuerUserId" selected>
+                                    @valuer.ValuerName (@valuer.Sector)
+                                </option>
+                            }
+                            else
+                            {
+                                <option value="@valuer.ValuerUserId">
+                                    @valuer.ValuerName (@valuer.Sector)
+                                </option>
+                            }
+                        }
+                    </select>
+                </div>
+
+                <button type="submit" class="dash-btn">Generate Stats</button>
+
+                @if (!string.IsNullOrWhiteSpace(Model.SelectedValuerUserId))
+                {
+                    <a asp-controller="Home"
+                       asp-action="Index"
+                       class="dash-link">
+                        Clear filter
+                    </a>
+                }
+            </form>
+        </div>
+    }
+
+    <div class="dash-grid">
+        @foreach (var tile in Model.Tiles)
+        {
+            <div class="dash-tile @tile.CssClass">
+                <div class="dash-tile-title">@tile.Title</div>
+                <div class="dash-tile-count">@tile.Count</div>
+            </div>
+        }
+    </div>
+
+    @if (Model.IsManagerDashboard || Model.IsExecutiveDashboard)
+    {
+        <div class="dash-panel">
+            <div class="dash-panel-title">Valuer Performance Stats</div>
+
+            @if (Model.ValuerStats == null || !Model.ValuerStats.Any())
+            {
+                <div class="text-muted">No valuer stats found.</div>
+            }
+            else
+            {
+                <table class="dash-table">
+                    <thead>
+                        <tr>
+                            <th>Valuer</th>
+                            <th>Sector</th>
+                            <th>Total</th>
+                            <th>Claimed</th>
+                            <th>Under Review</th>
+                            <th>Inspection Required</th>
+                            <th>Inspection Confirmed</th>
+                            <th>Expired</th>
+                            <th>Returned</th>
+                            <th>Ready OVVIO</th>
+                            <th>Rejected</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var valuer in Model.ValuerStats)
+                        {
+                            <tr>
+                                <td>@valuer.ValuerName</td>
+                                <td>@valuer.Sector</td>
+                                <td><strong>@valuer.TotalAssigned</strong></td>
+                                <td>@valuer.Claimed</td>
+                                <td>@valuer.UnderReview</td>
+                                <td>@valuer.InspectionRequired</td>
+                                <td>@valuer.InspectionConfirmed</td>
+                                <td>@valuer.InspectionExpired</td>
+                                <td>@valuer.ReturnedToClient</td>
+                                <td>@valuer.ReadyForOvvio</td>
+                                <td>@valuer.Rejected</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
+
+    @if (Model.IsExecutiveDashboard)
+    {
+        <div class="dash-panel">
+            <div class="dash-panel-title">Sector Stats</div>
+
+            <table class="dash-table">
+                <thead>
+                    <tr>
+                        <th>Sector</th>
+                        <th>Total</th>
+                        <th>Sector Inbox</th>
+                        <th>Assigned</th>
+                        <th>Under Review</th>
+                        <th>Inspections</th>
+                        <th>Ready OVVIO</th>
+                        <th>Rejected</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var sector in Model.SectorStats)
+                    {
+                        <tr>
+                            <td>@sector.Sector</td>
+                            <td><strong>@sector.Total</strong></td>
+                            <td>@sector.SectorInbox</td>
+                            <td>@sector.Assigned</td>
+                            <td>@sector.UnderReview</td>
+                            <td>@sector.Inspections</td>
+                            <td>@sector.ReadyForOvvio</td>
+                            <td>@sector.Rejected</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <div class="dash-panel">
+        <div class="dash-panel-title">Status Breakdown</div>
+
+        <table class="dash-table">
+            <thead>
+                <tr>
+                    <th>Status</th>
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var status in Model.StatusCounts)
+                {
+                    <tr>
+                        <td><span class="dash-badge">@status.Status</span></td>
+                        <td><strong>@status.Count</strong></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="dash-panel">
+        <div class="dash-panel-title">Recent Activity</div>
+
+        @if (Model.RecentItems == null || !Model.RecentItems.Any())
+        {
+            <div class="text-muted">No recent activity found.</div>
+        }
+        else
+        {
+            <table class="dash-table">
+                <thead>
+                    <tr>
+                        <th>Reference</th>
+                        <th>Property</th>
+                        <th>Sector</th>
+                        <th>Valuer</th>
+                        <th>Status</th>
+                        <th>Last Updated</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model.RecentItems)
+                    {
+                        <tr>
+                            <td>
+                                <a asp-controller="ValuerInbox"
+                                   asp-action="Review"
+                                   asp-route-id="@item.AttrId"
+                                   class="dash-link">
+                                    @item.AttrNo
+                                </a>
+                            </td>
+                            <td>@item.PropertyDescription</td>
+                            <td>@item.Sector</td>
+                            <td>@item.ValuerName</td>
+                            <td><span class="dash-badge">@item.Status</span></td>
+                            <td>@item.LastUpdated?.ToString("yyyy-MM-dd HH:mm")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
 </div>

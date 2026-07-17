@@ -68,6 +68,7 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 
 builder.Services.AddScoped<IValuerInboxService, ValuerInboxService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IHomeDashboardService, HomeDashboardService>();
 
 // ─────────────────────────────────────────────
 // Authorisation policies
