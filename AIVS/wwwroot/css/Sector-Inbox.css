@@ -364,3 +364,84 @@
 }
 
 
+.si-assign-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    flex-wrap: wrap;
+    background: #fff;
+    border: 1px solid var(--aivs-warning-border);
+    border-radius: var(--aivs-radius-sm);
+    padding: 14px 16px;
+}
+
+.si-assign-left {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.si-assign-title {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--aivs-black);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+    .si-assign-title i {
+        color: var(--aivs-gold-dark);
+    }
+
+.si-assign-subtitle {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--aivs-text-muted);
+}
+
+.si-assign-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.si-manager-warning {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: var(--aivs-radius-sm);
+    background: var(--aivs-warning-bg);
+    border: 1px solid var(--aivs-warning-border);
+    color: var(--aivs-warning);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+    .si-manager-warning i {
+        margin-right: 6px;
+    }
+
+.si-btn-bulk-assign i,
+.si-btn-manager-assign i {
+    margin-right: 6px;
+}
+
+@media (max-width: 650px) {
+    .si-assign-card {
+        align-items: stretch;
+    }
+
+    .si-assign-actions {
+        width: 100%;
+    }
+
+    .si-btn-bulk-assign,
+    .si-btn-manager-assign {
+        width: 100%;
+    }
+
+    .si-manager-form {
+        align-items: stretch;
+    }
+}

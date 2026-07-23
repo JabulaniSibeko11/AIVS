@@ -1,0 +1,310 @@
+﻿@model AIVS.Models.ViewModels.SectorManager.SectorManagerQaDetailsVm
+
+@{
+    ViewData["Title"] = "QA Review " + Model.AttrNo;
+
+    string Display(object? value)
+    {
+        var text = value?.ToString();
+        return string.IsNullOrWhiteSpace(text) ? "-" : text;
+    }
+
+    string SectionLabel(string? code) => (code ?? "").ToUpperInvariant() switch
+    {
+        "PROPERTY_DETAILS" => "Property Details",
+        "VALUATION_DETAILS" => "Valuation Details",
+        "CONTACT_INFORMATION" => "Contact Information",
+        "PRIMARY_ATTRIBUTES" => "Primary Attributes",
+        "SECONDARY_ATTRIBUTES" => "Secondary Attributes",
+        "BUSINESS_BUILDINGS" => "Business Buildings",
+        "BUSINESS_SECTIONS" => "Business Sections",
+        "BUSINESS_GENERAL" => "Business General",
+        "DRC_BUILDINGS" => "DRC Buildings",
+        "DRC_IMPROVEMENTS" => "DRC Improvements",
+        "DRC_VACANT_LAND" => "DRC Vacant Land",
+        "DECLARATION" => "Declaration",
+        var s when string.IsNullOrWhiteSpace(s) => "Section",
+        var s => s
+    };
+}
+
+<link href="~/css/sector-manager-qa.css" rel="stylesheet" asp-append-version="true" />
+
+<div class="smqa-page">
+
+    <div class="smqa-actions-top">
+        <a class="smqa-link-back"
+           asp-controller="SectorManagerQa"
+           asp-action="Index">
+            Back to Sector Manager QA
+        </a>
+    </div>
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="smqa-alert smqa-alert-danger">@TempData["Error"]</div>
+    }
+
+    <div class="smqa-header">
+        <div>
+            <h1>Sector Manager QA: @Model.AttrNo</h1>
+            <p>Review the valuer’s final work before approving the submission for OVVIO extract.</p>
+        </div>
+
+        <div class="smqa-header-count">
+            <strong>@Model.QaStatus</strong>
+            QA status
+        </div>
+    </div>
+
+    <div class="smqa-summary-grid">
+        <div class="smqa-summary-box">
+            <span>Property Description</span>
+            <strong>@Display(Model.PropertyDescription)</strong>
+        </div>
+
+        <div class="smqa-summary-box">
+            <span>Township</span>
+            <strong>@Display(Model.Township)</strong>
+        </div>
+
+        <div class="smqa-summary-box">
+            <span>Sector</span>
+            <strong>@Display(Model.Sector)</strong>
+        </div>
+
+        <div class="smqa-summary-box">
+            <span>Valuer</span>
+            <strong>@Display(Model.ValuerName)</strong>
+        </div>
+
+        <div class="smqa-summary-box">
+            <span>Submitted</span>
+            <strong>@(Model.ValuerSubmittedAt?.ToString("yyyy-MM-dd HH:mm") ?? "-")</strong>
+        </div>
+
+        <div class="smqa-summary-box">
+            <span>Selection Reason</span>
+            <strong>@Display(Model.SelectionReason)</strong>
+        </div>
+    </div>
+
+    <div class="smqa-layout">
+        <main class="smqa-main">
+            <div class="smqa-section-card">
+                <div class="smqa-section-head">
+                    <h3>Submitted Attribute Form</h3>
+                </div>
+
+                <div class="smqa-section-body">
+                    @if (Model.SubmittedForm != null)
+                    {
+                        @await Html.PartialAsync("~/Views/ValuerInbox/_SubmittedAttributeFormReadOnly.cshtml", Model)
+                    }
+                    else
+                    {
+                        <div class="smqa-note">Submitted form could not be loaded.</div>
+                    }
+                </div>
+            </div>
+        </main>
+
+        <aside class="smqa-side">
+            <div class="smqa-side-card">
+                <div class="smqa-side-head">Valuer Final Review</div>
+
+                <div class="smqa-side-body">
+                    <div class="smqa-stat-row">
+                        <span>Total Sections</span>
+                        <strong>@Model.TotalSections</strong>
+                    </div>
+
+                    <div class="smqa-stat-row">
+                        <span>Reviewed</span>
+                        <strong>@Model.ReviewedSections</strong>
+                    </div>
+
+                    <div class="smqa-stat-row">
+                        <span>Corrections</span>
+                        <strong>@Model.CorrectionSections</strong>
+                    </div>
+
+                    <div class="smqa-stat-row">
+                        <span>Inspections</span>
+                        <strong>@Model.InspectionSections</strong>
+                    </div>
+
+                    <div class="smqa-note">
+                        <strong>Valuer Decision:</strong><br />
+                        @Display(Model.ValuerFinalDecision)
+                    </div>
+
+                    <div class="smqa-note">
+                        <strong>Valuer Comment:</strong><br />
+                        @Display(Model.ValuerFinalComment)
+                    </div>
+                </div>
+            </div>
+
+            <div class="smqa-side-card">
+                <div class="smqa-side-head">Section Decisions</div>
+
+                <div class="smqa-side-body">
+                    @if (Model.Sections == null || !Model.Sections.Any())
+                    {
+                        <div class="smqa-note">No section decisions found.</div>
+                    }
+                    else
+                    {
+                        @foreach (var sec in Model.Sections)
+                        {
+                            <div class="smqa-section-decision">
+                                <strong>@SectionLabel(sec.SectionCode)</strong>
+                                <span>@Display(sec.SectionDecision)</span>
+
+                                @if (!string.IsNullOrWhiteSpace(sec.SectionComment))
+                                {
+                                    <small>@sec.SectionComment</small>
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+
+            <div class="smqa-side-card">
+                <div class="smqa-side-head">Client Evidence</div>
+
+                <div class="smqa-side-body">
+                    @if (Model.EvidenceFiles == null || !Model.EvidenceFiles.Any())
+                    {
+                        <div class="smqa-note">No client evidence files uploaded.</div>
+                    }
+                    else
+                    {
+                        @foreach (var file in Model.EvidenceFiles)
+                        {
+                            <div class="smqa-file">
+                                <strong>@Display(file.FileName)</strong>
+                                <span>@Display(file.FileType)</span>
+
+                                @if (!string.IsNullOrWhiteSpace(file.FilePath))
+                                {
+                                    <a href="@file.FilePath" target="_blank">Open</a>
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+
+            <div class="smqa-side-card">
+                <div class="smqa-side-head">Physical Inspection Evidence</div>
+
+                <div class="smqa-side-body">
+                    @if (Model.PhysicalInspectionEvidenceFiles == null || !Model.PhysicalInspectionEvidenceFiles.Any())
+                    {
+                        <div class="smqa-note">No physical inspection evidence uploaded.</div>
+                    }
+                    else
+                    {
+                        @foreach (var file in Model.PhysicalInspectionEvidenceFiles)
+                        {
+                            <div class="smqa-file">
+                                <strong>@Display(file.FileName)</strong>
+                                <span>
+                                    @file.UploadedAt.ToString("yyyy-MM-dd HH:mm")
+                                    ·
+                                    @(file.UploadedByName ?? file.UploadedBySapNumber ?? "Valuer")
+                                </span>
+
+                                <a asp-controller="ValuerInbox"
+                                   asp-action="PhysicalInspectionEvidenceFile"
+                                   asp-route-id="@file.Id"
+                                   target="_blank">
+                                    Open
+                                </a>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+
+            <div class="smqa-side-card">
+                <div class="smqa-side-head">Reviewed PDF</div>
+
+                <div class="smqa-side-body">
+                    @if (!string.IsNullOrWhiteSpace(Model.ReviewedPdfPathBeforeQa))
+                    {
+                        <a class="smqa-btn-full"
+                           asp-controller="ValuerInbox"
+                           asp-action="ReviewedPdf"
+                           asp-route-attrId="@Model.AttrId"
+                           target="_blank">
+                            Open Reviewed PDF
+                        </a>
+                    }
+                    else
+                    {
+                        <div class="smqa-note">Reviewed PDF not generated yet.</div>
+                    }
+                </div>
+            </div>
+
+            @if (Model.CanApprove)
+            {
+                <div class="smqa-side-card smqa-decision-card">
+                    <div class="smqa-side-head">Sector Manager Final QA</div>
+
+                    <div class="smqa-side-body">
+                        <form asp-controller="SectorManagerQa"
+                              asp-action="Approve"
+                              method="post"
+                              class="smqa-decision-form">
+
+                            @Html.AntiForgeryToken()
+
+                            <input type="hidden" name="QaId" value="@Model.QaId" />
+                            <input type="hidden" name="AttrId" value="@Model.AttrId" />
+                            <input type="hidden" name="Decision" value="ApproveToOvvio" />
+
+                            <label>Approval Comment</label>
+                            <textarea name="Comment"
+                                      required
+                                      placeholder="Enter QA approval comment..."></textarea>
+
+                            <button type="submit"
+                                    class="smqa-btn-approve"
+                                    onclick="return confirm('Approve this record to OVVIO extract?');">
+                                Approve to OVVIO
+                            </button>
+                        </form>
+
+                        <form asp-controller="SectorManagerQa"
+                              asp-action="ReturnToValuer"
+                              method="post"
+                              class="smqa-decision-form">
+
+                            @Html.AntiForgeryToken()
+
+                            <input type="hidden" name="QaId" value="@Model.QaId" />
+                            <input type="hidden" name="AttrId" value="@Model.AttrId" />
+                            <input type="hidden" name="Decision" value="ReturnToValuer" />
+
+                            <label>Return Reason</label>
+                            <textarea name="Comment"
+                                      required
+                                      placeholder="Explain what the valuer must fix..."></textarea>
+
+                            <button type="submit"
+                                    class="smqa-btn-return"
+                                    onclick="return confirm('Return this review to the valuer for correction?');">
+                                Return to Valuer
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            }
+        </aside>
+    </div>
+</div>

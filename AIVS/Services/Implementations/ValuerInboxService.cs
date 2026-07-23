@@ -17,12 +17,14 @@ namespace AIVS.Services.Implementations
         private readonly AttributeStorageSettings _storageSettings;
         private readonly INotificationService _notificationService;
         private readonly IValuerReviewPdfService _valuerReviewPdfService;
+        private readonly IOptions<SectorManagerQaSettings> _sectorManagerQaSettings;
         public ValuerInboxService(
             AttributesDbContext context,
             ILogger<ValuerInboxService> logger, IEmailService emailService, 
             IOptions<AttributeStorageSettings> storageSettings
             , INotificationService notificationService
-            , IValuerReviewPdfService valuerReviewPdfService)
+            , IValuerReviewPdfService valuerReviewPdfService,
+      IOptions<SectorManagerQaSettings> sectorManagerQaSettings)
         {
             _context = context;
             _logger = logger;
@@ -30,6 +32,7 @@ namespace AIVS.Services.Implementations
             _storageSettings = storageSettings.Value;
             _notificationService = notificationService;
             _valuerReviewPdfService = valuerReviewPdfService;
+                        _sectorManagerQaSettings = sectorManagerQaSettings;
         }
 
         public async Task<List<ValuerInboxItemVm>> GetMyInboxAsync(AivsCurrentUserVm currentUser)
@@ -46,7 +49,9 @@ namespace AIVS.Services.Implementations
     "InspectionRequired",
     "InspectionConfirmed",
     "InspectionDetailsSent",
-    "InspectionExpired"
+    "InspectionExpired",
+    "Resubmitted",
+    "ReturnedToValuer"
 };
 
             return await _context.AttrPropertyInfo
@@ -66,10 +71,10 @@ namespace AIVS.Services.Implementations
                     Township = x.PropertyDetails != null ? x.PropertyDetails.Township : null,
                     Sector = x.RoutedSector,
                     Status = x.Attr_Status,
+
                     AssignedDate = x.Task_Assigned_DateTime,
                     AssignedBy = x.Task_Assigner,
                     EvidenceCount = x.Evidence_Count,
-
                     ReviewStarted =
     x.Attr_Status == "ValuerReview" ||
     x.Attr_Status == "InspectionRequired" ||
@@ -101,12 +106,15 @@ namespace AIVS.Services.Implementations
             var userIdText = currentUser.UserId.Value.ToString();
 
             var allowedStatuses = new[]
-{
+  {
     "Claimed",
     "ValuerReview",
     "InspectionRequired",
     "InspectionConfirmed",
-    "InspectionDetailsSent"
+    "InspectionDetailsSent",
+    "InspectionExpired",
+    "Resubmitted",
+    "ReturnedToValuer"
 };
 
             var item = await _context.AttrPropertyInfo
@@ -132,9 +140,15 @@ namespace AIVS.Services.Implementations
                 .FirstOrDefaultAsync();
 
             var review = await _context.AttrValuerReviews
-                .FirstOrDefaultAsync(x =>
-                    x.Attr_ID == attrId &&
-                    x.ReviewStatus == "InProgress");
+    .Where(x =>
+        x.Attr_ID == attrId &&
+        (
+            x.ReviewStatus == "InProgress" ||
+            x.ReviewStatus == "InspectionRequired" ||
+            x.ReviewStatus == "InspectionConfirmed"
+        ))
+    .OrderByDescending(x => x.StartedAt)
+    .FirstOrDefaultAsync();
 
             if (review == null)
             {
@@ -163,26 +177,46 @@ namespace AIVS.Services.Implementations
                 await CreateDefaultReviewSectionsAsync(review, item, currentUser, now);
             }
 
-            if (item.Attr_Status == "Claimed")
+            if (item.Attr_Status == "Claimed" ||
+      item.Attr_Status == "Resubmitted" ||
+      item.Attr_Status == "ReturnedToValuer")
             {
                 var oldStatus = item.Attr_Status;
 
                 item.Attr_Status = "ValuerReview";
+                item.RevisionRequired = false;
+                item.RevisionRequestedBy = null;
+                item.RevisionRequestedDateTime = null;
+
                 item.UpdatedBy = currentUser.Username ?? currentUser.WindowsUsername;
-                item.UpdatedDate = DateTime.Now;
+                item.UpdatedDate = now;
+
+                var auditAction = oldStatus switch
+                {
+                    "Resubmitted" => "Resubmission Review Started",
+                    "ReturnedToValuer" => "Sector Manager Return Review Started",
+                    _ => "Review Started"
+                };
+
+                var auditComment = oldStatus switch
+                {
+                    "Resubmitted" => "Valuer opened the resubmitted attribute submission for review.",
+                    "ReturnedToValuer" => "Valuer reopened the submission returned by the Sector Manager.",
+                    _ => "Valuer opened the attribute submission for review."
+                };
 
                 _context.AttrPropertyInfoAuditTrail.Add(new AttrPropertyInfoAuditTrail
                 {
                     Attr_ID = item.Attr_ID,
                     Attr_No = item.Attr_No,
-                    Action = "Valuer Review Started",
+                    Action = auditAction,
                     OldStatus = oldStatus,
                     NewStatus = "ValuerReview",
-                    ActionByUserId = currentUser.Username ?? currentUser.WindowsUsername,
+                    ActionByUserId = currentUser.UserId.Value.ToString(),
                     ActionByName = currentUser.FullName,
                     ActionRole = currentUser.Role ?? "Valuer",
-                    Comment = "Valuer opened the review.",
-                    ActionDateTime = DateTime.Now
+                    Comment = auditComment,
+                    ActionDateTime = now
                 });
 
                 await _context.SaveChangesAsync();
@@ -299,6 +333,7 @@ namespace AIVS.Services.Implementations
             var submittedForm = await BuildSubmittedAttributeViewModelAsync(item.Attr_ID);
 
             var evidenceFiles = await BuildEvidenceFilesAsync(item.Attr_ID);
+            var physicalInspectionEvidenceFiles =await BuildPhysicalInspectionEvidenceFilesAsync(item.Attr_ID);
 
             var activeInspectionRequest = await _context.AttrInspectionRequests
                 .AsNoTracking()
@@ -357,6 +392,8 @@ namespace AIVS.Services.Implementations
                 Sections = sections,
                 EvidenceFiles = evidenceFiles,
 
+                PhysicalInspectionEvidenceFiles = physicalInspectionEvidenceFiles,
+
                 ActiveInspectionRequest = activeInspectionRequest,
 
                 CanSubmitToOvvio = canSubmitToOvvio,
@@ -371,6 +408,7 @@ namespace AIVS.Services.Implementations
 
                 FinalDecision = review.FinalDecision,
                 FinalComment = review.FinalComment,
+                ValuerEvidencePath = item.ValuerEvidencePath,
             };
         }
         private async Task<List<ValuerEvidenceFileVm>> BuildEvidenceFilesAsync(long attrId)
@@ -863,11 +901,10 @@ namespace AIVS.Services.Implementations
                 throw new InvalidOperationException("Please enter a final comment.");
 
             var allowedDecisions = new[]
-            {
-        "SubmitToOvvio",
-        "ReturnToClient",
-        "Reject"
-    };
+ {
+    "SubmitToOvvio",
+    "ReturnToClient"
+};
 
             if (!allowedDecisions.Contains(vm.FinalDecision))
                 throw new InvalidOperationException("Invalid final decision.");
@@ -890,6 +927,8 @@ namespace AIVS.Services.Implementations
             if (item == null)
                 throw new InvalidOperationException("Attribute submission could not be found.");
 
+            if (string.Equals(item.Attr_Status, "ReadyForOvvioExtract", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("This submission is already accepted and ready for OVVIO extract.");
             var contact = item.PropertyDetails == null
                 ? null
                 : await _context.AttrContactInfo
@@ -953,12 +992,21 @@ namespace AIVS.Services.Implementations
             switch (vm.FinalDecision)
             {
                 case "SubmitToOvvio":
-                    review.ReviewStatus = "Completed";
-                    review.ReadyForOvvioExtract = true;
+                    var selectedForSectorQa = await ShouldSelectForSectorManagerQaAsync(
+                        item.RoutedSector,
+                        now);
+
+                    review.ReviewStatus = selectedForSectorQa
+                        ? "SubmittedForSectorManagerQa"
+                        : "Completed";
+
+                    review.ReadyForOvvioExtract = !selectedForSectorQa;
                     review.ReturnToClient = false;
                     review.RequiresInspection = false;
 
-                    item.Attr_Status = "ReadyForOvvioExtract";
+                    item.Attr_Status = selectedForSectorQa
+                        ? "SectorManagerQa"
+                        : "ReadyForOvvioExtract";
 
                     item.Valuer = currentUser.FullName;
                     item.ValuerUserId = currentUserId;
@@ -967,14 +1015,40 @@ namespace AIVS.Services.Implementations
                     item.RejectionReason = null;
                     item.ValuerDecisionDateTime = now;
 
-                    item.ReadyForOvvioExtract = true;
-                    item.OvvioExtractStatus = "Pending";
+                    item.ReadyForOvvioExtract = !selectedForSectorQa;
+                    item.OvvioExtractStatus = selectedForSectorQa ? null : "Pending";
                     item.OvvioExtractBatchNo = null;
                     item.OvvioExtractDateTime = null;
                     item.OvvioExtractedBy = null;
                     item.OvvioExtractError = null;
 
                     item.Physical_Inspection_Required = false;
+
+                    if (selectedForSectorQa)
+                    {
+                        var weekStart = StartOfWeek(now);
+                        var weekEnd = weekStart.AddDays(6);
+
+                        _context.AttrSectorManagerQaReviews.Add(new AttrSectorManagerQaReview
+                        {
+                            Attr_ID = item.Attr_ID,
+                            Attr_No = item.Attr_No,
+                            ValuerReviewId = review.Id,
+                            Sector = item.RoutedSector,
+                            QaWeekStartDate = weekStart.Date,
+                            QaWeekEndDate = weekEnd.Date,
+                            IsRandomlySelected = true,
+                            SelectionReason = "Weekly random Sector Manager QA sample",
+                            ValuerUserId = currentUser.UserId.Value,
+                            ValuerName = currentUser.FullName,
+                            ValuerSubmittedAt = now,
+                            QaStatus = "Pending",
+                            ReviewedPdfPathBeforeQa = item.ValuerEvidencePath,
+                            CreatedBy = currentUserName,
+                            CreatedDate = now
+                        });
+                    }
+
                     break;
 
                 case "ReturnToClient":
@@ -1005,28 +1079,7 @@ namespace AIVS.Services.Implementations
                     item.RevisionReason = finalComment;
                     break;
 
-                case "Reject":
-                    review.ReviewStatus = "Rejected";
-                    review.ReadyForOvvioExtract = false;
-                    review.ReturnToClient = false;
-                    review.RequiresInspection = false;
-
-                    item.Attr_Status = "Rejected";
-
-                    item.Valuer = currentUser.FullName;
-                    item.ValuerUserId = currentUserId;
-                    item.ValuerComment = finalComment;
-                    item.ValuerDecision = "Rejected";
-                    item.RejectionReason = finalComment;
-                    item.ValuerDecisionDateTime = now;
-
-                    item.ReadyForOvvioExtract = false;
-                    item.OvvioExtractStatus = null;
-                    item.OvvioExtractBatchNo = null;
-                    item.OvvioExtractDateTime = null;
-                    item.OvvioExtractedBy = null;
-                    item.OvvioExtractError = null;
-                    break;
+              
             }
 
             item.UpdatedBy = currentUserName;
@@ -1034,9 +1087,15 @@ namespace AIVS.Services.Implementations
 
             var auditAction = vm.FinalDecision switch
             {
-                "SubmitToOvvio" => "Submitted to OVVIO Extract",
-                "ReturnToClient" => "Returned to Client",
-                "Reject" => "Attribute Submission Rejected",
+                "SubmitToOvvio" when item.Attr_Status == "SectorManagerQa"
+                    => "Submitted for Sector Manager QA",
+
+                "SubmitToOvvio" when item.Attr_Status == "ReadyForOvvioExtract"
+                    => "Submitted to OVVIO Extract",
+
+                "ReturnToClient"
+                    => "Returned to Client",
+
                 _ => "Final Review Decision"
             };
 
@@ -1058,11 +1117,24 @@ namespace AIVS.Services.Implementations
             await _context.SaveChangesAsync();
 
             var reviewedPdfPath = await _valuerReviewPdfService
-                .GenerateReviewedFormPdfAsync(review.Id, currentUser);
+     .GenerateReviewedFormPdfAsync(review.Id, currentUser);
 
             item.ValuerEvidencePath = reviewedPdfPath;
             item.UpdatedBy = currentUserName;
             item.UpdatedDate = DateTime.Now;
+
+            var pendingQa = await _context.AttrSectorManagerQaReviews
+                .FirstOrDefaultAsync(x =>
+                    x.Attr_ID == item.Attr_ID &&
+                    x.ValuerReviewId == review.Id &&
+                    x.QaStatus == "Pending");
+
+            if (pendingQa != null)
+            {
+                pendingQa.ReviewedPdfPathBeforeQa = reviewedPdfPath;
+                pendingQa.UpdatedBy = currentUserName;
+                pendingQa.UpdatedDate = DateTime.Now;
+            }
 
             _context.AttrPropertyInfoAuditTrail.Add(new AttrPropertyInfoAuditTrail
             {
@@ -1084,10 +1156,12 @@ namespace AIVS.Services.Implementations
             var clientName = contact == null ? "Client" : BuildClientName(contact);
             var attrNo = item.Attr_No ?? "-";
             var propertyDescription = item.Property_Desc;
+            var finalStatus = item.Attr_Status;
 
             if (contact != null && !string.IsNullOrWhiteSpace(contact.Email))
             {
-                if (vm.FinalDecision == "SubmitToOvvio")
+                if (vm.FinalDecision == "SubmitToOvvio" &&
+                    string.Equals(finalStatus, "ReadyForOvvioExtract", StringComparison.OrdinalIgnoreCase))
                 {
                     await _emailService.SendAcceptedEmailAsync(
                         contact.Email,
@@ -1105,18 +1179,10 @@ namespace AIVS.Services.Implementations
                         propertyDescription,
                         finalComment);
                 }
-                else if (vm.FinalDecision == "Reject")
-                {
-                    await _emailService.SendRejectedEmailAsync(
-                        contact.Email,
-                        clientName,
-                        attrNo,
-                        propertyDescription,
-                        finalComment);
-                }
             }
 
-            if (vm.FinalDecision == "SubmitToOvvio")
+            if (vm.FinalDecision == "SubmitToOvvio" &&
+                string.Equals(finalStatus, "ReadyForOvvioExtract", StringComparison.OrdinalIgnoreCase))
             {
                 await _notificationService.CreateNotificationAsync(
                     currentUser.UserId,
@@ -1125,6 +1191,21 @@ namespace AIVS.Services.Implementations
                     "Ready for OVVIO extract",
                     $"{item.Attr_No} has been marked as ready for OVVIO extract.",
                     "ReadyForOvvioExtract",
+                    item.Attr_ID,
+                    item.Attr_No,
+                    null,
+                    currentUser.FullName);
+            }
+            else if (vm.FinalDecision == "SubmitToOvvio" &&
+                     string.Equals(finalStatus, "SectorManagerQa", StringComparison.OrdinalIgnoreCase))
+            {
+                await _notificationService.CreateNotificationAsync(
+                    currentUser.UserId,
+                    currentUser.Username ?? currentUser.WindowsUsername,
+                    currentUser.Role,
+                    "Selected for Sector Manager QA",
+                    $"{item.Attr_No} has been selected for weekly Sector Manager QA before OVVIO.",
+                    "SectorManagerQa",
                     item.Attr_ID,
                     item.Attr_No,
                     null,
@@ -1139,20 +1220,6 @@ namespace AIVS.Services.Implementations
                     "Returned to client",
                     $"{item.Attr_No} has been returned to the client for correction.",
                     "ReturnedToClient",
-                    item.Attr_ID,
-                    item.Attr_No,
-                    null,
-                    currentUser.FullName);
-            }
-            else if (vm.FinalDecision == "Reject")
-            {
-                await _notificationService.CreateNotificationAsync(
-                    currentUser.UserId,
-                    currentUser.Username ?? currentUser.WindowsUsername,
-                    currentUser.Role,
-                    "Attribute submission rejected",
-                    $"{item.Attr_No} has been rejected.",
-                    "Rejected",
                     item.Attr_ID,
                     item.Attr_No,
                     null,
@@ -1239,8 +1306,7 @@ namespace AIVS.Services.Implementations
             if (existingOpenRequest != null)
                 throw new InvalidOperationException("There is already an active physical inspection request for this submission.");
 
-            if (existingOpenRequest != null)
-                throw new InvalidOperationException("There is already a pending physical inspection request for this submission.");
+           
 
             var contact = await _context.AttrContactInfo
                 .AsNoTracking()
@@ -1483,35 +1549,45 @@ namespace AIVS.Services.Implementations
             });
 
             await _context.SaveChangesAsync();
-
-            await _emailService.SendInspectionDetailsEmailAsync(
-                contact.Email,
-                BuildClientName(contact),
-                request.Attr_No ?? property.Attr_No ?? "-",
-                property.Property_Desc,
-                request.ConfirmedDateTime.Value,
-                pin,
-                valuerDetails.ValuerName,
-                valuerDetails.EmailAddress,
-                valuerDetails.CellNumber,
-                valuerDetails.VehicleRegistration,
-                valuerDetails.VehicleMake,
-                valuerDetails.VehicleColour,
-                valuerDetails.PhotoFileName);
-
-            await _notificationService.CreateNotificationAsync(
-                currentUser.UserId,
-                currentUser.Username ?? currentUser.WindowsUsername,
-                currentUser.Role,
-                "Inspection details sent",
-                $"Inspection PIN and secure appointment instructions were sent to the client for {property.Attr_No}.",
-                "InspectionDetailsSent",
-                property.Attr_ID,
-                property.Attr_No,
-                request.Id,
-                currentUser.FullName);
-
             await transaction.CommitAsync();
+
+            try
+            {
+                await _emailService.SendInspectionDetailsEmailAsync(
+                    contact.Email,
+                    BuildClientName(contact),
+                    request.Attr_No ?? property.Attr_No ?? "-",
+                    property.Property_Desc,
+                    request.ConfirmedDateTime.Value,
+                    pin,
+                    valuerDetails.ValuerName,
+                    valuerDetails.EmailAddress,
+                    valuerDetails.CellNumber,
+                    valuerDetails.VehicleRegistration,
+                    valuerDetails.VehicleMake,
+                    valuerDetails.VehicleColour,
+                    valuerDetails.PhotoFileName);
+
+                await _notificationService.CreateNotificationAsync(
+                    currentUser.UserId,
+                    currentUser.Username ?? currentUser.WindowsUsername,
+                    currentUser.Role,
+                    "Inspection details sent",
+                    $"Inspection PIN and secure appointment instructions were sent to the client for {property.Attr_No}.",
+                    "InspectionDetailsSent",
+                    property.Attr_ID,
+                    property.Attr_No,
+                    request.Id,
+                    currentUser.FullName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Inspection details were saved, but email/notification failed for {AttrNo}, request {RequestId}",
+                    property.Attr_No,
+                    request.Id);
+            }
         }
 
         private static string GenerateInspectionPin()
@@ -1522,6 +1598,94 @@ namespace AIVS.Services.Implementations
             return new string(Enumerable.Range(0, length)
                 .Select(_ => chars[Random.Shared.Next(chars.Length)])
                 .ToArray());
+        }
+        private async Task<List<ValuerPhysicalInspectionEvidenceVm>> BuildPhysicalInspectionEvidenceFilesAsync(long attrId)
+        {
+            return await _context.AttrInspectionEvidence
+                .AsNoTracking()
+                .Where(x =>
+                    x.Attr_ID == attrId &&
+                    x.IsActive == true)
+                .OrderByDescending(x => x.UploadedAt)
+                .Select(x => new ValuerPhysicalInspectionEvidenceVm
+                {
+                    Id = x.Id,
+                    AttrId = x.Attr_ID,
+                    AttrNo = x.Attr_No,
+                    InspectionRequestId = x.InspectionRequestId,
+                    FileName = x.FileName,
+                    FilePath = x.FilePath,
+                    ContentType = x.ContentType,
+                    FileSizeBytes = x.FileSizeBytes,
+                    UploadedBySapNumber = x.UploadedBySapNumber,
+                    UploadedByName = x.UploadedByName,
+                    CaptureSource = x.CaptureSource,
+                    EvidenceComment = x.EvidenceComment,
+                    UploadedAt = x.UploadedAt
+                })
+                .ToListAsync();
+        }
+        private static string FriendlyStatus(string? status)
+        {
+            return status?.Trim() switch
+            {
+                "SectorInbox" => "Sector Inbox",
+                "Claimed" => "Assigned to Valuer",
+                "ValuerReview" => "Under Valuer Review",
+                "ReturnedToClient" => "Returned to Client",
+                "Resubmitted" => "Client Resubmitted",
+                "ReturnedToValuer" => "Returned to Valuer",
+                "SectorManagerQa" => "Sector Manager QA",
+                "InspectionRequired" => "Inspection Required",
+                "InspectionConfirmed" => "Inspection Date Confirmed",
+                "InspectionDetailsSent" => "Inspection Details Sent",
+                "InspectionCompleted" => "Inspection Completed",
+                "InspectionExpired" => "Inspection Expired",
+                "ReadyForOvvioExtract" => "Accepted / Ready for OVVIO",
+                "OvvioExtracted" => "OVVIO Extracted",
+                _ => string.IsNullOrWhiteSpace(status) ? "Unknown" : status
+            };
+        }
+
+        private async Task<bool> ShouldSelectForSectorManagerQaAsync(
+      string? sector,
+      DateTime now)
+        {
+            var settings = _sectorManagerQaSettings.Value;
+
+            if (!settings.Enabled)
+                return false;
+
+            var samplePercent = Math.Clamp(settings.WeeklySamplePercent, 0, 100);
+
+            if (samplePercent >= 100)
+                return true;
+
+            if (samplePercent <= 0)
+                return false;
+
+            var weekStart = StartOfWeek(now);
+            var weekEnd = weekStart.AddDays(6);
+
+            var sectorText = sector?.Trim();
+
+            var selectedThisWeek = await _context.AttrSectorManagerQaReviews
+                .AsNoTracking()
+                .CountAsync(x =>
+                    x.Sector == sectorText &&
+                    x.QaWeekStartDate == weekStart.Date &&
+                    x.QaWeekEndDate == weekEnd.Date);
+
+            if (selectedThisWeek < settings.MinimumWeeklySamplePerSector)
+                return true;
+
+            return Random.Shared.Next(1, 101) <= samplePercent;
+        }
+
+        private static DateTime StartOfWeek(DateTime date)
+        {
+            var diff = (7 + (date.DayOfWeek - DayOfWeek.Monday)) % 7;
+            return date.Date.AddDays(-1 * diff);
         }
     }
 }

@@ -3,6 +3,8 @@
 
 @{
     var currentUser = await UserManagementService.GetCurrentUserAsync(User);
+  
+  
 
     var displayName = currentUser.HasAccess && !string.IsNullOrWhiteSpace(currentUser.FullName)
         ? currentUser.FullName
@@ -18,6 +20,16 @@
 
     var currentController = ViewContext.RouteData.Values["Controller"]?.ToString() ?? "";
     var currentAction = ViewContext.RouteData.Values["Action"]?.ToString() ?? "";
+    var role = currentUser.Role?.Trim().ToUpperInvariant() ?? "";
+    var canSeeSectorManagerQa =
+    role == "SECTOR MANAGER" ||
+    role == "VALUATION ADMIN" ||
+    role == "EXECUTIVE" ||
+    role == "SYSTEM ADMIN" ||
+    role == "ADMIN" ||
+    role == "ADMINISTRATOR" ||
+    role == "IT MANAGER" ||
+    role == "MANAGER";
 
     Func<string, string> navActive = controllerName =>
         string.Equals(currentController, controllerName, StringComparison.OrdinalIgnoreCase)
@@ -98,17 +110,29 @@
                             </a>
                         </li>
 
+                        @if (canSeeSectorManagerQa)
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link @navActive("SectorManagerQa")"
+                                       asp-area=""
+                                       asp-controller="SectorManagerQa"
+                                       asp-action="Index">
+                                    Sector Manager QA
+                                </a>
+                            </li>
+                        }
+
                         <li class="nav-item">
                             <a class="nav-link @navActive("ValuerInbox")" asp-area="" asp-controller="ValuerInbox" asp-action="Index">
                                 Valuer Inbox
                             </a>
                         </li>
 
-                        <li class="nav-item">
+                     @*    <li class="nav-item">
                             <a class="nav-link @navActive("Account")" asp-area="" asp-controller="Account" asp-action="Me">
                                 My Access
                             </a>
-                        </li>
+                        </li> *@
 
                         <li class="nav-item">
                             <a class="nav-link @navActiveExact("Home", "Help")" asp-area="" asp-controller="Home" asp-action="Help">

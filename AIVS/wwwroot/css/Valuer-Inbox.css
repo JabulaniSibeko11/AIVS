@@ -1,0 +1,327 @@
+﻿
+.vi-page {
+    padding: 6px 2px 30px;
+}
+
+.vi-header-stats {
+    display: flex;
+    gap: 20px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+
+.vi-header-stat {
+    font-size: 13px;
+    color: var(--aivs-text-muted);
+}
+
+    .vi-header-stat strong {
+        color: var(--aivs-black);
+        font-weight: 700;
+    }
+
+    .vi-header-stat.is-urgent strong {
+        color: var(--aivs-danger);
+    }
+
+/* ---------- Notice banners ---------- */
+.vi-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-radius: var(--aivs-radius-sm);
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.vi-banner-success {
+    background: var(--aivs-success-bg);
+    border: 1px solid var(--aivs-success-border);
+    color: var(--aivs-success);
+}
+
+.vi-banner-danger {
+    background: var(--aivs-danger-bg);
+    border: 1px solid var(--aivs-danger-border);
+    color: var(--aivs-danger);
+}
+
+/* ---------- Toolbar: chips + search ---------- */
+.vi-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.vi-chips {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.vi-chip {
+    border: 1px solid var(--aivs-border);
+    background: var(--aivs-white);
+    border-radius: 999px;
+    padding: 6px 13px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--aivs-text);
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.vi-chip-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    display: inline-block;
+}
+
+.vi-chip:hover {
+    border-color: var(--aivs-gold);
+}
+
+.vi-chip.active {
+    background: var(--aivs-black);
+    border-color: var(--aivs-black);
+    color: var(--aivs-white);
+}
+
+.vi-search {
+    position: relative;
+    min-width: 240px;
+}
+
+    .vi-search input {
+        width: 100%;
+        border: 1px solid var(--aivs-border);
+        border-radius: var(--aivs-radius-sm);
+        padding: 8px 12px 8px 34px;
+        font-family: var(--aivs-font);
+        font-size: 13px;
+    }
+
+    .vi-search svg {
+        position: absolute;
+        left: 11px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--aivs-text-muted);
+    }
+
+/* ---------- Card ---------- */
+.vi-card {
+    background: var(--aivs-white);
+    border: 1px solid var(--aivs-border);
+    border-radius: var(--aivs-radius);
+    overflow: hidden;
+    box-shadow: var(--aivs-shadow-sm);
+}
+
+.vi-card-title {
+    background: var(--aivs-black);
+    color: var(--aivs-white);
+    padding: 14px 18px;
+    font-weight: 700;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.vi-card-title-count {
+    font-size: 13px;
+    font-weight: 500;
+    color: #d7d7d7;
+}
+
+.vi-table-scroll {
+    max-height: 620px;
+    overflow: auto;
+}
+
+.vi-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+    .vi-table th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #faf9f7;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .03em;
+        color: var(--aivs-text-muted);
+        border-bottom: 1px solid var(--aivs-border);
+        padding: 11px 10px;
+        white-space: nowrap;
+        text-align: left;
+    }
+
+    .vi-table td {
+        padding: 11px 10px;
+        border-bottom: 1px solid #f1efeb;
+        font-size: 13px;
+        vertical-align: middle;
+    }
+
+    .vi-table tbody tr {
+        transition: background 100ms ease;
+    }
+
+        .vi-table tbody tr:hover {
+            background: #fafaf8;
+        }
+
+        .vi-table tbody tr.vi-row-hidden {
+            display: none;
+        }
+
+.vi-ref {
+    font-weight: 700;
+    color: var(--aivs-black);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.vi-badge {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.vi-badge-claimed {
+    background: #f1efeb;
+    color: var(--aivs-text);
+}
+
+.vi-badge-review {
+    background: var(--aivs-warning-bg);
+    color: var(--aivs-orange);
+}
+
+.vi-badge-waiting {
+    background: var(--aivs-gold-light);
+    color: var(--aivs-gold-dark);
+}
+
+.vi-badge-confirmed {
+    background: var(--aivs-success-bg);
+    color: var(--aivs-success);
+}
+
+.vi-badge-sent {
+    background: var(--aivs-info-bg);
+    color: var(--aivs-info);
+}
+
+.vi-badge-expired {
+    background: var(--aivs-danger-bg);
+    color: var(--aivs-danger);
+}
+
+.vi-badge-default {
+    background: var(--aivs-black);
+    color: var(--aivs-white);
+}
+
+.vi-btn {
+    background: var(--aivs-black);
+    color: var(--aivs-white);
+    border-radius: var(--aivs-radius-sm);
+    padding: 7px 13px;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 700;
+    display: inline-block;
+    white-space: nowrap;
+    transition: background 120ms ease, color 120ms ease;
+}
+
+    .vi-btn:hover {
+        background: var(--aivs-gold);
+        color: var(--aivs-black);
+    }
+
+.vi-empty {
+    background: var(--aivs-white);
+    border: 1px dashed var(--aivs-border);
+    border-radius: var(--aivs-radius);
+    padding: 32px;
+    text-align: center;
+    color: var(--aivs-text-muted);
+    font-weight: 500;
+}
+
+.vi-empty-inline {
+    border: 0;
+    border-radius: 0;
+}
+
+.vi-muted {
+    color: var(--aivs-text-muted);
+    font-weight: 500;
+}
+
+@media (max-width: 700px) {
+    .vi-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .vi-search {
+        min-width: unset;
+    }
+}
+
+.vi-badge-returned {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+.vi-badge-resubmitted {
+    background: #dbeafe;
+    color: #1e40af;
+    border: 1px solid #bfdbfe;
+}
+
+.vi-badge-completed {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+}
+
+.vi-badge-qa {
+    background: #fff8db;
+    color: #7a4b00;
+    border: 1px solid #f3d36b;
+}
+
+.vi-badge-ready {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+}
+
+.vi-badge-extracted {
+    background: #e0e7ff;
+    color: #3730a3;
+    border: 1px solid #c7d2fe;
+}

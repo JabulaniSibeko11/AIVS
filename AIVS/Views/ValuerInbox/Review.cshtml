@@ -1,442 +1,42 @@
 ﻿@model AIVS.Models.ViewModels.ValuerInbox.ValuerReviewPageVm
+@using System.Globalization
 
 @{
     ViewData["Title"] = "Review " + Model.AttrNo;
+
+    string SectionLabel(string? code) => (code ?? "").ToUpperInvariant() switch
+    {
+        "PROPERTY_DETAILS" => "Property Details",
+        "VALUATION_DETAILS" => "Valuation Details",
+        "CONTACT_INFORMATION" => "Contact Information",
+        "PRIMARY_ATTRIBUTES" => "Primary Attributes",
+        "SECONDARY_ATTRIBUTES" => "Secondary Attributes",
+        "BUSINESS_BUILDINGS" => "Business Buildings",
+        "BUSINESS_SECTIONS" => "Business Sections",
+        "BUSINESS_GENERAL" => "Business General",
+        "DRC_BUILDINGS" => "DRC Buildings",
+        "DRC_IMPROVEMENTS" => "DRC Improvements",
+        "DRC_VACANT_LAND" => "DRC Vacant Land",
+        "ADDITIONAL_COMMENTS" => "Additional Comments",
+        "DECLARATION" => "Declaration",
+        var s when string.IsNullOrWhiteSpace(s) => "Section",
+        var s => s
+    };
+
+    string SectionDotColor(AIVS.Models.ViewModels.ValuerInbox.ValuerReviewSectionVm section) => (section.SectionDecision?.Trim()) switch
+    {
+        "Accepted" => "var(--aivs-success)",
+        "Needs correction" => "var(--aivs-danger)",
+        "Requires inspection" => "var(--aivs-gold-dark)",
+        "Not applicable" => "var(--aivs-grey)",
+        _ => "transparent"
+    };
+
+    var sections = Model.Sections ?? new List<AIVS.Models.ViewModels.ValuerInbox.ValuerReviewSectionVm>();
+    var progressPct = Model.TotalSections == 0 ? 0 : (double)Model.ReviewedSections / Model.TotalSections * 100;
 }
 
-<style>
-    .rv-page {
-        padding-bottom: 35px;
-    }
-
-    .rv-actions {
-        position: sticky;
-        top: 0;
-        z-index: 50;
-        background: #f5f6f8;
-        border-bottom: 1px solid #e0e0e0;
-        padding: 10px 0;
-        margin-bottom: 18px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 12px;
-        flex-wrap: wrap;
-    }
-
-    .rv-btn-back {
-        background: #000000;
-        color: #ffffff;
-        border-radius: 7px;
-        padding: 9px 15px;
-        text-decoration: none;
-        font-size: 13px;
-        font-weight: 900;
-        display: inline-block;
-    }
-
-        .rv-btn-back:hover {
-            background: #e6b000;
-            color: #000000;
-        }
-
-    .rv-top-badges {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        flex-wrap: wrap;
-    }
-
-    .rv-badge {
-        display: inline-block;
-        padding: 5px 10px;
-        border-radius: 999px;
-        background: #fff0bf;
-        color: #5a4100;
-        font-size: 12px;
-        font-weight: 900;
-    }
-
-    .rv-badge-dark {
-        background: #111111;
-        color: #ffffff;
-    }
-
-    .rv-header {
-        background: #ffffff;
-        border: 1px solid #e3e3e3;
-        border-left: 6px solid #e6b000;
-        border-radius: 10px;
-        padding: 20px 22px;
-        margin-bottom: 20px;
-        box-shadow: 0 2px 10px rgba(0,0,0,.05);
-    }
-
-    .rv-title-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 15px;
-        flex-wrap: wrap;
-    }
-
-    .rv-title {
-        margin: 0;
-        font-weight: 900;
-        color: #111111;
-        font-size: 28px;
-        line-height: 1.2;
-    }
-
-    .rv-subtitle {
-        margin-top: 6px;
-        color: #666666;
-        font-size: 14px;
-        font-weight: 600;
-    }
-
-    .rv-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-        gap: 12px;
-        margin-top: 16px;
-    }
-
-    .rv-box {
-        background: #f8f8f8;
-        border: 1px solid #e2e2e2;
-        border-radius: 9px;
-        padding: 12px;
-    }
-
-    .rv-label {
-        font-size: 12px;
-        text-transform: uppercase;
-        color: #666666;
-        font-weight: 900;
-        letter-spacing: .2px;
-    }
-
-    .rv-value {
-        margin-top: 5px;
-        color: #111111;
-        font-weight: 900;
-        word-break: break-word;
-    }
-
-    .rv-section-title {
-        margin: 24px 0 13px;
-        font-size: 21px;
-        font-weight: 900;
-        color: #111111;
-        border-left: 5px solid #e6b000;
-        padding-left: 12px;
-    }
-
-    .rv-warning {
-        background: #fff6d6;
-        border: 1px solid #ead17a;
-        border-left: 5px solid #e6b000;
-        color: #4a3900;
-        border-radius: 8px;
-        padding: 14px 16px;
-        font-weight: 800;
-        margin-bottom: 18px;
-    }
-
-    .rv-alert {
-        border-radius: 8px;
-        padding: 12px 14px;
-        margin-bottom: 14px;
-        font-weight: 900;
-    }
-
-    .rv-alert-success {
-        background: #e8f7ee;
-        border: 1px solid #b9e5c8;
-        color: #155724;
-    }
-
-    .rv-alert-danger {
-        background: #fdecec;
-        border: 1px solid #f4bcbc;
-        color: #842029;
-    }
-
-    .rv-review-layout {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) 360px;
-        gap: 18px;
-        align-items: start;
-    }
-
-    .rv-main {
-        min-width: 0;
-    }
-
-    .rv-side {
-        position: sticky;
-        top: 72px;
-    }
-
-    .rv-side-card {
-        background: #ffffff;
-        border: 1px solid #dedede;
-        border-radius: 10px;
-        margin-bottom: 14px;
-        overflow: hidden;
-        box-shadow: 0 2px 8px rgba(0,0,0,.04);
-    }
-
-    .rv-side-head {
-        background: #111111;
-        color: #ffffff;
-        padding: 12px 14px;
-        font-weight: 900;
-    }
-
-        .rv-side-head span {
-            color: #e6b000;
-        }
-
-    .rv-side-body {
-        padding: 14px;
-    }
-
-    .rv-side-stat {
-        display: flex;
-        justify-content: space-between;
-        border-bottom: 1px solid #eeeeee;
-        padding: 8px 0;
-        font-weight: 800;
-        gap: 12px;
-    }
-
-        .rv-side-stat:last-child {
-            border-bottom: 0;
-        }
-
-    .rv-stat-good {
-        color: #198754;
-    }
-
-    .rv-stat-warn {
-        color: #b38300;
-    }
-
-    .rv-stat-danger {
-        color: #dc3545;
-    }
-
-    .rv-final-textarea {
-        width: 100%;
-        min-height: 120px;
-        border: 1px solid #cfcfcf;
-        border-radius: 8px;
-        padding: 10px;
-        font-weight: 600;
-        resize: vertical;
-    }
-
-    .rv-final-btn {
-        width: 100%;
-        border: 0;
-        border-radius: 8px;
-        padding: 10px 12px;
-        margin-top: 9px;
-        font-size: 13px;
-        font-weight: 900;
-        cursor: pointer;
-    }
-
-    .rv-final-btn-ovvio {
-        background: #198754;
-        color: #ffffff;
-    }
-
-    .rv-final-btn-return {
-        background: #e6b000;
-        color: #000000;
-    }
-
-    .rv-final-btn-inspection {
-        background: #0d6efd;
-        color: #ffffff;
-    }
-
-    .rv-final-btn-reject {
-        background: #dc3545;
-        color: #ffffff;
-    }
-
-    .rv-final-btn:hover {
-        filter: brightness(.94);
-    }
-
-    .rv-final-btn:disabled {
-        background: #bdbdbd;
-        color: #555555;
-        cursor: not-allowed;
-        filter: none;
-    }
-
-    .rv-block-note {
-        background: #fff6d6;
-        border: 1px solid #ead17a;
-        border-left: 4px solid #e6b000;
-        border-radius: 8px;
-        padding: 10px;
-        font-size: 13px;
-        font-weight: 800;
-        color: #4a3900;
-        margin-bottom: 12px;
-    }
-
-    .rv-ok-note {
-        background: #e8f7ee;
-        border: 1px solid #b9e5c8;
-        border-left: 4px solid #198754;
-        border-radius: 8px;
-        padding: 10px;
-        font-size: 13px;
-        font-weight: 800;
-        color: #155724;
-        margin-bottom: 12px;
-    }
-
-    .rv-evidence-item {
-        border: 1px solid #eeeeee;
-        border-radius: 8px;
-        padding: 9px;
-        margin-bottom: 8px;
-        background: #f9f9f9;
-    }
-
-    .rv-evidence-name {
-        font-weight: 900;
-        color: #111111;
-        word-break: break-word;
-    }
-
-    .rv-evidence-meta {
-        font-size: 12px;
-        color: #666666;
-        margin-top: 3px;
-    }
-
-    .rv-evidence-link {
-        display: inline-block;
-        margin-top: 6px;
-        color: #000000;
-        font-weight: 900;
-        font-size: 12px;
-        text-decoration: underline;
-    }
-
-    .rv-small-text {
-        font-size: 12px;
-        color: #666666;
-        font-weight: 700;
-        line-height: 1.4;
-    }
-
-    .insp-modal-backdrop {
-        position: fixed;
-        inset: 0;
-        background: rgba(0,0,0,.45);
-        z-index: 2000;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }
-
-    .insp-modal {
-        width: min(620px, 94vw);
-        background: #ffffff;
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 18px 40px rgba(0,0,0,.25);
-    }
-
-    .insp-modal-head {
-        background: #111111;
-        color: #ffffff;
-        padding: 14px 18px;
-        font-weight: 900;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-        .insp-modal-head button {
-            background: transparent;
-            border: 0;
-            color: #ffffff;
-            font-size: 24px;
-            font-weight: 900;
-            cursor: pointer;
-        }
-
-    .insp-modal-body {
-        padding: 18px;
-        display: grid;
-        gap: 10px;
-    }
-
-        .insp-modal-body label {
-            font-weight: 900;
-            color: #111111;
-        }
-
-    .insp-input,
-    .insp-textarea {
-        width: 100%;
-        border: 1px solid #cfcfcf;
-        border-radius: 8px;
-        padding: 10px;
-        font-weight: 700;
-    }
-
-    .insp-textarea {
-        min-height: 100px;
-    }
-
-    .insp-modal-footer {
-        padding: 14px 18px;
-        border-top: 1px solid #eeeeee;
-        display: flex;
-        justify-content: flex-end;
-        gap: 10px;
-    }
-
-    .insp-btn-cancel {
-        background: #f1f1f1;
-        color: #111111;
-        border: 1px solid #d0d0d0;
-        border-radius: 8px;
-        padding: 9px 14px;
-        font-weight: 900;
-    }
-
-    .insp-btn-submit {
-        background: #e6b000;
-        color: #000000;
-        border: 0;
-        border-radius: 8px;
-        padding: 9px 14px;
-        font-weight: 900;
-    }
-
-    @@media (max-width: 1100px) {
-        .rv-review-layout {
-            grid-template-columns: 1fr;
-        }
-
-        .rv-side {
-            position: static;
-        }
-    }
-</style>
+<link href="~/css/review-page.css" rel="stylesheet" asp-append-version="true"/>
 
 <div class="rv-page">
 
@@ -461,6 +61,7 @@
     @if (TempData["Success"] != null)
     {
         <div class="rv-alert rv-alert-success">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             @TempData["Success"]
         </div>
     }
@@ -468,6 +69,7 @@
     @if (TempData["Error"] != null)
     {
         <div class="rv-alert rv-alert-danger">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 8v5M12 16h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
             @TempData["Error"]
         </div>
     }
@@ -478,7 +80,7 @@
                 <h1 class="rv-title">Review: @Model.AttrNo</h1>
 
                 <div class="rv-subtitle">
-                    Review the submitted City Of Johannesburg Valuation Portal attribute form. Each section has its own decision, correction flag, inspection flag, and valuer comment.
+                    Review the submitted City of Johannesburg Valuation Portal attribute form. Each section has its own decision, correction flag, inspection flag, and valuer comment.
                 </div>
             </div>
 
@@ -486,6 +88,11 @@
                 @Display(Model.FormType)
             </span>
         </div>
+
+        <div class="rv-progress-track">
+            <div class="rv-progress-fill" style="width:@(progressPct.ToString("0.###", CultureInfo.InvariantCulture))%;"></div>
+        </div>
+        <div class="rv-progress-label">@Model.ReviewedSections of @Model.TotalSections sections reviewed</div>
 
         <div class="rv-grid">
             <div class="rv-box">
@@ -505,7 +112,7 @@
 
             <div class="rv-box">
                 <div class="rv-label">Status</div>
-                <div class="rv-value">@Display(Model.Status)</div>
+                <div class="rv-value">@FriendlyStatus(Model.Status)</div>
             </div>
 
             <div class="rv-box">
@@ -531,7 +138,7 @@
     </div>
 
     <div class="rv-section-title">
-        Submitted City Of Johannesburg Valuation Portal Form & Section Review
+        Submitted City of Johannesburg Valuation Portal Form &amp; Section Review
     </div>
 
     <div class="rv-review-layout">
@@ -556,6 +163,27 @@
         </main>
 
         <aside class="rv-side">
+            @if (sections.Any())
+            {
+                <div class="rv-side-card">
+                    <div class="rv-side-head">
+                        Section <span>Navigator</span>
+                    </div>
+
+                    <div class="rv-side-body">
+                        <div class="rv-nav-list">
+                            @foreach (var sec in sections)
+                            {
+                                <a class="rv-nav-link" data-nav-target="sec-@sec.SectionCode" href="#sec-@sec.SectionCode">
+                                    <span class="rv-nav-dot" style="background:@SectionDotColor(sec); border-color:@SectionDotColor(sec);"></span>
+                                    @SectionLabel(sec.SectionCode)
+                                </a>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+
             <div class="rv-side-card">
                 <div class="rv-side-head">
                     Review <span>Progress</span>
@@ -605,7 +233,7 @@
 
                                 <div class="rv-evidence-meta">
                                     @Display(file.FileType)
-                                    ·
+                                    &middot;
                                     @(file.UploadedDateTime?.ToString("yyyy-MM-dd HH:mm") ?? "-")
                                 </div>
 
@@ -622,27 +250,84 @@
                     }
                 </div>
             </div>
-            @if (Model.ActiveInspectionRequest != null &&
-                string.Equals(Model.ActiveInspectionRequest.Status, "Expired", StringComparison.OrdinalIgnoreCase))
-            {
-                <div class="rv-block-note">
-                    The client did not select any of the proposed inspection dates before they expired.
-                    You can send a new set of inspection date options.
+
+            <div class="rv-side-card">
+                <div class="rv-side-head">
+                    Physical <span>Evidence</span>
                 </div>
 
-                <button type="button"
-                        class="rv-final-btn rv-final-btn-inspection"
-                        onclick="openInspectionModal();">
-                    Send New Inspection Date Options
-                </button>
-            }
+                <div class="rv-side-body">
+                    @if (Model.PhysicalInspectionEvidenceFiles == null || !Model.PhysicalInspectionEvidenceFiles.Any())
+                    {
+                        <div class="rv-block-note">
+                            No physical inspection evidence uploaded yet.
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="rv-ok-note">
+                            @Model.PhysicalInspectionEvidenceCount physical inspection file(s) uploaded.
+                        </div>
+
+                        @foreach (var file in Model.PhysicalInspectionEvidenceFiles)
+                        {
+                            <div class="rv-evidence-item physical-evidence-item">
+                                <div class="rv-evidence-name">
+                                    <i class="fa-solid fa-camera"></i>
+                                    @Display(file.FileName)
+                                </div>
+
+                                <div class="rv-evidence-meta">
+                                    @(file.UploadedAt.ToString("yyyy-MM-dd HH:mm"))
+                                    &middot;
+                                    @(file.UploadedByName ?? file.UploadedBySapNumber ?? "Valuer")
+                                    &middot;
+                                    @file.FileSizeDisplay
+                                </div>
+
+                                @if (!string.IsNullOrWhiteSpace(file.EvidenceComment))
+                                {
+                                    <div class="rv-block-note" style="margin-top:8px;">
+                                        <strong>Comment:</strong><br />
+                                        @Display(file.EvidenceComment)
+                                    </div>
+                                }
+
+                                @if (file.IsImage)
+                                {
+                                    <div class="physical-evidence-preview">
+                                        <img src="@Url.Action("PhysicalInspectionEvidenceFile", "ValuerInbox", new { id = file.Id })"
+                                             alt="@file.FileName"
+                                             loading="lazy" />
+                                    </div>
+                                }
+
+                                <div class="physical-evidence-actions">
+                                    <a class="rv-evidence-link"
+                                           href="@Url.Action("PhysicalInspectionEvidenceFile", "ValuerInbox", new { id = file.Id })"
+                                           target="_blank">
+                                        View / Download
+                                    </a>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+
             <div class="rv-side-card">
                 <div class="rv-side-head">
                     Final <span>Decision</span>
                 </div>
-
                 <div class="rv-side-body">
-                    @if (Model.CanSubmitToOvvio)
+                    @if (string.Equals(Model.Status, "ReadyForOvvioExtract", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <div class="rv-ok-note">
+                            <strong>Accepted / Ready for OVVIO Extract.</strong><br />
+                            This submission has been finalised by the valuer and is waiting for OVVIO extraction.
+                        </div>
+                    }
+                    else if (Model.CanSubmitToOvvio)
                     {
                         <div class="rv-ok-note">
                             Required sections are clear. This review can be submitted to OVVIO.
@@ -666,7 +351,7 @@
                         <input type="hidden" name="ReviewId" value="@Model.ReviewId" />
                         <input type="hidden" name="FinalDecision" id="finalDecisionValue" />
 
-                        <label class="fw-bold mb-1">Final Comment</label>
+                        <label class="fw-bold mb-1" style="font-size:13px;">Final Comment</label>
 
                         <textarea name="FinalComment"
                                   class="rv-final-textarea"
@@ -680,25 +365,47 @@
                         <button type="submit"
                                 class="rv-final-btn rv-final-btn-ovvio"
                                 onclick="return setFinalDecision('SubmitToOvvio');"
-                                disabled="@(!Model.CanSubmitToOvvio)">
+                                disabled="@(!Model.CanSubmitToOvvio || string.Equals(Model.Status, "ReadyForOvvioExtract", StringComparison.OrdinalIgnoreCase))">
                             Submit to OVVIO
                         </button>
 
                         <button type="submit"
                                 class="rv-final-btn rv-final-btn-return"
-                                onclick="return setFinalDecision('ReturnToClient');">
-                            Return to Client
+                                onclick="return setFinalDecision('ReturnToClient');"
+                                disabled="@(string.Equals(Model.Status, "ReadyForOvvioExtract", StringComparison.OrdinalIgnoreCase))">
+                            Return to Client for Update
                         </button>
-
-                        <button type="submit"
-                                class="rv-final-btn rv-final-btn-reject"
-                                onclick="return setFinalDecision('Reject');">
-                            Reject
-                        </button>
+                       
                     </form>
                 </div>
             </div>
 
+            <div class="rv-side-card">
+                <div class="rv-side-head">
+                    Reviewed <span>PDF</span>
+                </div>
+
+                <div class="rv-side-body">
+                    @if (!string.IsNullOrWhiteSpace(Model.ValuerEvidencePath))
+                    {
+                        <div class="rv-ok-note">
+                            Reviewed form PDF has been generated.
+                        </div>
+
+                        <a class="rv-final-btn rv-final-btn-ovvio"
+                               href="@Url.Action("ReviewedPdf", "ValuerInbox", new { attrId = Model.AttrId })"
+                               target="_blank">
+                            Open Reviewed PDF
+                        </a>
+                    }
+                    else
+                    {
+                        <div class="rv-block-note">
+                            Reviewed PDF will be generated after the final review decision is submitted.
+                        </div>
+                    }
+                </div>
+            </div>
             <div class="rv-side-card">
                 <div class="rv-side-head">
                     Physical <span>Inspection</span>
@@ -720,11 +427,12 @@
 
                                 <div class="rv-evidence-meta">
                                     @slot.ProposedDateTime.ToString("yyyy-MM-dd HH:mm")
-                                    ·
+                                    &middot;
                                     @slot.SlotStatus
                                 </div>
                             </div>
                         }
+
                         @if (string.Equals(Model.ActiveInspectionRequest.Status, "Expired", StringComparison.OrdinalIgnoreCase))
                         {
                             <div class="rv-block-note">
@@ -767,50 +475,17 @@
                                     <button type="submit"
                                             class="rv-final-btn rv-final-btn-inspection"
                                             onclick="return confirm('Generate inspection PIN and prepare valuer details for the client?');">
-                                        Send Valuer Details & PIN to Client
+                                        Send Valuer Details &amp; PIN to Client
                                     </button>
                                 </form>
                             }
                         }
+
                         @if (Model.ActiveInspectionRequest.ConfirmedDateTime != null)
                         {
                             <div class="rv-ok-note">
                                 Confirmed: @Model.ActiveInspectionRequest.ConfirmedDateTime.Value.ToString("yyyy-MM-dd HH:mm")
                             </div>
-                        }
-                        @if (string.Equals(Model.ActiveInspectionRequest.Status, "Confirmed", StringComparison.OrdinalIgnoreCase))
-                        {
-                            @if (Model.ActiveInspectionRequest.ValuerDetailsSent)
-                            {
-                                <div class="rv-ok-note">
-                                    Inspection details sent to client on
-                                    @Model.ActiveInspectionRequest.ValuerDetailsSentAt?.ToString("yyyy-MM-dd HH:mm").
-                                    PIN: @Model.ActiveInspectionRequest.InspectionPin
-                                </div>
-                            }
-                            else
-                            {
-                                <form asp-controller="ValuerInbox"
-                                      asp-action="SendInspectionDetails"
-                                      method="post">
-
-                                    @Html.AntiForgeryToken()
-
-                                    <input type="hidden"
-                                           name="inspectionRequestId"
-                                           value="@Model.ActiveInspectionRequest.Id" />
-
-                                    <input type="hidden"
-                                           name="attrId"
-                                           value="@Model.AttrId" />
-
-                                    <button type="submit"
-                                            class="rv-final-btn rv-final-btn-inspection"
-                                            onclick="return confirm('Generate inspection PIN and prepare valuer details for the client?');">
-                                        Send Valuer Details & PIN to Client
-                                    </button>
-                                </form>
-                            }
                         }
                     }
                     else
@@ -831,7 +506,7 @@
     <div class="insp-modal">
         <div class="insp-modal-head">
             <div>Request Physical Inspection</div>
-            <button type="button" onclick="closeInspectionModal()">×</button>
+            <button type="button" onclick="closeInspectionModal()">&times;</button>
         </div>
 
         <form asp-controller="ValuerInbox"
@@ -886,19 +561,17 @@
 
             hidden.value = decision;
 
-            if (decision === 'SubmitToOvvio') {
-                return confirm('Submit this review to OVVIO extract?');
+            var confirmed = false;
+
+                        if (decision === 'SubmitToOvvio') {
+                confirmed = confirm('Submit this review to OVVIO extract?');
+            } else if (decision === 'ReturnToClient') {
+                confirmed = confirm('Return this submission to the client for update?');
             }
 
-            if (decision === 'ReturnToClient') {
-                return confirm('Return this submission to the client for correction?');
-            }
+            if (confirmed && window.aivsClearAllDirty) window.aivsClearAllDirty();
 
-            if (decision === 'Reject') {
-                return confirm('Reject this submission?');
-            }
-
-            return false;
+            return confirmed;
         }
 
         function openInspectionModal() {
@@ -908,6 +581,45 @@
         function closeInspectionModal() {
             document.getElementById('inspectionModal').style.display = 'none';
         }
+
+        // ---- Unsaved-section tracking, shared with _SectionReviewPanel partials ----
+        (function () {
+            var dirtySections = new Set();
+
+            window.aivsRegisterDirty = function (code) { dirtySections.add(code); };
+            window.aivsClearDirty = function (code) { dirtySections.delete(code); };
+            window.aivsClearAllDirty = function () { dirtySections.clear(); };
+
+            window.addEventListener('beforeunload', function (e) {
+                if (dirtySections.size === 0) return;
+                e.preventDefault();
+                e.returnValue = '';
+            });
+        })();
+
+        // ---- Section navigator: scroll-spy active state ----
+        (function () {
+            var links = Array.from(document.querySelectorAll('.rv-nav-link'));
+            if (!links.length) return;
+
+            var targets = links
+                .map(function (link) {
+                    var el = document.getElementById(link.getAttribute('data-nav-target'));
+                    return el ? { link: link, el: el } : null;
+                })
+                .filter(Boolean);
+
+            if (!targets.length) return;
+
+            var observer = new IntersectionObserver(function (entries) {
+                entries.forEach(function (entry) {
+                    var match = targets.find(function (t) { return t.el === entry.target; });
+                    if (match) match.link.classList.toggle('is-active', entry.isIntersecting);
+                });
+            }, { rootMargin: '-80px 0px -70% 0px', threshold: 0 });
+
+            targets.forEach(function (t) { observer.observe(t.el); });
+        })();
     </script>
 }
 
@@ -922,5 +634,21 @@
         }
 
         return new Microsoft.AspNetCore.Html.HtmlString(System.Net.WebUtility.HtmlEncode(text));
+    }
+    private string FriendlyStatus(string? status)
+    {
+        return status?.Trim() switch
+        {
+            "ReadyForOvvioExtract" => "Accepted / Ready for OVVIO Extract",
+            "ReturnedToClient" => "Returned to Client for Update",
+            "Resubmitted" => "Client Resubmitted",
+            "ValuerReview" => "Under Valuer Review",
+            "InspectionRequired" => "Physical Inspection Required",
+            "InspectionConfirmed" => "Inspection Date Confirmed",
+            "InspectionDetailsSent" => "Inspection Details Sent",
+            "InspectionExpired" => "Inspection Expired",
+            "Claimed" => "Assigned to Valuer",
+            _ => string.IsNullOrWhiteSpace(status) ? "-" : status
+        };
     }
 }

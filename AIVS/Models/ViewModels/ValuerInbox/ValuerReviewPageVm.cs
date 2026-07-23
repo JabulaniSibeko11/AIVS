@@ -42,11 +42,13 @@
         public string? FinalDecision { get; set; }
 
         public string? FinalComment { get; set; }
-
+        public string? ValuerEvidencePath { get; set; }
         public List<ValuerEvidenceFileVm> EvidenceFiles { get; set; } = new();
         public AttributeSubmissionViewModel? SubmittedForm { get; set; }
 
         public List<ValuerReviewSectionVm> Sections { get; set; } = new();
         public InspectionRequestVm? ActiveInspectionRequest { get; set; }
+        public List<ValuerPhysicalInspectionEvidenceVm> PhysicalInspectionEvidenceFiles { get; set; } = new();
+        public int PhysicalInspectionEvidenceCount => PhysicalInspectionEvidenceFiles?.Count ?? 0;
     }
 }

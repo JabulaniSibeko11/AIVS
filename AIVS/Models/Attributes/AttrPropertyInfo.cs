@@ -221,8 +221,12 @@ namespace AIVS.Models.Attributes
         public DateTime? EvidenceLockedDateTime { get; set; }
         public DateTime? RoutedToSectorDateTime { get; set; }
         public string? RoutingError { get; set; }
+        public string? SectorManagerQaDecision { get; set; }
+        public string? SectorManagerQaComment { get; set; }
+        public string? SectorManagerQaBy { get; set; }
+        public string? SectorManagerQaUserId { get; set; }
+        public DateTime? SectorManagerQaDateTime { get; set; }
 
- 
 
         [Timestamp]
         public byte[] RowVersion { get; set; } = Array.Empty<byte>();

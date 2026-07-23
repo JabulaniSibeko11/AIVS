@@ -1,0 +1,123 @@
+﻿
+.sub-card {
+    background: var(--aivs-white);
+    border: 1px solid var(--aivs-border);
+    border-radius: var(--aivs-radius);
+    margin-bottom: 16px;
+    overflow: hidden;
+}
+
+.sub-head {
+    background: var(--aivs-black);
+    color: var(--aivs-white);
+    padding: 12px 16px;
+    font-weight: 700;
+    font-size: 14px;
+}
+
+    .sub-head span {
+        color: var(--aivs-gold);
+    }
+
+.sub-body {
+    padding: 16px;
+}
+
+/* ---------- Definition grid (flat key/value fields) ---------- */
+.def-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+}
+
+.def-item {
+    background: #faf9f7;
+    border: 1px solid var(--aivs-border);
+    border-radius: var(--aivs-radius-sm);
+    padding: 10px 12px;
+}
+
+    .def-item.span-2 {
+        grid-column: span 2;
+    }
+
+@media (max-width: 700px) {
+    .def-item.span-2 {
+        grid-column: span 1;
+    }
+}
+
+.def-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    color: var(--aivs-text-muted);
+}
+
+.def-value {
+    margin-top: 4px;
+    color: var(--aivs-black);
+    font-weight: 600;
+    font-size: 13px;
+    word-break: break-word;
+}
+
+.def-empty {
+    color: var(--aivs-text-muted);
+    font-style: italic;
+    font-weight: 500;
+}
+
+/* ---------- Repeating collection tables (Contacts, Buildings, Sections) ---------- */
+.sub-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+    .sub-table th {
+        background: #faf9f7;
+        text-align: left;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .03em;
+        color: var(--aivs-text-muted);
+        border-bottom: 1px solid var(--aivs-border);
+        padding: 9px 10px;
+    }
+
+    .sub-table td {
+        border-bottom: 1px solid #f1efeb;
+        padding: 9px 10px;
+        font-size: 13px;
+        vertical-align: top;
+        color: var(--aivs-text);
+    }
+
+.sub-empty {
+    color: var(--aivs-text-muted);
+    font-style: italic;
+    font-weight: 500;
+    font-size: 13px;
+}
+
+.sub-section-title {
+    font-weight: 700;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    color: var(--aivs-text-muted);
+    margin: 18px 0 8px;
+}
+
+    .sub-section-title:first-child {
+        margin-top: 0;
+    }
+
+/* Anchor targets for the section navigator — offset for the sticky top bar */
+.aivs-section-block {
+    scroll-margin-top: 76px;
+}
+
+

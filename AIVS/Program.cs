@@ -44,6 +44,8 @@ builder.Services.AddDbContext<UserManagementDbContext>(options =>
 
 builder.Services.AddDbContext<AttributesDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("AttributesConnection")));
+builder.Services.Configure<SectorManagerQaSettings>(
+    builder.Configuration.GetSection("SectorManagerQaSettings"));
 
 // ─────────────────────────────────────────────
 // Windows Authentication
@@ -71,6 +73,7 @@ builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IHomeDashboardService, HomeDashboardService>();
 builder.Services.AddScoped<IStatsExtractService, StatsExtractService>();
 builder.Services.AddScoped<IValuerReviewPdfService, ValuerReviewPdfService>();
+builder.Services.AddScoped<ISectorManagerQaService, SectorManagerQaService>();
 // ─────────────────────────────────────────────
 // Authorisation policies
 // ─────────────────────────────────────────────

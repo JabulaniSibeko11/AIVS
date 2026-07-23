@@ -4,123 +4,33 @@
     var attrId = ViewData["AttrId"];
     var reviewId = ViewData["ReviewId"];
 
-    var decisionLabel = string.IsNullOrWhiteSpace(Model.SectionDecision)
-        ? "Not reviewed"
-        : Model.SectionDecision;
+    var decisionValue = string.IsNullOrWhiteSpace(Model.SectionDecision) ? "" : Model.SectionDecision;
+
+    var decisionOptions = new (string Value, string Label, string Slug)[]
+    {
+        ("Accepted", "Accepted", "accepted"),
+        ("Needs correction", "Needs Correction", "correction"),
+        ("Requires inspection", "Requires Inspection", "inspection"),
+        ("Not applicable", "Not Applicable", "na"),
+    };
 }
 
-<style>
-    .review-panel {
-        margin-top: 14px;
-        padding: 14px;
-        border: 1px solid #ead17a;
-        border-left: 5px solid #e6b000;
-        border-radius: 8px;
-        background: #fffdf4;
-    }
+<link href="~/css/section-review-panel.css" rel="stylesheet" asp-append-version="true"/>
 
-    .review-panel-head {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 12px;
-        font-weight: 900;
-        color: #111111;
-    }
-
-    .review-panel-status {
-        background: #fff0bf;
-        color: #5a4100;
-        border-radius: 999px;
-        padding: 4px 9px;
-        font-size: 12px;
-        font-weight: 900;
-    }
-
-    .review-panel-grid {
-        display: grid;
-        grid-template-columns: minmax(220px, 280px) 1fr;
-        gap: 14px;
-        align-items: start;
-    }
-
-    .review-select {
-        width: 100%;
-        border: 1px solid #cfcfcf;
-        border-radius: 8px;
-        padding: 9px 10px;
-        font-weight: 800;
-        background: #ffffff;
-        color: #111111;
-    }
-
-    .review-comment {
-        width: 100%;
-        min-height: 95px;
-        border: 1px solid #cfcfcf;
-        border-radius: 8px;
-        padding: 10px;
-        background: #ffffff;
-        color: #111111;
-        font-weight: 600;
-    }
-
-    .review-check-row {
-        margin-top: 10px;
-        display: flex;
-        gap: 18px;
-        flex-wrap: wrap;
-    }
-
-    .review-check {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        font-weight: 900;
-        color: #111111;
-        cursor: pointer;
-    }
-
-        .review-check input {
-            width: 17px;
-            height: 17px;
-            accent-color: #e6b000;
-        }
-
-    .review-save {
-        margin-top: 12px;
-        background: #e6b000;
-        color: #000000;
-        border: 0;
-        border-radius: 7px;
-        padding: 8px 14px;
-        font-size: 13px;
-        font-weight: 900;
-        cursor: pointer;
-    }
-
-        .review-save:hover {
-            background: #000000;
-            color: #ffffff;
-        }
-
-    @@media (max-width: 800px) {
-        .review-panel-grid {
-            grid-template-columns: 1fr;
-        }
-    }
-</style>
-
-<div class="review-panel">
+<div class="review-panel" data-section-code="@Model.SectionCode" data-decision="@decisionValue">
     <div class="review-panel-head">
         <div>Valuer Review: @Model.SectionName</div>
-        <div class="review-panel-status">@decisionLabel</div>
+        <div class="review-panel-badges">
+            <span class="review-panel-unsaved">Unsaved</span>
+            <span class="review-panel-status">@(string.IsNullOrWhiteSpace(Model.SectionDecision) ? "Not reviewed" : Model.SectionDecision)</span>
+        </div>
     </div>
 
     <form asp-controller="ValuerInbox"
           asp-action="SaveSectionReview"
-          method="post">
+          method="post"
+          class="aivs-section-form"
+          data-section-anchor="sec-@Model.SectionCode">
 
         @Html.AntiForgeryToken()
 
@@ -130,53 +40,30 @@
 
         <div class="review-panel-grid">
             <div>
-                <label class="fw-bold mb-1">Section Decision</label>
+                <label class="fw-bold mb-1" style="font-size:13px;">Section Decision</label>
 
-                <select name="SectionDecision" class="review-select" required>
-                    <option value="">-- Select decision --</option>
+                <div class="decision-group" role="radiogroup" aria-label="Decision for @Model.SectionName">
+                    @foreach (var opt in decisionOptions)
+                    {
+                        var radioId = $"decision_{Model.SectionId}_{opt.Slug}";
 
-                    @if (Model.SectionDecision == "Accepted")
-                    {
-                        <option value="Accepted" selected>Accepted</option>
+                        <input type="radio"
+                               id="@radioId"
+                               name="SectionDecision"
+                               value="@opt.Value"
+                               class="decision-radio"
+                               required
+                               @(decisionValue == opt.Value ? "checked" : "") />
+                        <label for="@radioId" class="decision-pill decision-pill-@opt.Slug">@opt.Label</label>
                     }
-                    else
-                    {
-                        <option value="Accepted">Accepted</option>
-                    }
-
-                    @if (Model.SectionDecision == "Needs correction")
-                    {
-                        <option value="Needs correction" selected>Needs correction</option>
-                    }
-                    else
-                    {
-                        <option value="Needs correction">Needs correction</option>
-                    }
-
-                    @if (Model.SectionDecision == "Not applicable")
-                    {
-                        <option value="Not applicable" selected>Not applicable</option>
-                    }
-                    else
-                    {
-                        <option value="Not applicable">Not applicable</option>
-                    }
-
-                    @if (Model.SectionDecision == "Requires inspection")
-                    {
-                        <option value="Requires inspection" selected>Requires inspection</option>
-                    }
-                    else
-                    {
-                        <option value="Requires inspection">Requires inspection</option>
-                    }
-                </select>
+                </div>
 
                 <div class="review-check-row">
                     <label class="review-check">
                         <input type="checkbox"
                                name="RequiresCorrection"
                                value="true"
+                               class="aivs-requires-correction"
                         @(Model.RequiresCorrection ? "checked" : "") />
                         Requires Correction
                     </label>
@@ -186,6 +73,7 @@
                         <input type="checkbox"
                                name="RequiresInspection"
                                value="true"
+                               class="aivs-requires-inspection"
                         @(Model.RequiresInspection ? "checked" : "") />
                         Requires Inspection
                     </label>
@@ -194,7 +82,7 @@
             </div>
 
             <div>
-                <label class="fw-bold mb-1">Valuer Comment</label>
+                <label class="fw-bold mb-1" style="font-size:13px;">Valuer Comment</label>
                 <textarea name="SectionComment"
                           class="review-comment"
                           placeholder="Enter your review comment for this section...">@Model.SectionComment</textarea>
@@ -206,3 +94,60 @@
         </button>
     </form>
 </div>
+
+<script>
+    (function () {
+        var panel = document.currentScript.previousElementSibling;
+        if (!panel || !panel.classList.contains('review-panel')) {
+            panel = document.querySelector('.review-panel[data-section-code="@Model.SectionCode"]');
+        }
+        if (!panel) return;
+
+        var wrapper = panel.closest('[id^="sec-"]') || panel;
+        var form = panel.querySelector('.aivs-section-form');
+        if (!form) return;
+
+        // Live border/status feedback as the valuer picks a decision.
+        form.querySelectorAll('.decision-radio').forEach(function (radio) {
+            radio.addEventListener('change', function () {
+                panel.setAttribute('data-decision', radio.value);
+                panel.classList.add('is-dirty');
+
+                // Smart defaults — auto-check the matching flag, valuer can still override.
+                var correctionBox = form.querySelector('.aivs-requires-correction');
+                var inspectionBox = form.querySelector('.aivs-requires-inspection');
+
+                if (radio.value === 'Needs correction' && correctionBox) correctionBox.checked = true;
+                if (radio.value === 'Requires inspection' && inspectionBox) inspectionBox.checked = true;
+
+                if (window.aivsRegisterDirty) window.aivsRegisterDirty('@Model.SectionCode');
+            });
+        });
+
+        form.querySelectorAll('input[type="checkbox"], textarea').forEach(function (el) {
+            el.addEventListener('input', function () {
+                panel.classList.add('is-dirty');
+                if (window.aivsRegisterDirty) window.aivsRegisterDirty('@Model.SectionCode');
+            });
+        });
+
+        // Remember where to scroll back to after the full-page redirect.
+        form.addEventListener('submit', function () {
+            sessionStorage.setItem('aivsScrollAnchor', '@Model.SectionCode');
+            if (window.aivsClearDirty) window.aivsClearDirty('@Model.SectionCode');
+        });
+
+        // If we just redirected back here after saving, flash + scroll to this section.
+        var anchor = sessionStorage.getItem('aivsScrollAnchor');
+        if (anchor === '@Model.SectionCode') {
+            sessionStorage.removeItem('aivsScrollAnchor');
+            panel.classList.remove('is-dirty');
+
+            requestAnimationFrame(function () {
+                wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                panel.classList.add('just-saved');
+                setTimeout(function () { panel.classList.remove('just-saved'); }, 1700);
+            });
+        }
+    })();
+</script>

@@ -106,53 +106,49 @@
             }
             else
             {
-                @if (Model.CurrentUserCanAssignToValuer)
-                {
-                    <form asp-controller="SectorInbox"
-                          asp-action="AssignSelectedToValuer"
-                          method="post"
-                          id="assignToValuerForm">
-
-                        @Html.AntiForgeryToken()
-
-                        <input type="hidden" name="sector" value="@Model.SelectedSector" />
-                    </form>
-                }
-
-                <form asp-controller="SectorInbox"
-                      asp-action="AssignSelectedToMe"
-                      method="post"
-                      id="assignSelectedForm">
+                <form method="post" id="sectorAssignmentForm">
 
                     @Html.AntiForgeryToken()
 
                     <input type="hidden" name="sector" value="@Model.SelectedSector" />
 
                     <div class="si-actions-panel">
-                        <div class="si-action-row">
-                            <div class="si-bulk-text">
-                                <span id="siSelectedCount" class="si-selected-count">0</span> selected &mdash;
-                                add them to your Valuer Inbox.
+                        <div class="si-assign-card">
+                            <div class="si-assign-left">
+                                <div class="si-assign-title">
+                                    <i class="fa-solid fa-user-check"></i>
+                                    Assignment Actions
+                                </div>
+
+                                <div class="si-assign-subtitle">
+                                    <span id="siSelectedCount" class="si-selected-count">0</span>
+                                    selected record(s). Select records below, then choose who must work on them.
+                                </div>
                             </div>
 
-                            <button type="submit"
-                                    id="siBulkAssignBtn"
-                                    class="si-btn-bulk-assign"
-                                    disabled
-                                    onclick="return confirmBulkAssign();">
-                                Add selected to my inbox
-                            </button>
+                            <div class="si-assign-actions">
+                                <button type="submit"
+                                        id="siBulkAssignBtn"
+                                        class="si-btn-bulk-assign"
+                                        disabled
+                                        formaction="@Url.Action("AssignSelectedToMe", "SectorInbox")"
+                                        onclick="return confirmAssignToMe();">
+                                    <i class="fa-solid fa-inbox"></i>
+                                    Assign to Myself
+                                </button>
+                            </div>
                         </div>
 
                         @if (Model.CurrentUserCanAssignToValuer)
                         {
                             <div class="si-manager-form">
                                 <div class="si-manager-label">
-                                    Sector Manager:
+                                    <i class="fa-solid fa-user-tie"></i>
+                                    Assign to Valuer
                                 </div>
 
                                 <select name="selectedValuerUserId"
-                                        form="assignToValuerForm"
+                                        id="selectedValuerUserId"
                                         class="si-manager-select">
                                     <option value="">-- Select Valuer --</option>
 
@@ -166,13 +162,22 @@
 
                                 <button type="submit"
                                         id="siManagerAssignBtn"
-                                        form="assignToValuerForm"
                                         class="si-btn-manager-assign"
                                         disabled
-                                        onclick="return copySelectedAndConfirmManagerAssign();">
-                                    Assign selected to valuer
+                                        formaction="@Url.Action("AssignSelectedToValuer", "SectorInbox")"
+                                        onclick="return confirmAssignToValuer();">
+                                    <i class="fa-solid fa-user-plus"></i>
+                                    Assign to Selected Valuer
                                 </button>
                             </div>
+
+                            @if (!Model.Valuers.Any())
+                            {
+                                <div class="si-manager-warning">
+                                    <i class="fa-solid fa-triangle-exclamation"></i>
+                                    No active valuers were found. Please check User Management / AIVS_GetActiveValuers.
+                                </div>
+                            }
                         }
                     </div>
 
@@ -197,6 +202,7 @@
                                     <th></th>
                                 </tr>
                             </thead>
+
                             <tbody>
                                 @foreach (var item in Model.Items)
                                 {
@@ -207,16 +213,31 @@
                                                    value="@item.AttrId"
                                                    class="si-check row-check" />
                                         </td>
+
                                         <td class="si-ref">@item.AttrNo</td>
+
                                         <td>@item.PropertyDescription</td>
+
                                         <td>@item.Township</td>
+
                                         <td>@item.RoutedSector</td>
-                                        <td class="si-muted">@item.SubmittedDate.ToString("yyyy-MM-dd HH:mm")</td>
-                                        <td class="si-muted">@(item.RoutedDate?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
-                                        <td>@item.EvidenceCount</td>
-                                        <td>
-                                            <span class="aivs-badge @StatusBadgeClass(item.Status)">@item.Status</span>
+
+                                        <td class="si-muted">
+                                            @item.SubmittedDate.ToString("yyyy-MM-dd HH:mm")
                                         </td>
+
+                                        <td class="si-muted">
+                                            @(item.RoutedDate?.ToString("yyyy-MM-dd HH:mm") ?? "-")
+                                        </td>
+
+                                        <td>@item.EvidenceCount</td>
+
+                                        <td>
+                                            <span class="aivs-badge @StatusBadgeClass(item.Status)">
+                                                @item.Status
+                                            </span>
+                                        </td>
+
                                         <td style="white-space:nowrap;">
                                             <a class="si-btn-view"
                                                    asp-controller="SectorInbox"
@@ -238,26 +259,40 @@
 
 @section Scripts {
     <script>
+        function getSelectedRows() {
+            return Array.from(document.querySelectorAll('.row-check:checked'));
+        }
+
         function updateSelectionState() {
             var selected = getSelectedRows();
             var count = selected.length;
 
             var countEl = document.getElementById('siSelectedCount');
-            if (countEl) countEl.textContent = count;
+            if (countEl) {
+                countEl.textContent = count;
+            }
 
-            var bulkBtn = document.getElementById('siBulkAssignBtn');
-            if (bulkBtn) bulkBtn.disabled = count === 0;
+            var assignToMeBtn = document.getElementById('siBulkAssignBtn');
+            if (assignToMeBtn) {
+                assignToMeBtn.disabled = count === 0;
+            }
 
-            var managerBtn = document.getElementById('siManagerAssignBtn');
-            if (managerBtn) managerBtn.disabled = count === 0;
+            var assignToValuerBtn = document.getElementById('siManagerAssignBtn');
+            if (assignToValuerBtn) {
+                assignToValuerBtn.disabled = count === 0;
+            }
 
             document.querySelectorAll('.row-check').forEach(function (checkbox) {
                 var row = checkbox.closest('tr');
-                if (row) row.classList.toggle('is-selected', checkbox.checked);
+
+                if (row) {
+                    row.classList.toggle('is-selected', checkbox.checked);
+                }
             });
 
             var all = document.querySelectorAll('.row-check');
             var selectAll = document.getElementById('selectAllRows');
+
             if (selectAll) {
                 selectAll.checked = all.length > 0 && count === all.length;
                 selectAll.indeterminate = count > 0 && count < all.length;
@@ -268,25 +303,11 @@
             document.querySelectorAll('.row-check').forEach(function (checkbox) {
                 checkbox.checked = source.checked;
             });
+
             updateSelectionState();
         }
 
-        function getSelectedRows() {
-            return Array.from(document.querySelectorAll('.row-check:checked'));
-        }
-
-        function confirmBulkAssign() {
-            var selected = getSelectedRows().length;
-
-            if (selected === 0) {
-                alert('Please select at least one record before assigning.');
-                return false;
-            }
-
-            return confirm('Assign ' + selected + ' selected item(s) to your inbox?');
-        }
-
-        function copySelectedAndConfirmManagerAssign() {
+        function confirmAssignToMe() {
             var selected = getSelectedRows();
 
             if (selected.length === 0) {
@@ -294,33 +315,32 @@
                 return false;
             }
 
-            var form = document.getElementById('assignToValuerForm');
+            return confirm(
+                'Assign ' + selected.length + ' selected record(s) to your own Valuer Inbox?'
+            );
+        }
 
-            if (!form) {
-                alert('The manager assignment form could not be found.');
+        function confirmAssignToValuer() {
+            var selected = getSelectedRows();
+
+            if (selected.length === 0) {
+                alert('Please select at least one record before assigning.');
                 return false;
             }
 
-            var valuerSelect = document.querySelector('select[name="selectedValuerUserId"]');
+            var valuerSelect = document.getElementById('selectedValuerUserId');
 
             if (!valuerSelect || !valuerSelect.value) {
-                alert('Please select a valuer.');
+                alert('Please select a valuer before assigning.');
                 return false;
             }
 
-            form.querySelectorAll('input[name="selectedAttrIds"]').forEach(function (x) {
-                x.remove();
-            });
+            var selectedOption = valuerSelect.options[valuerSelect.selectedIndex];
+            var valuerName = selectedOption ? selectedOption.text : 'the selected valuer';
 
-            selected.forEach(function (checkbox) {
-                var hidden = document.createElement('input');
-                hidden.type = 'hidden';
-                hidden.name = 'selectedAttrIds';
-                hidden.value = checkbox.value;
-                form.appendChild(hidden);
-            });
-
-            return confirm('Assign ' + selected.length + ' selected item(s) to the selected valuer?');
+            return confirm(
+                'Assign ' + selected.length + ' selected record(s) to ' + valuerName + '?'
+            );
         }
 
         document.addEventListener('change', function (e) {
@@ -329,6 +349,8 @@
             }
         });
 
-        document.addEventListener('DOMContentLoaded', updateSelectionState);
+        document.addEventListener('DOMContentLoaded', function () {
+            updateSelectionState();
+        });
     </script>
 }

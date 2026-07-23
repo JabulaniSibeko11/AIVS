@@ -1,0 +1,96 @@
+﻿@model List<AIVS.Models.ViewModels.SectorManager.SectorManagerQaInboxItemVm>
+
+@{
+    ViewData["Title"] = "Sector Manager QA";
+
+    string Display(object? value)
+    {
+        var text = value?.ToString();
+        return string.IsNullOrWhiteSpace(text) ? "-" : text;
+    }
+}
+
+<link href="~/css/sector-manager-qa.css" rel="stylesheet" asp-append-version="true" />
+
+<div class="smqa-page">
+    @if (TempData["Success"] != null)
+    {
+        <div class="smqa-alert smqa-alert-success">@TempData["Success"]</div>
+    }
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="smqa-alert smqa-alert-danger">@TempData["Error"]</div>
+    }
+
+    <div class="smqa-header">
+        <div>
+            <h1>Sector Manager QA</h1>
+            <p>Weekly random QA sample of valuer-reviewed attribute submissions before OVVIO extract.</p>
+        </div>
+
+        <div class="smqa-header-count">
+            <strong>@(Model?.Count ?? 0)</strong>
+            pending QA
+        </div>
+    </div>
+
+    @if (Model == null || !Model.Any())
+    {
+        <div class="smqa-empty">
+            No submissions are currently waiting for Sector Manager QA.
+        </div>
+    }
+    else
+    {
+        <div class="smqa-card">
+            <div class="smqa-table-wrap">
+                <table class="smqa-table">
+                    <thead>
+                        <tr>
+                            <th>Reference</th>
+                            <th>Property Description</th>
+                            <th>Township</th>
+                            <th>Sector</th>
+                            <th>Valuer</th>
+                            <th>Submitted</th>
+                            <th>Week</th>
+                            <th>Status</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @foreach (var item in Model)
+                        {
+                            <tr>
+                                <td class="smqa-ref">@Display(item.AttrNo)</td>
+                                <td>@Display(item.PropertyDescription)</td>
+                                <td>@Display(item.Township)</td>
+                                <td>@Display(item.Sector)</td>
+                                <td>@Display(item.ValuerName)</td>
+                                <td>@(item.ValuerSubmittedAt?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
+                                <td>
+                                    @item.QaWeekStartDate.ToString("yyyy-MM-dd")
+                                    to
+                                    @item.QaWeekEndDate.ToString("yyyy-MM-dd")
+                                </td>
+                                <td>
+                                    <span class="smqa-badge">@item.StatusDisplay</span>
+                                </td>
+                                <td>
+                                    <a class="smqa-btn"
+                                           asp-controller="SectorManagerQa"
+                                           asp-action="Details"
+                                           asp-route-id="@item.QaId">
+                                        QA Review
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>

@@ -27,22 +27,48 @@ namespace AIVS.Controllers
             var model = await _sectorInboxService.BuildSectorInboxAsync(sector);
             var currentUser = await _userManagementService.GetCurrentUserAsync(User);
 
-            var role = currentUser.Role?.Trim().ToUpper();
+            if (!currentUser.HasAccess || currentUser.UserId == null)
+            {
+                TempData["Error"] = currentUser.AccessMessage ?? "Your AIVS user access could not be verified.";
+                return View(model);
+            }
+
+            var role = NormalizeRole(currentUser.Role);
 
             model.CurrentUserCanAssignToValuer =
                 role == "SECTOR MANAGER" ||
                 role == "VALUATION ADMIN" ||
                 role == "EXECUTIVE" ||
-                role == "SYSTEM ADMIN";
+                role == "SYSTEM ADMIN" ||
+                role == "ADMIN" ||
+                role == "ADMINISTRATOR" ||
+                role == "IT MANAGER" ||
+                role == "MANAGER";
 
-            if (model.CurrentUserCanAssignToValuer && !string.IsNullOrWhiteSpace(sector))
+            if (model.CurrentUserCanAssignToValuer)
             {
                 model.Valuers = await _userManagementService.GetValuersAsync(sector);
             }
 
+            ViewBag.CurrentAivsRole = currentUser.Role;
+            ViewBag.CurrentAivsRoleNormalized = role;
+            ViewBag.CurrentAivsUser = currentUser.FullName ?? currentUser.Username;
+
             return View(model);
         }
+        private static string NormalizeRole(string? role)
+        {
+            if (string.IsNullOrWhiteSpace(role))
+                return string.Empty;
 
+            return role
+                .Replace('\u00A0', ' ')
+                .Replace("\t", " ")
+                .Replace("\r", " ")
+                .Replace("\n", " ")
+                .Trim()
+                .ToUpperInvariant();
+        }
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> AssignSelectedToMe(List<long> selectedAttrIds, string? sector)
@@ -99,13 +125,17 @@ namespace AIVS.Controllers
                 return RedirectToAction(nameof(Index), new { sector });
             }
 
-            var managerRole = currentUser.Role?.Trim().ToUpper();
+            var managerRole = NormalizeRole(currentUser.Role);
 
             var canAssignToValuer =
                 managerRole == "SECTOR MANAGER" ||
                 managerRole == "VALUATION ADMIN" ||
                 managerRole == "EXECUTIVE" ||
-                managerRole == "SYSTEM ADMIN";
+                managerRole == "SYSTEM ADMIN" ||
+                managerRole == "ADMIN" ||
+                managerRole == "ADMINISTRATOR" ||
+                managerRole == "IT MANAGER" ||
+                managerRole == "MANAGER";
 
             if (!canAssignToValuer)
             {

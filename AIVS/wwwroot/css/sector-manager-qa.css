@@ -1,0 +1,349 @@
+﻿.smqa-page {
+    padding: 24px;
+}
+
+.smqa-alert {
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 16px;
+    font-weight: 700;
+}
+
+.smqa-alert-success {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+}
+
+.smqa-alert-danger {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+.smqa-header {
+    background: linear-gradient(135deg, #111827, #1f2937);
+    color: #fff;
+    border-radius: 20px;
+    padding: 24px;
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+    .smqa-header h1 {
+        margin: 0;
+        font-size: 28px;
+        font-weight: 900;
+    }
+
+    .smqa-header p {
+        margin: 6px 0 0;
+        color: #d1d5db;
+    }
+
+.smqa-header-count {
+    background: rgba(255,255,255,.12);
+    border: 1px solid rgba(255,255,255,.18);
+    border-radius: 16px;
+    padding: 14px 18px;
+    text-align: center;
+    min-width: 140px;
+}
+
+    .smqa-header-count strong {
+        display: block;
+        font-size: 26px;
+    }
+
+.smqa-empty {
+    background: #fff;
+    border: 1px dashed #cbd5e1;
+    color: #64748b;
+    border-radius: 18px;
+    padding: 30px;
+    text-align: center;
+    font-weight: 700;
+}
+
+.smqa-card,
+.smqa-section-card,
+.smqa-side-card,
+.smqa-summary-box {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 18px;
+    box-shadow: 0 8px 22px rgba(15,23,42,.06);
+}
+
+.smqa-table-wrap {
+    overflow-x: auto;
+}
+
+.smqa-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+    .smqa-table th {
+        background: #f8fafc;
+        color: #475569;
+        text-align: left;
+        font-size: 12px;
+        text-transform: uppercase;
+        padding: 14px;
+    }
+
+    .smqa-table td {
+        padding: 14px;
+        border-top: 1px solid #e5e7eb;
+        font-size: 14px;
+    }
+
+.smqa-ref {
+    font-weight: 900;
+    color: #111827;
+}
+
+.smqa-badge {
+    display: inline-flex;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: #fff8db;
+    color: #7a4b00;
+    border: 1px solid #f3d36b;
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.smqa-btn,
+.smqa-btn-full {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    background: #111827;
+    color: #fff;
+    border-radius: 10px;
+    padding: 8px 12px;
+    text-decoration: none;
+    font-weight: 800;
+    font-size: 13px;
+}
+
+    .smqa-btn:hover,
+    .smqa-btn-full:hover {
+        color: #fff;
+        background: #000;
+    }
+
+.smqa-actions-top {
+    margin-bottom: 14px;
+}
+
+.smqa-link-back {
+    color: #111827;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.smqa-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
+}
+
+.smqa-summary-box {
+    padding: 16px;
+}
+
+    .smqa-summary-box span {
+        display: block;
+        color: #64748b;
+        font-size: 12px;
+        font-weight: 800;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+    }
+
+    .smqa-summary-box strong {
+        color: #111827;
+        font-size: 15px;
+    }
+
+.smqa-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 390px;
+    gap: 20px;
+    align-items: start;
+}
+
+.smqa-section-card {
+    overflow: hidden;
+}
+
+.smqa-section-head,
+.smqa-side-head {
+    padding: 14px 16px;
+    background: #f8fafc;
+    border-bottom: 1px solid #e5e7eb;
+    font-weight: 900;
+    color: #111827;
+}
+
+    .smqa-section-head h3 {
+        margin: 0;
+        font-size: 17px;
+    }
+
+.smqa-section-body,
+.smqa-side-body {
+    padding: 16px;
+}
+
+.smqa-side {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.smqa-stat-row {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 8px 0;
+    font-size: 14px;
+}
+
+.smqa-note {
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 10px;
+    margin-top: 10px;
+    font-size: 13px;
+    color: #475569;
+}
+
+.smqa-section-decision {
+    border-left: 4px solid #e6b000;
+    background: #fff;
+    border-radius: 12px;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-top: 1px solid #e5e7eb;
+    border-right: 1px solid #e5e7eb;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+    .smqa-section-decision strong {
+        display: block;
+        font-size: 13px;
+        color: #111827;
+    }
+
+    .smqa-section-decision span {
+        display: inline-flex;
+        margin-top: 4px;
+        font-size: 12px;
+        font-weight: 900;
+        color: #334155;
+    }
+
+    .smqa-section-decision small {
+        display: block;
+        margin-top: 6px;
+        color: #64748b;
+    }
+
+.smqa-file {
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+    .smqa-file strong {
+        display: block;
+        word-break: break-word;
+        color: #111827;
+    }
+
+    .smqa-file span {
+        display: block;
+        color: #64748b;
+        font-size: 12px;
+        margin: 4px 0 8px;
+    }
+
+    .smqa-file a {
+        color: #111827;
+        font-weight: 900;
+    }
+
+.smqa-btn-full {
+    width: 100%;
+}
+
+.smqa-decision-card {
+    border: 2px solid #e6b000;
+}
+
+.smqa-decision-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+    .smqa-decision-form label {
+        font-size: 13px;
+        font-weight: 900;
+        color: #111827;
+    }
+
+    .smqa-decision-form textarea {
+        width: 100%;
+        min-height: 90px;
+        resize: vertical;
+        border-radius: 12px;
+        border: 1px solid #cbd5e1;
+        padding: 10px;
+        font-size: 14px;
+    }
+
+.smqa-btn-approve,
+.smqa-btn-return {
+    border: none;
+    border-radius: 12px;
+    padding: 11px 14px;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.smqa-btn-approve {
+    background: #166534;
+    color: #fff;
+}
+
+.smqa-btn-return {
+    background: #991b1b;
+    color: #fff;
+}
+
+@media (max-width: 1100px) {
+    .smqa-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .smqa-summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .smqa-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}

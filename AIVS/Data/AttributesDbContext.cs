@@ -1,4 +1,5 @@
 ﻿using AIVS.Models.Attributes;
+using AIVS.Models.ViewModels.ValuerInbox;
 using Microsoft.EntityFrameworkCore;
 
 
@@ -51,6 +52,9 @@ namespace AIVS.Data
         public DbSet<AttrValuerInspectionDetail> AttrValuerInspectionDetails { get; set; } = null!;
         public DbSet<AivsEmailLog> AivsEmailLogs { get; set; } = null!;
         public DbSet<AivsNotification> AivsNotifications { get; set; } = null!;
+
+        public DbSet<AttrInspectionEvidence> AttrInspectionEvidence { get; set; }
+        public DbSet<AttrSectorManagerQaReview> AttrSectorManagerQaReviews { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -333,6 +337,106 @@ namespace AIVS.Data
                 entity.Property(e => e.ReadDateTime).HasColumnName("ReadDateTime");
                 entity.Property(e => e.CreatedBy).HasColumnName("CreatedBy");
                 entity.Property(e => e.CreatedDateTime).HasColumnName("CreatedDateTime");
+            });
+            modelBuilder.Entity<AttrInspectionEvidence>(entity =>
+            {
+                entity.ToTable("AttrInspectionEvidence");
+
+                entity.HasKey(e => e.Id);
+
+                entity.Property(e => e.Id)
+                    .HasColumnName("Id");
+
+                entity.Property(e => e.Attr_ID)
+                    .HasColumnName("Attr_ID");
+
+                entity.Property(e => e.Attr_No)
+                    .HasColumnName("Attr_No")
+                    .HasMaxLength(100);
+
+                entity.Property(e => e.InspectionRequestId)
+                    .HasColumnName("InspectionRequestId");
+
+                entity.Property(e => e.FileName)
+                    .HasColumnName("FileName")
+                    .HasMaxLength(255);
+
+                entity.Property(e => e.FilePath)
+                    .HasColumnName("FilePath")
+                    .HasMaxLength(1000);
+
+                entity.Property(e => e.ContentType)
+                    .HasColumnName("ContentType")
+                    .HasMaxLength(100);
+
+                entity.Property(e => e.FileSizeBytes)
+                    .HasColumnName("FileSizeBytes");
+
+                entity.Property(e => e.UploadedBySapNumber)
+                    .HasColumnName("UploadedBySapNumber")
+                    .HasMaxLength(50);
+
+                entity.Property(e => e.UploadedByUserId)
+                    .HasColumnName("UploadedByUserId")
+                    .HasMaxLength(100);
+
+                entity.Property(e => e.UploadedByName)
+                    .HasColumnName("UploadedByName")
+                    .HasMaxLength(255);
+
+                entity.Property(e => e.CaptureSource)
+                    .HasColumnName("CaptureSource")
+                    .HasMaxLength(50);
+
+                entity.Property(e => e.EvidenceComment)
+                    .HasColumnName("EvidenceComment");
+
+                entity.Property(e => e.UploadedAt)
+                    .HasColumnName("UploadedAt");
+
+                entity.Property(e => e.IsActive)
+                    .HasColumnName("IsActive");
+            });
+            modelBuilder.Entity<AttrSectorManagerQaReview>(entity =>
+            {
+                entity.ToTable("AttrSectorManagerQaReviews");
+
+                entity.HasKey(e => e.Id);
+
+                entity.Property(e => e.Attr_ID).HasColumnName("Attr_ID");
+                entity.Property(e => e.Attr_No).HasColumnName("Attr_No").HasMaxLength(100);
+                entity.Property(e => e.ValuerReviewId).HasColumnName("ValuerReviewId");
+
+                entity.Property(e => e.Sector).HasColumnName("Sector").HasMaxLength(100);
+                entity.Property(e => e.QaWeekStartDate).HasColumnName("QaWeekStartDate");
+                entity.Property(e => e.QaWeekEndDate).HasColumnName("QaWeekEndDate");
+
+                entity.Property(e => e.IsRandomlySelected).HasColumnName("IsRandomlySelected");
+                entity.Property(e => e.SelectionReason).HasColumnName("SelectionReason").HasMaxLength(255);
+
+                entity.Property(e => e.ValuerUserId).HasColumnName("ValuerUserId");
+                entity.Property(e => e.ValuerName).HasColumnName("ValuerName").HasMaxLength(255);
+                entity.Property(e => e.ValuerSubmittedAt).HasColumnName("ValuerSubmittedAt");
+
+                entity.Property(e => e.QaStatus).HasColumnName("QaStatus").HasMaxLength(50);
+
+                entity.Property(e => e.SectorManagerUserId).HasColumnName("SectorManagerUserId");
+                entity.Property(e => e.SectorManagerUsername).HasColumnName("SectorManagerUsername").HasMaxLength(255);
+                entity.Property(e => e.SectorManagerName).HasColumnName("SectorManagerName").HasMaxLength(255);
+                entity.Property(e => e.SectorManagerEmail).HasColumnName("SectorManagerEmail").HasMaxLength(255);
+
+                entity.Property(e => e.QaDecision).HasColumnName("QaDecision").HasMaxLength(50);
+                entity.Property(e => e.QaComment).HasColumnName("QaComment");
+                entity.Property(e => e.QaStartedAt).HasColumnName("QaStartedAt");
+                entity.Property(e => e.QaCompletedAt).HasColumnName("QaCompletedAt");
+
+                entity.Property(e => e.ReviewedPdfPathBeforeQa).HasColumnName("ReviewedPdfPathBeforeQa").HasMaxLength(1000);
+                entity.Property(e => e.ReviewedPdfPathAfterQa).HasColumnName("ReviewedPdfPathAfterQa").HasMaxLength(1000);
+
+                entity.Property(e => e.CreatedBy).HasColumnName("CreatedBy").HasMaxLength(255);
+                entity.Property(e => e.CreatedDate).HasColumnName("CreatedDate");
+                entity.Property(e => e.UpdatedBy).HasColumnName("UpdatedBy").HasMaxLength(255);
+                entity.Property(e => e.UpdatedDate).HasColumnName("UpdatedDate");
             });
         }
     }

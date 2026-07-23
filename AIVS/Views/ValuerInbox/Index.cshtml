@@ -1,310 +1,342 @@
 ﻿@model List<AIVS.Models.ViewModels.ValuerInbox.ValuerInboxItemVm>
+@using System.Globalization
 
 @{
     ViewData["Title"] = "Valuer Inbox";
+
+    string StatusText(string? status) => (status?.Trim()) switch
+    {
+        "Claimed" => "Assigned to Valuer",
+        "ValuerReview" => "Under Valuer Review",
+
+        "ReturnedToClient" => "Returned to Client",
+        "Resubmitted" => "Client Resubmitted",
+        "ReturnedToValuer" => "Returned by Sector Manager",
+
+        "InspectionRequired" => "Waiting for Client Date",
+        "InspectionConfirmed" => "Client Confirmed Date",
+        "InspectionDetailsSent" => "Inspection Details Sent",
+        "InspectionCompleted" => "Inspection Completed",
+        "InspectionExpired" => "Inspection Request Expired",
+
+        "SectorManagerQa" => "Sector Manager QA",
+        "ReadyForOvvioExtract" => "Accepted / Ready for OVVIO",
+        "OvvioExtracted" => "OVVIO Extracted",
+
+        var s when string.IsNullOrWhiteSpace(s) => "-",
+        var s => s
+    };
+
+    string StatusBadgeClass(string? status) => (status?.Trim()) switch
+    {
+        "Claimed" => "vi-badge-claimed",
+        "ValuerReview" => "vi-badge-review",
+
+        "ReturnedToClient" => "vi-badge-returned",
+        "Resubmitted" => "vi-badge-resubmitted",
+        "ReturnedToValuer" => "vi-badge-returned",
+
+        "InspectionRequired" => "vi-badge-waiting",
+        "InspectionConfirmed" => "vi-badge-confirmed",
+        "InspectionDetailsSent" => "vi-badge-sent",
+        "InspectionCompleted" => "vi-badge-completed",
+        "InspectionExpired" => "vi-badge-expired",
+
+        "SectorManagerQa" => "vi-badge-qa",
+        "ReadyForOvvioExtract" => "vi-badge-ready",
+        "OvvioExtracted" => "vi-badge-extracted",
+
+        _ => "vi-badge-default"
+    };
+
+    string StatusColor(string? status) => (status?.Trim()) switch
+    {
+        "Claimed" => "var(--aivs-grey)",
+        "ValuerReview" => "var(--aivs-orange)",
+
+        "ReturnedToClient" => "var(--aivs-danger)",
+        "Resubmitted" => "var(--aivs-info)",
+        "ReturnedToValuer" => "var(--aivs-danger)",
+
+        "InspectionRequired" => "var(--aivs-gold-dark)",
+        "InspectionConfirmed" => "var(--aivs-success)",
+        "InspectionDetailsSent" => "var(--aivs-info)",
+        "InspectionCompleted" => "var(--aivs-success)",
+        "InspectionExpired" => "var(--aivs-danger)",
+
+        "SectorManagerQa" => "var(--aivs-gold-dark)",
+        "ReadyForOvvioExtract" => "var(--aivs-success)",
+        "OvvioExtracted" => "var(--aivs-success)",
+
+        _ => "var(--aivs-border)"
+    };
+
+    int StatusPriority(string? status) => (status?.Trim()) switch
+    {
+        "ReturnedToValuer" => 0,
+        "InspectionExpired" => 1,
+        "Resubmitted" => 2,
+        "InspectionRequired" => 3,
+        "ValuerReview" => 4,
+        "Claimed" => 5,
+        "InspectionDetailsSent" => 6,
+        "InspectionConfirmed" => 7,
+        "InspectionCompleted" => 8,
+        "SectorManagerQa" => 9,
+        "ReadyForOvvioExtract" => 10,
+        "OvvioExtracted" => 11,
+        _ => 12
+    };
+
+    string ButtonText(AIVS.Models.ViewModels.ValuerInbox.ValuerInboxItemVm item) => (item.Status?.Trim()) switch
+    {
+        "Claimed" => "Open Review",
+        "ValuerReview" => "Continue Review",
+
+        "Resubmitted" => "Review Resubmission",
+        "ReturnedToValuer" => "Fix Returned Review",
+
+        "InspectionConfirmed" => "Send PIN",
+        "InspectionDetailsSent" => "View Inspection",
+        "InspectionRequired" => "Check Response",
+        "InspectionCompleted" => "Continue Review",
+        "InspectionExpired" => "Send New Dates",
+
+        "SectorManagerQa" => "Awaiting Sector QA",
+        "ReadyForOvvioExtract" => "View Finalised Review",
+        "OvvioExtracted" => "View Extracted Review",
+
+        _ => item.ReviewStarted ? "Continue Review" : "Open Review"
+    };
+    var allItems = Model ?? new List<AIVS.Models.ViewModels.ValuerInbox.ValuerInboxItemVm>();
+
+    var orderedItems = allItems
+        .OrderBy(x => StatusPriority(x.Status))
+        .ThenByDescending(x => x.AssignedDate)
+        .ToList();
+
+    var statusChips = orderedItems
+        .GroupBy(x => x.Status?.Trim() ?? "")
+        .Select(g => new
+        {
+            StatusKey = g.Key,
+            Label = StatusText(g.Key),
+            Count = g.Count(),
+            Priority = StatusPriority(g.Key)
+        })
+        .OrderBy(g => g.Priority)
+        .ToList();
+
+    var expiredCount = orderedItems.Count(x => (x.Status?.Trim()) == "InspectionExpired");
 }
 
-<style>
-    .vi-header {
-        background: #ffffff;
-        border: 1px solid #e3e3e3;
-        border-left: 6px solid #e6b000;
-        border-radius: 8px;
-        padding: 18px 20px;
-        margin-bottom: 20px;
-        box-shadow: 0 2px 8px rgba(0,0,0,.04);
+<link href="~/css/valuer-inbox.css" rel="stylesheet" asp-append-version="true"/>
+
+<div class="vi-page">
+    @if (TempData["Success"] != null)
+    {
+        <div class="vi-banner vi-banner-success">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            @TempData["Success"]
+        </div>
     }
 
-    .vi-title {
-        margin: 0;
-        font-weight: 900;
-        color: #111111;
-        font-size: 26px;
+    @if (TempData["Error"] != null)
+    {
+        <div class="vi-banner vi-banner-danger">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 8v5M12 16h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+            @TempData["Error"]
+        </div>
     }
 
-    .vi-subtitle {
-        margin-top: 4px;
-        color: #666666;
-        font-size: 14px;
-    }
-
-    .vi-card {
-        background: #ffffff;
-        border: 1px solid #e0e0e0;
-        border-radius: 10px;
-        overflow: hidden;
-        box-shadow: 0 2px 8px rgba(0,0,0,.05);
-    }
-
-    .vi-card-title {
-        background: #111111;
-        color: #ffffff;
-        padding: 14px 18px;
-        font-weight: 900;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 12px;
-        flex-wrap: wrap;
-    }
-
-    .vi-table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-
-        .vi-table th {
-            background: #f7f7f7;
-            font-size: 13px;
-            text-transform: uppercase;
-            color: #333333;
-            border-bottom: 1px solid #dedede;
-            padding: 11px 10px;
-            white-space: nowrap;
-        }
-
-        .vi-table td {
-            padding: 11px 10px;
-            border-bottom: 1px solid #eeeeee;
-            font-size: 14px;
-            vertical-align: middle;
-        }
-
-    .vi-ref {
-        font-weight: 900;
-        color: #000000;
-        white-space: nowrap;
-    }
-
-    .vi-badge {
-        display: inline-block;
-        padding: 5px 9px;
-        border-radius: 999px;
-        font-size: 12px;
-        font-weight: 900;
-        white-space: nowrap;
-    }
-
-    .vi-badge-claimed {
-        background: #eeeeee;
-        color: #333333;
-    }
-
-    .vi-badge-review {
-        background: #d9f2ff;
-        color: #004b66;
-    }
-
-    .vi-badge-waiting {
-        background: #fff0bf;
-        color: #5a4100;
-    }
-
-    .vi-badge-confirmed {
-        background: #dbeafe;
-        color: #1d4ed8;
-    }
-
-    .vi-badge-sent {
-        background: #e8f7ee;
-        color: #155724;
-    }
-
-    .vi-badge-default {
-        background: #111111;
-        color: #ffffff;
-    }
-
-    .vi-btn {
-        background: #000000;
-        color: #ffffff;
-        border-radius: 6px;
-        padding: 7px 11px;
-        text-decoration: none;
-        font-size: 13px;
-        font-weight: 900;
-        display: inline-block;
-        white-space: nowrap;
-    }
-
-        .vi-btn:hover {
-            background: #e6b000;
-            color: #000000;
-        }
-
-    .vi-empty {
-        background: #ffffff;
-        border: 1px dashed #cfcfcf;
-        border-radius: 10px;
-        padding: 28px;
-        text-align: center;
-        color: #666666;
-        font-weight: 700;
-    }
-
-    .vi-muted {
-        color: #777777;
-        font-weight: 600;
-    }
-
-    .vi-badge-expired {
-        background: #fdecec;
-        color: #842029;
-    }
-</style>
-
-@if (TempData["Success"] != null)
-{
-    <div class="alert alert-success fw-bold">@TempData["Success"]</div>
-}
-
-@if (TempData["Error"] != null)
-{
-    <div class="alert alert-danger fw-bold">@TempData["Error"]</div>
-}
-
-<div class="vi-header">
-    <h1 class="vi-title">Valuer Inbox</h1>
-    <div class="vi-subtitle">
-        These are the attribute submissions assigned to you for review and physical inspection follow-up.
+    <div class="aivs-page-header">
+        <h1 class="aivs-page-title">Valuer Inbox</h1>
+        <div class="aivs-page-subtitle">
+            These are the attribute submissions assigned to you for review and physical inspection follow-up.
+        </div>
+        <div class="vi-header-stats">
+            <div class="vi-header-stat"><strong>@orderedItems.Count</strong> assigned to you</div>
+            @if (expiredCount > 0)
+            {
+                <div class="vi-header-stat is-urgent"><strong>@expiredCount</strong> inspection request(s) expired</div>
+            }
+        </div>
     </div>
+
+    @if (!orderedItems.Any())
+    {
+        <div class="vi-empty">
+            No assigned attribute submissions found in your inbox.
+        </div>
+    }
+    else
+    {
+        <div class="vi-toolbar">
+            <div class="vi-chips">
+                <button type="button" class="vi-chip active" data-filter-chip data-filter-status="">
+                    All <span>(@orderedItems.Count)</span>
+                </button>
+
+                @foreach (var chip in statusChips)
+                {
+                    <button type="button" class="vi-chip" data-filter-chip data-filter-status="@chip.StatusKey">
+                        <span class="vi-chip-dot" style="background:@StatusColor(chip.StatusKey);"></span>
+                        @chip.Label <span>(@chip.Count)</span>
+                    </button>
+                }
+            </div>
+
+            <div class="vi-search">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                <input type="text" id="viSearchInput" placeholder="Search reference, property, township..." />
+            </div>
+        </div>
+
+        <div class="vi-card">
+            <div class="vi-card-title">
+                <div>My Assigned Reviews</div>
+                <div class="vi-card-title-count"><span id="viVisibleCount">@orderedItems.Count</span> item(s)</div>
+            </div>
+
+            <div class="vi-table-scroll">
+                <table class="vi-table">
+                    <thead>
+                        <tr>
+                            <th>Reference No</th>
+                            <th>Property Description</th>
+                            <th>Township</th>
+                            <th>Sector</th>
+                            <th>Assigned Date</th>
+                            <th>Evidence</th>
+                            <th>Status</th>
+                            <th>Assigned By</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @foreach (var item in orderedItems)
+                        {
+                            var searchText = string.Join(" ", new[]
+                            {
+                                item.AttrNo, item.PropertyDescription, item.Township, item.Sector, item.AssignedBy
+                            }).ToLowerInvariant();
+
+                            <tr data-status="@item.Status" data-search="@searchText">
+                                <td class="vi-ref" style="box-shadow: inset 4px 0 0 @StatusColor(item.Status);">@item.AttrNo</td>
+
+                                <td>
+                                    @if (string.IsNullOrWhiteSpace(item.PropertyDescription))
+                                    {
+                                        <span class="vi-muted">-</span>
+                                    }
+                                    else
+                                    {
+                                        @item.PropertyDescription
+                                    }
+                                </td>
+
+                                <td>
+                                    @if (string.IsNullOrWhiteSpace(item.Township))
+                                    {
+                                        <span class="vi-muted">-</span>
+                                    }
+                                    else
+                                    {
+                                        @item.Township
+                                    }
+                                </td>
+
+                                <td>
+                                    @if (string.IsNullOrWhiteSpace(item.Sector))
+                                    {
+                                        <span class="vi-muted">-</span>
+                                    }
+                                    else
+                                    {
+                                        @item.Sector
+                                    }
+                                </td>
+
+                                <td class="vi-muted">@(item.AssignedDate?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
+
+                                <td>@item.EvidenceCount</td>
+
+                                <td>
+                                    <span class="vi-badge @StatusBadgeClass(item.Status)">@StatusText(item.Status)</span>
+                                </td>
+
+                                <td>
+                                    @if (string.IsNullOrWhiteSpace(item.AssignedBy))
+                                    {
+                                        <span class="vi-muted">-</span>
+                                    }
+                                    else
+                                    {
+                                        @item.AssignedBy
+                                    }
+                                </td>
+
+                                <td>
+                                    <a class="vi-btn"
+                                           asp-controller="ValuerInbox"
+                                           asp-action="Review"
+                                           asp-route-id="@item.AttrId">
+                                        @ButtonText(item)
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="viNoResults" class="vi-empty vi-empty-inline" style="display:none;">
+                No records match your filters.
+            </div>
+        </div>
+    }
 </div>
 
-@if (Model == null || !Model.Any())
-{
-    <div class="vi-empty">
-        No assigned attribute submissions found in your inbox.
-    </div>
-}
-else
-{
-    <div class="vi-card">
-        <div class="vi-card-title">
-            <div>My Assigned Reviews</div>
-            <div>@Model.Count item(s)</div>
-        </div>
+@section Scripts {
+    <script>
+        (function () {
+            var chips = document.querySelectorAll('[data-filter-chip]');
+            var searchInput = document.getElementById('viSearchInput');
+            var rows = Array.from(document.querySelectorAll('.vi-table tbody tr'));
+            var visibleCountEl = document.getElementById('viVisibleCount');
+            var noResultsEl = document.getElementById('viNoResults');
+            var activeStatus = '';
 
-        <div class="table-responsive">
-            <table class="vi-table">
-                <thead>
-                    <tr>
-                        <th>Reference No</th>
-                        <th>Property Description</th>
-                        <th>Township</th>
-                        <th>Sector</th>
-                        <th>Assigned Date</th>
-                        <th>Evidence</th>
-                        <th>Status</th>
-                        <th>Assigned By</th>
-                        <th></th>
-                    </tr>
-                </thead>
+            function applyFilters() {
+                var term = (searchInput && searchInput.value || '').trim().toLowerCase();
+                var visible = 0;
 
-                <tbody>
-                    @foreach (var item in Model)
-                    {
-                        var status = item.Status?.Trim();
+                rows.forEach(function (row) {
+                    var matchesStatus = !activeStatus || row.getAttribute('data-status') === activeStatus;
+                    var matchesSearch = !term || (row.getAttribute('data-search') || '').indexOf(term) !== -1;
+                    var show = matchesStatus && matchesSearch;
 
-                        var statusClass = status switch
-                        {
-                            "InspectionConfirmed" => "vi-badge vi-badge-confirmed",
-                            "InspectionDetailsSent" => "vi-badge vi-badge-sent",
-                            "InspectionRequired" => "vi-badge vi-badge-waiting",
-                            "ValuerReview" => "vi-badge vi-badge-review",
-                            "Claimed" => "vi-badge vi-badge-claimed",
-                            "InspectionExpired" => "vi-badge vi-badge-expired",
-                            _ => "vi-badge vi-badge-default"
-                        };
+                    row.classList.toggle('vi-row-hidden', !show);
+                    if (show) visible++;
+                });
 
-                        var statusText = status switch
-                        {
-                            "InspectionConfirmed" => "Client Confirmed Date",
-                            "InspectionDetailsSent" => "Inspection Details Sent",
-                            "InspectionRequired" => "Waiting for Client Date",
-                            "ValuerReview" => "Under Review",
-                            "InspectionExpired" => "Inspection Request Expired",
-                            "Claimed" => "Claimed",
-                            _ => status ?? "-"
-                        };
+                if (visibleCountEl) visibleCountEl.textContent = visible;
+                if (noResultsEl) noResultsEl.style.display = visible === 0 ? 'block' : 'none';
+            }
 
-                        var buttonText = status switch
-                        {
-                            "InspectionConfirmed" => "Send PIN",
-                            "InspectionDetailsSent" => "View Inspection",
-                            "InspectionRequired" => "Check Response",
-                            "ValuerReview" => "Continue Review",
-                            "Claimed" => "Open Review",
-                            "InspectionExpired" => "Send New Dates",
-                            _ => item.ReviewStarted ? "Continue Review" : "Open Review"
-                        };
+            chips.forEach(function (chip) {
+                chip.addEventListener('click', function () {
+                    chips.forEach(function (c) { c.classList.remove('active'); });
+                    chip.classList.add('active');
+                    activeStatus = chip.getAttribute('data-filter-status') || '';
+                    applyFilters();
+                });
+            });
 
-                        <tr>
-                            <td class="vi-ref">@item.AttrNo</td>
-
-                            <td>
-                                @if (string.IsNullOrWhiteSpace(item.PropertyDescription))
-                                {
-                                    <span class="vi-muted">-</span>
-                                }
-                                else
-                                {
-                                    @item.PropertyDescription
-                                }
-                            </td>
-
-                            <td>
-                                @if (string.IsNullOrWhiteSpace(item.Township))
-                                {
-                                    <span class="vi-muted">-</span>
-                                }
-                                else
-                                {
-                                    @item.Township
-                                }
-                            </td>
-
-                            <td>
-                                @if (string.IsNullOrWhiteSpace(item.Sector))
-                                {
-                                    <span class="vi-muted">-</span>
-                                }
-                                else
-                                {
-                                    @item.Sector
-                                }
-                            </td>
-
-                            <td>@(item.AssignedDate?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
-
-                            <td>@item.EvidenceCount</td>
-
-                            <td>
-                                <span class="@statusClass">@statusText</span>
-                            </td>
-
-                            <td>
-                                @if (string.IsNullOrWhiteSpace(item.AssignedBy))
-                                {
-                                    <span class="vi-muted">-</span>
-                                }
-                                else
-                                {
-                                    @item.AssignedBy
-                                }
-                            </td>
-
-                            <td>
-                                <a class="vi-btn"
-                                       asp-controller="ValuerInbox"
-                                       asp-action="Review"
-                                       asp-route-id="@item.AttrId">
-                                    @buttonText
-                                </a>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </div>
+            if (searchInput) {
+                searchInput.addEventListener('input', applyFilters);
+            }
+        })();
+    </script>
 }
