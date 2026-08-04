@@ -28,7 +28,7 @@
     }
 }
 
-<link href="~/css/sector-inbox.css" rel="stylesheet" asp-append-version="true"/>
+<link href="~/css/sector-inbox.css" rel="stylesheet" asp-append-version="true" />
 
 <div class="si-page">
     @if (TempData["Success"] != null)
@@ -50,11 +50,11 @@
     <div class="aivs-page-header">
         <h1 class="aivs-page-title">Sector Inbox</h1>
         <div class="aivs-page-subtitle">
-            Select a sector to view submitted attribute records routed from the City of Johannesburg Valuation Portal.
+            Shared work queue: select a sector, then claim records or assign them to a valuer.
         </div>
         <div class="si-header-stats">
             <div class="si-header-stat"><strong>@Model.Tiles.Count</strong> sectors</div>
-            <div class="si-header-stat"><strong>@N(totalAcrossSectors)</strong> total records routed</div>
+            <div class="si-header-stat"><strong>@N(totalAcrossSectors)</strong> unassigned records</div>
         </div>
     </div>
 

@@ -55,6 +55,10 @@ namespace AIVS.Data
 
         public DbSet<AttrInspectionEvidence> AttrInspectionEvidence { get; set; }
         public DbSet<AttrSectorManagerQaReview> AttrSectorManagerQaReviews { get; set; }
+        public DbSet<AttrCityAttributeValue> AttrCityAttributeValues { get; set; } = null!;
+        public DbSet<AttrValuerReviewDraft> AttrValuerReviewDrafts { get; set; } = null!;
+        public DbSet<AttrValuerReviewFieldCorrection> AttrValuerReviewFieldCorrections { get; set; } = null!;
+        public DbSet<AttrValuerReviewLock> AttrValuerReviewLocks { get; set; } = null!;
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -70,6 +74,41 @@ namespace AIVS.Data
 
                 entity.Property(e => e.SECTOR)
                     .HasColumnName("SECTOR");
+            });
+
+            modelBuilder.Entity<AttrCityAttributeValue>(entity =>
+            {
+                entity.ToTable("Attr_CityAttributeValues", "dbo");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.Id).ValueGeneratedOnAdd();
+                entity.Property(x => x.FieldValue).HasColumnType("nvarchar(max)");
+                entity.Property(x => x.IsActive).HasDefaultValue(true);
+                entity.Property(x => x.CreatedDate).HasDefaultValueSql("GETDATE()");
+
+                entity.HasIndex(x => new
+                {
+                    x.PremiseId,
+                    x.FormType,
+                    x.SectionCode,
+                    x.FieldCode
+                })
+                .IsUnique()
+                .HasDatabaseName("UX_Attr_CityAttributeValues_CurrentField");
+
+                entity.HasIndex(x => new { x.PremiseId, x.IsActive })
+                    .HasDatabaseName("IX_Attr_CityAttributeValues_PremiseId_IsActive");
+            });
+            modelBuilder.Entity<AttrValuerReviewDraft>(entity =>
+            {
+                entity.HasIndex(x => new { x.ReviewId, x.UserId }).IsUnique();
+            });
+            modelBuilder.Entity<AttrValuerReviewFieldCorrection>(entity =>
+            {
+                entity.HasIndex(x => new { x.ReviewId, x.SectionCode, x.FieldCode }).IsUnique();
+            });
+            modelBuilder.Entity<AttrValuerReviewLock>(entity =>
+            {
+                entity.HasIndex(x => x.ReviewId).IsUnique();
             });
             modelBuilder.Entity<AttrValuerAssignment>(entity =>
             {
@@ -212,7 +251,7 @@ namespace AIVS.Data
                 entity.Property(e => e.ValuerDetailsSentAt).HasColumnName("ValuerDetailsSentAt");
                 entity.Property(e => e.ValuerDetailsSentByUserId).HasColumnName("ValuerDetailsSentByUserId");
                 entity.Property(e => e.ValuerDetailsSentByName).HasColumnName("ValuerDetailsSentByName");
-                
+
                 entity.Property(e => e.ValuerSapNumber)
     .HasColumnName("ValuerSapNumber")
     .HasMaxLength(50);
@@ -429,6 +468,16 @@ namespace AIVS.Data
                 entity.Property(e => e.QaComment).HasColumnName("QaComment");
                 entity.Property(e => e.QaStartedAt).HasColumnName("QaStartedAt");
                 entity.Property(e => e.QaCompletedAt).HasColumnName("QaCompletedAt");
+
+                entity.Property(e => e.SeniorQaStatus).HasColumnName("SeniorQaStatus").HasMaxLength(50);
+                entity.Property(e => e.SeniorManagerUserId).HasColumnName("SeniorManagerUserId");
+                entity.Property(e => e.SeniorManagerUsername).HasColumnName("SeniorManagerUsername").HasMaxLength(255);
+                entity.Property(e => e.SeniorManagerName).HasColumnName("SeniorManagerName").HasMaxLength(255);
+                entity.Property(e => e.SeniorManagerEmail).HasColumnName("SeniorManagerEmail").HasMaxLength(255);
+                entity.Property(e => e.SeniorQaDecision).HasColumnName("SeniorQaDecision").HasMaxLength(50);
+                entity.Property(e => e.SeniorQaComment).HasColumnName("SeniorQaComment");
+                entity.Property(e => e.SeniorQaStartedAt).HasColumnName("SeniorQaStartedAt");
+                entity.Property(e => e.SeniorQaCompletedAt).HasColumnName("SeniorQaCompletedAt");
 
                 entity.Property(e => e.ReviewedPdfPathBeforeQa).HasColumnName("ReviewedPdfPathBeforeQa").HasMaxLength(1000);
                 entity.Property(e => e.ReviewedPdfPathAfterQa).HasColumnName("ReviewedPdfPathAfterQa").HasMaxLength(1000);

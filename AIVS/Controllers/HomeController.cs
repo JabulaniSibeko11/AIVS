@@ -4,10 +4,11 @@ using AIVS.Services.Interface;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
+using AIVS.Security;
 
 namespace AIVS.Controllers
 {
-    [Authorize]
+    [Authorize(Policy = AivsPolicyNames.AccessAivs)]
     public class HomeController : Controller
     {
         private readonly IUserManagementService _userManagementService;
@@ -42,6 +43,7 @@ namespace AIVS.Controllers
             return View(model);
         }
         [HttpGet]
+        [Authorize(Policy = AivsPolicyNames.ExportStatistics)]
         public async Task<IActionResult> ExportExecutiveStats(
     string periodType = "Monthly",
     DateTime? fromDate = null,

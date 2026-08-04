@@ -1,14 +1,16 @@
 ﻿@using AIVS.Services.Interface
+@using AIVS.Security
 @inject IUserManagementService UserManagementService
+@inject IAivsRoleAccessService RoleAccess
 
 @{
     var currentUser = await UserManagementService.GetCurrentUserAsync(User);
-  
-  
 
+  
+  
     var displayName = currentUser.HasAccess && !string.IsNullOrWhiteSpace(currentUser.FullName)
-        ? currentUser.FullName
-        : User.Identity?.Name ?? "Unknown User";
+            ? currentUser.FullName
+            : User.Identity?.Name ?? "Unknown User";
 
     var position = currentUser.HasAccess && !string.IsNullOrWhiteSpace(currentUser.Position)
         ? currentUser.Position
@@ -20,16 +22,10 @@
 
     var currentController = ViewContext.RouteData.Values["Controller"]?.ToString() ?? "";
     var currentAction = ViewContext.RouteData.Values["Action"]?.ToString() ?? "";
-    var role = currentUser.Role?.Trim().ToUpperInvariant() ?? "";
-    var canSeeSectorManagerQa =
-    role == "SECTOR MANAGER" ||
-    role == "VALUATION ADMIN" ||
-    role == "EXECUTIVE" ||
-    role == "SYSTEM ADMIN" ||
-    role == "ADMIN" ||
-    role == "ADMINISTRATOR" ||
-    role == "IT MANAGER" ||
-    role == "MANAGER";
+    var canSeeSectorInbox = RoleAccess.HasPermission(currentUser, AivsPermission.ViewSectorInbox);
+    var canReview = RoleAccess.HasPermission(currentUser, AivsPermission.ReviewSubmission);
+    var canSeeSectorManagerQa = RoleAccess.HasPermission(currentUser, AivsPermission.PerformSectorManagerQa);
+    var canSeeSeniorManagerQa = RoleAccess.HasPermission(currentUser, AivsPermission.PerformSeniorManagerQa);
 
     Func<string, string> navActive = controllerName =>
         string.Equals(currentController, controllerName, StringComparison.OrdinalIgnoreCase)
@@ -104,11 +100,14 @@
                             </a>
                         </li>
 
-                        <li class="nav-item">
-                            <a class="nav-link @navActive("SectorInbox")" asp-area="" asp-controller="SectorInbox" asp-action="Index">
-                                Sector Inbox
-                            </a>
-                        </li>
+                        @if (canSeeSectorInbox)
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link @navActive("SectorInbox")" asp-area="" asp-controller="SectorInbox" asp-action="Index">
+                                    Sector Inbox
+                                </a>
+                            </li>
+                        }
 
                         @if (canSeeSectorManagerQa)
                         {
@@ -122,13 +121,28 @@
                             </li>
                         }
 
-                        <li class="nav-item">
-                            <a class="nav-link @navActive("ValuerInbox")" asp-area="" asp-controller="ValuerInbox" asp-action="Index">
-                                Valuer Inbox
-                            </a>
-                        </li>
+                        @if (canReview)
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link @navActive("ValuerInbox")" asp-area="" asp-controller="ValuerInbox" asp-action="Index">
+                                    Review Inbox
+                                </a>
+                            </li>
+                        }
 
-                     @*    <li class="nav-item">
+                        @if (canSeeSeniorManagerQa)
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link @navActive("SeniorManagerQa")"
+                                       asp-area=""
+                                       asp-controller="SeniorManagerQa"
+                                       asp-action="Index">
+                                    Senior Manager QA
+                                </a>
+                            </li>
+                        }
+
+                        @*    <li class="nav-item">
                             <a class="nav-link @navActive("Account")" asp-area="" asp-controller="Account" asp-action="Me">
                                 My Access
                             </a>

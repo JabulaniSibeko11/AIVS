@@ -4,10 +4,12 @@ using AIVS.Services.Interface;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.IO.Compression;
+using AIVS.Security;
 
 namespace AIVS.Controllers
 {
-    [Authorize]
+    [Authorize(Policy = AivsPolicyNames.ReviewSubmission)]
     public class ValuerInboxController : Controller
     {
         private readonly IValuerInboxService _valuerInboxService;
@@ -17,7 +19,7 @@ namespace AIVS.Controllers
             IValuerInboxService valuerInboxService,
             IUserManagementService userManagementService,
             AttributesDbContext context)
-            
+
         {
             _valuerInboxService = valuerInboxService;
             _userManagementService = userManagementService;
@@ -112,6 +114,91 @@ namespace AIVS.Controllers
                 TempData["Error"] = ex.Message;
                 return RedirectToAction(nameof(Review), new { id = vm.AttrId });
             }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AutoSaveDraft([FromBody] SaveReviewDraftVm vm)
+        {
+            var currentUser = await _userManagementService.GetCurrentUserAsync(User);
+            if (!currentUser.HasAccess) return Forbid();
+            try
+            {
+                await _valuerInboxService.SaveDraftAsync(vm, currentUser);
+                return Json(new { success = true, savedAt = DateTime.Now.ToString("HH:mm:ss") });
+            }
+            catch (Exception ex) { return BadRequest(new { success = false, message = ex.Message }); }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SaveCorrectionFields([FromBody] SaveCorrectionFieldsVm vm)
+        {
+            var currentUser = await _userManagementService.GetCurrentUserAsync(User);
+            if (!currentUser.HasAccess) return Forbid();
+            try
+            {
+                await _valuerInboxService.SaveCorrectionFieldsAsync(vm, currentUser);
+                return Json(new { success = true, count = vm.FieldKeys?.Count ?? 0 });
+            }
+            catch (Exception ex) { return BadRequest(new { success = false, message = ex.Message }); }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> QuickSectionDecision([FromBody] QuickSectionDecisionVm vm)
+        {
+            var currentUser = await _userManagementService.GetCurrentUserAsync(User);
+            if (!currentUser.HasAccess) return Forbid();
+            try { await _valuerInboxService.SaveQuickSectionDecisionAsync(vm, currentUser); return Json(new { success = true }); }
+            catch (Exception ex) { return BadRequest(new { success = false, message = ex.Message }); }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ClientEvidenceFile(long attrId, long attrFileId, string fileName)
+        {
+            var model = await LoadAuthorisedReviewAsync(attrId);
+            if (model == null) return Forbid();
+            var file = model.EvidenceFiles.FirstOrDefault(x => x.AttrFileId == attrFileId &&
+                string.Equals(x.FileName, fileName, StringComparison.OrdinalIgnoreCase));
+            return SendEvidenceFile(file?.FilePath, file?.FileName, file?.FileType);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> DownloadEvidenceZip(long attrId, string kind = "client")
+        {
+            var model = await LoadAuthorisedReviewAsync(attrId);
+            if (model == null) return Forbid();
+            var files = string.Equals(kind, "inspection", StringComparison.OrdinalIgnoreCase)
+                ? model.PhysicalInspectionEvidenceFiles.Select(x => new { x.FilePath, x.FileName }).ToList()
+                : model.EvidenceFiles.Select(x => new { x.FilePath, x.FileName }).ToList();
+            await using var output = new MemoryStream();
+            using (var archive = new ZipArchive(output, ZipArchiveMode.Create, true))
+            {
+                foreach (var file in files.Where(x => !string.IsNullOrWhiteSpace(x.FilePath) && System.IO.File.Exists(x.FilePath)))
+                {
+                    var entry = archive.CreateEntry(Path.GetFileName(file.FileName), CompressionLevel.Fastest);
+                    await using var entryStream = entry.Open();
+                    await using var source = System.IO.File.OpenRead(file.FilePath!);
+                    await source.CopyToAsync(entryStream);
+                }
+            }
+            return File(output.ToArray(), "application/zip", $"{model.AttrNo}_{kind}_evidence.zip");
+        }
+
+        private async Task<ValuerReviewPageVm?> LoadAuthorisedReviewAsync(long attrId)
+        {
+            var currentUser = await _userManagementService.GetCurrentUserAsync(User);
+            if (!currentUser.HasAccess) return null;
+            try { return await _valuerInboxService.OpenReviewAsync(attrId, currentUser); }
+            catch { return null; }
+        }
+
+        private IActionResult SendEvidenceFile(string? path, string? fileName, string? contentType)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !System.IO.File.Exists(path)) return NotFound("Evidence file was not found.");
+            return PhysicalFile(path, string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType,
+                string.IsNullOrWhiteSpace(fileName) ? Path.GetFileName(path) : fileName, enableRangeProcessing: true);
         }
         [HttpPost]
         [ValidateAntiForgeryToken]

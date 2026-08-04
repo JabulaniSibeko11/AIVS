@@ -1,24 +1,28 @@
 ﻿using AIVS.Services.Interface;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using AIVS.Security;
 
 namespace AIVS.Controllers
 {
-    [Authorize]
+    [Authorize(Policy = AivsPolicyNames.ViewSectorInbox)]
     public class SectorInboxController : Controller
     {
         private readonly ISectorInboxService _sectorInboxService;
         private readonly IUserManagementService _userManagementService;
         private readonly IEmailService _emailService;
+        private readonly IAivsRoleAccessService _roleAccess;
 
         public SectorInboxController(
             ISectorInboxService sectorInboxService,
             IUserManagementService userManagementService,
-            IEmailService emailService)
+            IEmailService emailService,
+            IAivsRoleAccessService roleAccess)
         {
             _sectorInboxService = sectorInboxService;
             _userManagementService = userManagementService;
             _emailService = emailService;
+            _roleAccess = roleAccess;
         }
 
         [HttpGet]
@@ -33,17 +37,9 @@ namespace AIVS.Controllers
                 return View(model);
             }
 
-            var role = NormalizeRole(currentUser.Role);
-
+            var role = _roleAccess.NormalizeRole(currentUser.Role);
             model.CurrentUserCanAssignToValuer =
-                role == "SECTOR MANAGER" ||
-                role == "VALUATION ADMIN" ||
-                role == "EXECUTIVE" ||
-                role == "SYSTEM ADMIN" ||
-                role == "ADMIN" ||
-                role == "ADMINISTRATOR" ||
-                role == "IT MANAGER" ||
-                role == "MANAGER";
+                _roleAccess.HasPermission(currentUser, AivsPermission.AssignWork);
 
             if (model.CurrentUserCanAssignToValuer)
             {
@@ -56,21 +52,9 @@ namespace AIVS.Controllers
 
             return View(model);
         }
-        private static string NormalizeRole(string? role)
-        {
-            if (string.IsNullOrWhiteSpace(role))
-                return string.Empty;
-
-            return role
-                .Replace('\u00A0', ' ')
-                .Replace("\t", " ")
-                .Replace("\r", " ")
-                .Replace("\n", " ")
-                .Trim()
-                .ToUpperInvariant();
-        }
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Authorize(Policy = AivsPolicyNames.SelfAssign)]
         public async Task<IActionResult> AssignSelectedToMe(List<long> selectedAttrIds, string? sector)
         {
             var currentUser = await _userManagementService.GetCurrentUserAsync(User);
@@ -112,6 +96,7 @@ namespace AIVS.Controllers
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Authorize(Policy = AivsPolicyNames.AssignWork)]
         public async Task<IActionResult> AssignSelectedToValuer(
     List<long> selectedAttrIds,
     int selectedValuerUserId,
@@ -125,19 +110,7 @@ namespace AIVS.Controllers
                 return RedirectToAction(nameof(Index), new { sector });
             }
 
-            var managerRole = NormalizeRole(currentUser.Role);
-
-            var canAssignToValuer =
-                managerRole == "SECTOR MANAGER" ||
-                managerRole == "VALUATION ADMIN" ||
-                managerRole == "EXECUTIVE" ||
-                managerRole == "SYSTEM ADMIN" ||
-                managerRole == "ADMIN" ||
-                managerRole == "ADMINISTRATOR" ||
-                managerRole == "IT MANAGER" ||
-                managerRole == "MANAGER";
-
-            if (!canAssignToValuer)
+            if (!_roleAccess.HasPermission(currentUser, AivsPermission.AssignWork))
             {
                 TempData["Error"] = "You do not have permission to assign records to another valuer.";
                 return RedirectToAction(nameof(Index), new { sector });

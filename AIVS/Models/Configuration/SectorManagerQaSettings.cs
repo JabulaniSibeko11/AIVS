@@ -6,6 +6,6 @@
 
         public int WeeklySamplePercent { get; set; } = 10;
 
-        public int MinimumWeeklySamplePerSector { get; set; } = 5;
+        public int MinimumWeeklySamplePerSector { get; set; } = 0;
     }
 }

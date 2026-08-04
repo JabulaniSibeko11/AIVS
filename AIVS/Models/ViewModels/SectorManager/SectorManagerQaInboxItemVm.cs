@@ -28,6 +28,14 @@
 
         public DateTime QaWeekEndDate { get; set; }
 
+        public int? SectorManagerUserId { get; set; }
+
+        public string? SectorManagerName { get; set; }
+
+        public bool CanClaim { get; set; }
+
+        public bool IsAssignedToMe { get; set; }
+
         public string StatusDisplay => QaStatus?.Trim() switch
         {
             "Pending" => "Pending QA",

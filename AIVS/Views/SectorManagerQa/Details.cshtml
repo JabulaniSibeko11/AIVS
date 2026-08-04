@@ -34,8 +34,8 @@
 
     <div class="smqa-actions-top">
         <a class="smqa-link-back"
-           asp-controller="SectorManagerQa"
-           asp-action="Index">
+               asp-controller="SectorManagerQa"
+               asp-action="Index">
             Back to Sector Manager QA
         </a>
     </div>
@@ -48,7 +48,7 @@
     <div class="smqa-header">
         <div>
             <h1>Sector Manager QA: @Model.AttrNo</h1>
-            <p>Review the valuer’s final work before approving the submission for OVVIO extract.</p>
+            <p>Review the valuer’s final work before submitting it to Senior Manager QA.</p>
         </div>
 
         <div class="smqa-header-count">
@@ -219,9 +219,9 @@
                                 </span>
 
                                 <a asp-controller="ValuerInbox"
-                                   asp-action="PhysicalInspectionEvidenceFile"
-                                   asp-route-id="@file.Id"
-                                   target="_blank">
+                                       asp-action="PhysicalInspectionEvidenceFile"
+                                       asp-route-id="@file.Id"
+                                       target="_blank">
                                     Open
                                 </a>
                             </div>
@@ -237,10 +237,10 @@
                     @if (!string.IsNullOrWhiteSpace(Model.ReviewedPdfPathBeforeQa))
                     {
                         <a class="smqa-btn-full"
-                           asp-controller="ValuerInbox"
-                           asp-action="ReviewedPdf"
-                           asp-route-attrId="@Model.AttrId"
-                           target="_blank">
+                               asp-controller="ValuerInbox"
+                               asp-action="ReviewedPdf"
+                               asp-route-attrId="@Model.AttrId"
+                               target="_blank">
                             Open Reviewed PDF
                         </a>
                     }
@@ -275,8 +275,8 @@
 
                             <button type="submit"
                                     class="smqa-btn-approve"
-                                    onclick="return confirm('Approve this record to OVVIO extract?');">
-                                Approve to OVVIO
+                                    onclick="return confirm('Approve and send this record to Senior Manager QA?');">
+                                Submit to Senior Manager QA
                             </button>
                         </form>
 

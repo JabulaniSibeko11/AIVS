@@ -2,6 +2,7 @@
 using AIVS.Models.ViewModels.Reports;
 using AIVS.Models.ViewModels.UserManagement;
 using AIVS.Services.Interface;
+using AIVS.Security;
 using ClosedXML.Excel;
 using System.Drawing;
 using Microsoft.EntityFrameworkCore;
@@ -11,17 +12,19 @@ namespace AIVS.Services.Implementations
     public class StatsExtractService : IStatsExtractService
     {
         private readonly AttributesDbContext _context;
+        private readonly IAivsRoleAccessService _roleAccess;
 
-        public StatsExtractService(AttributesDbContext context)
+        public StatsExtractService(AttributesDbContext context, IAivsRoleAccessService roleAccess)
         {
             _context = context;
+            _roleAccess = roleAccess;
         }
 
         public async Task<byte[]> BuildExecutiveStatsExtractAsync(
             AivsCurrentUserVm currentUser,
             ExecutiveStatsExtractFilterVm filter)
         {
-            if (!CanExportExecutiveStats(currentUser.Role))
+            if (!_roleAccess.HasPermission(currentUser, AivsPermission.ExportStatistics))
                 throw new InvalidOperationException("You do not have permission to export executive stats.");
 
             var dateRange = ResolveDateRange(filter);
@@ -145,6 +148,7 @@ namespace AIVS.Services.Implementations
                 ("Inspection Expired", CountStatus(rows, "InspectionExpired")),
                 ("Returned To Client", CountStatus(rows, "ReturnedToClient")),
                 ("Ready For OVVIO Extract", CountStatus(rows, "ReadyForOvvioExtract")),
+                ("Senior Manager QA", CountStatus(rows, "SeniorManagerQa")),
                 ("Rejected", CountStatus(rows, "Rejected")),
                 ("Withdrawn", rows.Count(x => x.IsWithdrawn == true))
             };
@@ -407,7 +411,7 @@ namespace AIVS.Services.Implementations
                 ws.Cell(rowNo, 15).Value = item.ValuerUserId;
                 ws.Cell(rowNo, 16).Value = item.ValuerDecision;
                 ws.Cell(rowNo, 17).Value = item.ValuerDecisionDateTime;
-             
+
                 ws.Cell(rowNo, 28).Value = item.PhysicalInspectionRequired.HasValue
 ? item.PhysicalInspectionRequired.Value
 : string.Empty;
@@ -415,7 +419,7 @@ namespace AIVS.Services.Implementations
                 ws.Cell(rowNo, 20).Value = item.InspectionScheduledDate;
                 ws.Cell(rowNo, 21).Value = item.InspectionScheduledTime?.ToString();
                 ws.Cell(rowNo, 22).Value = item.InspectionOutcome;
-             
+
                 ws.Cell(rowNo, 28).Value = item.ReadyForOvvioExtract.HasValue
     ? item.ReadyForOvvioExtract.Value
     : string.Empty;
@@ -475,19 +479,6 @@ namespace AIVS.Services.Implementations
                 throw new InvalidOperationException("From date cannot be later than To date.");
 
             return (filter.FromDate.Value.Date, filter.ToDate.Value.Date);
-        }
-
-        private static bool CanExportExecutiveStats(string? role)
-        {
-            var cleaned = Clean(role);
-
-            return cleaned == "EXECUTIVE" ||
-                   cleaned == "SYSTEM ADMIN" ||
-                   cleaned == "VALUATION ADMIN" ||
-                   cleaned == "ADMIN" ||
-                   cleaned == "ADMINISTRATOR" ||
-                   cleaned == "IT MANAGER" ||
-                   cleaned == "MANAGER";
         }
 
         private static int CountStatus(List<ExecutiveStatsRow> rows, string status)
@@ -569,7 +560,7 @@ namespace AIVS.Services.Implementations
 
             public DateTime? UpdatedDate { get; set; }
 
-           
+
 
         }
     }

@@ -50,5 +50,16 @@
         public InspectionRequestVm? ActiveInspectionRequest { get; set; }
         public List<ValuerPhysicalInspectionEvidenceVm> PhysicalInspectionEvidenceFiles { get; set; } = new();
         public int PhysicalInspectionEvidenceCount => PhysicalInspectionEvidenceFiles?.Count ?? 0;
+        public List<AttributeComparisonSectionVm> ComparisonSections { get; set; } = new();
+        public bool HasCityData { get; set; }
+        public int DifferenceCount => ComparisonSections.Sum(x => x.Fields.Count(f => f.HasDifference));
+        public int MatchingCount => ComparisonSections.Sum(x => x.Fields.Count(f => !f.HasDifference && !f.IsReadOnly));
+        public int MissingCityCount => ComparisonSections.Sum(x => x.Fields.Count(f => string.IsNullOrWhiteSpace(f.CityValue)));
+        public string ActiveTab { get; set; } = "1";
+        public bool DifferencesOnly { get; set; } = true;
+        public bool IsLockedByAnotherUser { get; set; }
+        public string? LockedByName { get; set; }
+        public DateTime? LockExpiresAt { get; set; }
+        public List<AttributeAuditEventVm> AuditTimeline { get; set; } = new();
     }
 }

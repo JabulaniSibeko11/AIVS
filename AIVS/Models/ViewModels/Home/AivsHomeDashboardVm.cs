@@ -38,6 +38,8 @@
 
         public int ReadyForOvvioExtract { get; set; }
 
+        public int SeniorManagerQa { get; set; }
+
         public int Rejected { get; set; }
 
         public int Withdrawn { get; set; }

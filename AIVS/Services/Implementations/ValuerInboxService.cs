@@ -20,7 +20,7 @@ namespace AIVS.Services.Implementations
         private readonly IOptions<SectorManagerQaSettings> _sectorManagerQaSettings;
         public ValuerInboxService(
             AttributesDbContext context,
-            ILogger<ValuerInboxService> logger, IEmailService emailService, 
+            ILogger<ValuerInboxService> logger, IEmailService emailService,
             IOptions<AttributeStorageSettings> storageSettings
             , INotificationService notificationService
             , IValuerReviewPdfService valuerReviewPdfService,
@@ -32,7 +32,7 @@ namespace AIVS.Services.Implementations
             _storageSettings = storageSettings.Value;
             _notificationService = notificationService;
             _valuerReviewPdfService = valuerReviewPdfService;
-                        _sectorManagerQaSettings = sectorManagerQaSettings;
+            _sectorManagerQaSettings = sectorManagerQaSettings;
         }
 
         public async Task<List<ValuerInboxItemVm>> GetMyInboxAsync(AivsCurrentUserVm currentUser)
@@ -142,6 +142,7 @@ namespace AIVS.Services.Implementations
             var review = await _context.AttrValuerReviews
     .Where(x =>
         x.Attr_ID == attrId &&
+        x.ReviewerUserId == currentUser.UserId.Value &&
         (
             x.ReviewStatus == "InProgress" ||
             x.ReviewStatus == "InspectionRequired" ||
@@ -224,7 +225,8 @@ namespace AIVS.Services.Implementations
 
             await transaction.CommitAsync();
 
-            return await BuildReviewPageAsync(review.Id);
+            await AcquireOrRefreshReviewLockAsync(review, currentUser);
+            return await BuildReviewPageAsync(review.Id, currentUser);
         }
 
         private async Task CreateDefaultReviewSectionsAsync(
@@ -260,7 +262,7 @@ namespace AIVS.Services.Implementations
             await _context.SaveChangesAsync();
         }
 
-        private async Task<ValuerReviewPageVm> BuildReviewPageAsync(long reviewId)
+        private async Task<ValuerReviewPageVm> BuildReviewPageAsync(long reviewId, AivsCurrentUserVm currentUser)
         {
             var review = await _context.AttrValuerReviews
                 .AsNoTracking()
@@ -333,7 +335,28 @@ namespace AIVS.Services.Implementations
             var submittedForm = await BuildSubmittedAttributeViewModelAsync(item.Attr_ID);
 
             var evidenceFiles = await BuildEvidenceFilesAsync(item.Attr_ID);
-            var physicalInspectionEvidenceFiles =await BuildPhysicalInspectionEvidenceFilesAsync(item.Attr_ID);
+            var physicalInspectionEvidenceFiles = await BuildPhysicalInspectionEvidenceFilesAsync(item.Attr_ID);
+            var comparisonSections = await BuildComparisonSectionsAsync(review.Id, submittedForm);
+
+            var draft = currentUser.UserId == null ? null : await _context.AttrValuerReviewDrafts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.ReviewId == review.Id && x.UserId == currentUser.UserId.Value);
+
+            var activeLock = await _context.AttrValuerReviewLocks.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.ReviewId == review.Id && x.IsActive && x.ExpiresAt > DateTime.Now);
+
+            var auditTimeline = await _context.AttrPropertyInfoAuditTrail.AsNoTracking()
+                .Where(x => x.Attr_ID == item.Attr_ID)
+                .OrderByDescending(x => x.ActionDateTime)
+                .Take(12)
+                .Select(x => new AttributeAuditEventVm
+                {
+                    Action = x.Action,
+                    Status = x.NewStatus,
+                    ActionBy = x.ActionByName,
+                    Comment = x.Comment,
+                    ActionDateTime = x.ActionDateTime
+                }).ToListAsync();
 
             var activeInspectionRequest = await _context.AttrInspectionRequests
                 .AsNoTracking()
@@ -393,6 +416,15 @@ namespace AIVS.Services.Implementations
                 EvidenceFiles = evidenceFiles,
 
                 PhysicalInspectionEvidenceFiles = physicalInspectionEvidenceFiles,
+                ComparisonSections = comparisonSections,
+                HasCityData = comparisonSections.Any(x => x.Fields.Any()),
+                ActiveTab = draft?.ActiveTab ?? "1",
+                DifferencesOnly = draft?.DifferencesOnly ?? true,
+                FinalComment = draft?.ValuerComment ?? review.FinalComment,
+                IsLockedByAnotherUser = activeLock != null && currentUser.UserId != activeLock.UserId,
+                LockedByName = activeLock?.UserName,
+                LockExpiresAt = activeLock?.ExpiresAt,
+                AuditTimeline = auditTimeline,
 
                 ActiveInspectionRequest = activeInspectionRequest,
 
@@ -407,9 +439,295 @@ namespace AIVS.Services.Implementations
                 InspectionSections = sections.Count(x => x.RequiresInspection || x.SectionDecision == "Requires inspection"),
 
                 FinalDecision = review.FinalDecision,
-                FinalComment = review.FinalComment,
                 ValuerEvidencePath = item.ValuerEvidencePath,
             };
+        }
+
+        private async Task<List<AttributeComparisonSectionVm>> BuildComparisonSectionsAsync(long reviewId, AttributeSubmissionViewModel? submittedForm)
+        {
+            var premiseId = submittedForm?.PropertyDetails?.PremiseId?.Trim();
+            if (string.IsNullOrWhiteSpace(premiseId) || submittedForm == null)
+                return new();
+
+            var formType = submittedForm.FormType?.Trim();
+            var cityRows = await _context.AttrCityAttributeValues.AsNoTracking()
+                .Where(x => x.IsActive && x.PremiseId == premiseId &&
+                    (x.FormType == null || x.FormType == "" || x.FormType == formType))
+                .OrderBy(x => x.SectionCode).ThenBy(x => x.DisplayOrder).ThenBy(x => x.FieldLabel)
+                .ToListAsync();
+
+            if (cityRows.Count == 0) return new();
+            var clientValues = BuildClientValueLookup(submittedForm);
+            var selectedKeys = await _context.AttrValuerReviewFieldCorrections.AsNoTracking()
+                .Where(x => x.ReviewId == reviewId && x.IsActive)
+                .Select(x => x.SectionCode + ":" + x.FieldCode)
+                .ToListAsync();
+            var selected = selectedKeys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            return cityRows.GroupBy(x => NormalizeCode(x.SectionCode)).Select(group =>
+            {
+                var sectionCode = group.Key;
+                return new AttributeComparisonSectionVm
+                {
+                    SectionCode = sectionCode,
+                    SectionName = GetComparisonSectionName(sectionCode),
+                    TabNumber = IsPropertyOrValuationSection(sectionCode) ? 1 : 2,
+                    DisplayOrder = GetComparisonSectionOrder(sectionCode),
+                    Fields = group.Select(row =>
+                    {
+                        var fieldCode = NormalizeCode(row.FieldCode);
+                        clientValues.TryGetValue(BuildComparisonKey(sectionCode, fieldCode), out var clientValue);
+                        var readOnly = fieldCode is "H_AREA" or "HAREA";
+                        return new AttributeComparisonFieldVm
+                        {
+                            FieldCode = fieldCode,
+                            FieldLabel = row.FieldLabel,
+                            CityValue = CleanComparisonValue(row.FieldValue),
+                            ClientValue = CleanComparisonValue(clientValue),
+                            DisplayOrder = row.DisplayOrder,
+                            IsReadOnly = readOnly,
+                            HasDifference = !readOnly && !ComparisonValuesEqual(row.FieldValue, clientValue)
+                            ,
+                            IsSelectedForCorrection = selected.Contains(BuildComparisonKey(sectionCode, fieldCode))
+                        };
+                    }).ToList()
+                };
+            }).OrderBy(x => x.TabNumber).ThenBy(x => x.DisplayOrder).ThenBy(x => x.SectionName).ToList();
+        }
+
+        private static Dictionary<string, string?> BuildClientValueLookup(AttributeSubmissionViewModel form)
+        {
+            var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+            AddObjectValues(values, "PROPERTY", form.PropertyDetails);
+            AddObjectValues(values, "PROPERTY_DETAILS", form.PropertyDetails);
+            AddObjectValues(values, "VALUATION", form.ValuationDetails);
+            AddObjectValues(values, "VALUATION_DETAILS", form.ValuationDetails);
+            AddObjectValues(values, "PRIMARY_ATTRIBUTES", form.PrimaryAttributes);
+            AddObjectValues(values, "SECONDARY_ATTRIBUTES", form.SecondaryAttributes);
+            AddObjectValues(values, "CALCULATIONS", form.Calculations);
+            AddObjectValues(values, "BUSINESS_GENERAL", form.BusinessGeneral);
+            AddObjectValues(values, "DRC_MARKET_VALUE", form.DrcMarketValueDemolition);
+            AddListValues(values, "BUSINESS_BUILDINGS", "BUILDING", form.BusinessBuildings);
+            AddListValues(values, "BUSINESS_SECTIONS", "SECTION", form.BusinessSections);
+            AddListValues(values, "DRC_BUILDINGS", "BUILDING", form.DrcBuildings);
+            AddListValues(values, "DRC_IMPROVEMENTS", "IMPROVEMENT", form.DrcImprovements);
+            AddListValues(values, "DRC_VACANT_LAND", "LAND", form.DrcVacantLands);
+            return values;
+        }
+
+        private static void AddObjectValues(IDictionary<string, string?> values, string sectionCode, object? source)
+        {
+            if (source == null) return;
+            foreach (var property in source.GetType().GetProperties())
+            {
+                if (!property.CanRead || property.GetIndexParameters().Length > 0) continue;
+                var value = property.GetValue(source);
+                if (value is System.Collections.IEnumerable && value is not string) continue;
+                values[BuildComparisonKey(sectionCode, NormalizeCode(property.Name))] = ConvertComparisonValue(value);
+            }
+        }
+
+        private static void AddListValues<T>(IDictionary<string, string?> values, string sectionCode, string rowPrefix, IEnumerable<T>? rows)
+        {
+            if (rows == null) return;
+            var rowNumber = 0;
+            foreach (var row in rows)
+            {
+                rowNumber++;
+                if (row == null) continue;
+                foreach (var property in row.GetType().GetProperties())
+                {
+                    if (!property.CanRead || property.GetIndexParameters().Length > 0) continue;
+                    var fieldCode = $"{rowPrefix}_{rowNumber}_{NormalizeCode(property.Name)}";
+                    values[BuildComparisonKey(sectionCode, fieldCode)] = ConvertComparisonValue(property.GetValue(row));
+                }
+            }
+        }
+
+        private static string BuildComparisonKey(string sectionCode, string fieldCode) => $"{NormalizeCode(sectionCode)}:{NormalizeCode(fieldCode)}";
+        private static string NormalizeCode(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+            var result = new System.Text.StringBuilder();
+            for (var i = 0; i < value.Length; i++)
+            {
+                var character = value[i];
+                if (!char.IsLetterOrDigit(character))
+                {
+                    if (result.Length > 0 && result[^1] != '_') result.Append('_');
+                    continue;
+                }
+                if (char.IsUpper(character) && i > 0 && char.IsLower(value[i - 1]) && result[^1] != '_') result.Append('_');
+                result.Append(char.ToUpperInvariant(character));
+            }
+            return result.ToString().Trim('_');
+        }
+
+        private static string? ConvertComparisonValue(object? value) => value switch
+        {
+            null => null,
+            bool b => b ? "Yes" : "No",
+            DateTime d => d.ToString("yyyy-MM-dd"),
+            decimal d => d.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture),
+            double d => d.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture),
+            float f => f.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture),
+            _ => Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture)
+        };
+        private static string? CleanComparisonValue(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        private static bool ComparisonValuesEqual(string? cityValue, string? clientValue)
+        {
+            var city = CleanComparisonValue(cityValue) ?? string.Empty;
+            var client = CleanComparisonValue(clientValue) ?? string.Empty;
+            if (decimal.TryParse(city, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var cityNumber) &&
+                decimal.TryParse(client, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var clientNumber))
+                return cityNumber == clientNumber;
+            return string.Equals(city, client, StringComparison.OrdinalIgnoreCase);
+        }
+        private static bool IsPropertyOrValuationSection(string code) => code is "PROPERTY" or "PROPERTY_DETAILS" or "VALUATION" or "VALUATION_DETAILS";
+        private static int GetComparisonSectionOrder(string code) => code switch
+        {
+            "PROPERTY" or "PROPERTY_DETAILS" => 10,
+            "VALUATION" or "VALUATION_DETAILS" => 20,
+            "PRIMARY_ATTRIBUTES" => 30,
+            "SECONDARY_ATTRIBUTES" => 40,
+            "BUSINESS_BUILDINGS" => 50,
+            "BUSINESS_SECTIONS" => 60,
+            "BUSINESS_GENERAL" => 70,
+            "DRC_BUILDINGS" => 80,
+            "DRC_IMPROVEMENTS" => 90,
+            "DRC_VACANT_LAND" => 100,
+            "DRC_MARKET_VALUE" => 110,
+            "CALCULATIONS" => 120,
+            _ => 999
+        };
+        private static string GetComparisonSectionName(string code) => code switch
+        {
+            "PROPERTY" or "PROPERTY_DETAILS" => "Property Details",
+            "VALUATION" or "VALUATION_DETAILS" => "Valuation Details",
+            "PRIMARY_ATTRIBUTES" => "Primary Attributes",
+            "SECONDARY_ATTRIBUTES" => "Secondary Attributes",
+            "BUSINESS_BUILDINGS" => "Business Buildings",
+            "BUSINESS_SECTIONS" => "Business Sections",
+            "BUSINESS_GENERAL" => "Business General",
+            "DRC_BUILDINGS" => "DRC Buildings",
+            "DRC_IMPROVEMENTS" => "DRC Improvements",
+            "DRC_VACANT_LAND" => "DRC Vacant Land",
+            "DRC_MARKET_VALUE" => "DRC Market Value and Demolition",
+            "CALCULATIONS" => "Calculations",
+            _ => code.Replace('_', ' ')
+        };
+
+        private async Task AcquireOrRefreshReviewLockAsync(AttrValuerReview review, AivsCurrentUserVm currentUser)
+        {
+            if (currentUser.UserId == null) return;
+            var now = DateTime.Now;
+            var reviewLock = await _context.AttrValuerReviewLocks.FirstOrDefaultAsync(x => x.ReviewId == review.Id);
+            if (reviewLock == null)
+            {
+                _context.AttrValuerReviewLocks.Add(new AttrValuerReviewLock
+                {
+                    ReviewId = review.Id,
+                    Attr_ID = review.Attr_ID,
+                    UserId = currentUser.UserId.Value,
+                    UserName = currentUser.FullName ?? currentUser.Username ?? "Valuer",
+                    AcquiredAt = now,
+                    LastActivityAt = now,
+                    ExpiresAt = now.AddMinutes(20),
+                    IsActive = true
+                });
+            }
+            else if (!reviewLock.IsActive || reviewLock.ExpiresAt <= now || reviewLock.UserId == currentUser.UserId.Value)
+            {
+                reviewLock.UserId = currentUser.UserId.Value;
+                reviewLock.UserName = currentUser.FullName ?? currentUser.Username ?? "Valuer";
+                reviewLock.AcquiredAt = now; reviewLock.LastActivityAt = now;
+                reviewLock.ExpiresAt = now.AddMinutes(20); reviewLock.IsActive = true;
+            }
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task SaveDraftAsync(SaveReviewDraftVm vm, AivsCurrentUserVm currentUser)
+        {
+            if (currentUser.UserId == null) throw new InvalidOperationException("Your AIVS user could not be verified.");
+            await EnsureCurrentAssignmentAsync(vm.AttrId, currentUser);
+            var review = await _context.AttrValuerReviews.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == vm.ReviewId && x.Attr_ID == vm.AttrId && x.ReviewerUserId == currentUser.UserId.Value)
+                ?? throw new InvalidOperationException("This review is not assigned to you.");
+            var draft = await _context.AttrValuerReviewDrafts.FirstOrDefaultAsync(x => x.ReviewId == vm.ReviewId && x.UserId == currentUser.UserId.Value);
+            if (draft == null)
+            {
+                draft = new AttrValuerReviewDraft { ReviewId = review.Id, Attr_ID = review.Attr_ID, UserId = currentUser.UserId.Value };
+                _context.AttrValuerReviewDrafts.Add(draft);
+            }
+            draft.ActiveTab = vm.ActiveTab is "1" or "2" ? vm.ActiveTab : "1";
+            draft.ValuerComment = vm.ValuerComment?.Trim();
+            draft.DifferencesOnly = vm.DifferencesOnly;
+            draft.SavedAt = DateTime.Now;
+            await AcquireOrRefreshReviewLockAsync(review, currentUser);
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task SaveCorrectionFieldsAsync(SaveCorrectionFieldsVm vm, AivsCurrentUserVm currentUser)
+        {
+            if (currentUser.UserId == null) throw new InvalidOperationException("Your AIVS user could not be verified.");
+            await EnsureCurrentAssignmentAsync(vm.AttrId, currentUser);
+            var review = await _context.AttrValuerReviews.FirstOrDefaultAsync(x => x.Id == vm.ReviewId && x.Attr_ID == vm.AttrId && x.ReviewerUserId == currentUser.UserId.Value)
+                ?? throw new InvalidOperationException("This review is not assigned to you.");
+            var form = await BuildSubmittedAttributeViewModelAsync(vm.AttrId);
+            var comparisons = await BuildComparisonSectionsAsync(vm.ReviewId, form);
+            var allowed = comparisons.SelectMany(x => x.Fields.Where(f => f.HasDifference && !f.IsReadOnly)
+                .Select(f => new { Section = x.SectionCode, Field = f })).ToDictionary(x => BuildComparisonKey(x.Section, x.Field.FieldCode));
+            var requested = (vm.FieldKeys ?? new()).Select(x => x.Trim()).Where(allowed.ContainsKey).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var existing = await _context.AttrValuerReviewFieldCorrections.Where(x => x.ReviewId == vm.ReviewId).ToListAsync();
+            foreach (var row in existing) row.IsActive = requested.Contains(BuildComparisonKey(row.SectionCode, row.FieldCode));
+            foreach (var key in requested.Where(x => existing.All(e => !string.Equals(BuildComparisonKey(e.SectionCode, e.FieldCode), x, StringComparison.OrdinalIgnoreCase))))
+            {
+                var value = allowed[key];
+                _context.AttrValuerReviewFieldCorrections.Add(new AttrValuerReviewFieldCorrection
+                {
+                    ReviewId = review.Id,
+                    Attr_ID = review.Attr_ID,
+                    SectionCode = value.Section,
+                    FieldCode = value.Field.FieldCode,
+                    FieldLabel = value.Field.FieldLabel,
+                    CityValue = value.Field.CityValue,
+                    ClientValue = value.Field.ClientValue,
+                    IsActive = true,
+                    SelectedByUserId = currentUser.UserId.Value,
+                    SelectedByName = currentUser.FullName,
+                    SelectedAt = DateTime.Now
+                });
+            }
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task SaveQuickSectionDecisionAsync(QuickSectionDecisionVm vm, AivsCurrentUserVm currentUser)
+        {
+            var reviewSectionCode = vm.SectionCode switch
+            {
+                "PROPERTY" => "PROPERTY_DETAILS",
+                "VALUATION" => "VALUATION_DETAILS",
+                _ => vm.SectionCode
+            };
+            var section = await _context.AttrValuerReviewSections.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.ReviewId == vm.ReviewId && x.Attr_ID == vm.AttrId && x.SectionCode == reviewSectionCode)
+                ?? throw new InvalidOperationException("The review section could not be found.");
+            var decision = vm.Decision switch
+            {
+                "Accepted" => "Accepted",
+                "Needs correction" => "Needs correction",
+                "Requires inspection" => "Requires inspection",
+                _ => throw new InvalidOperationException("Invalid section decision.")
+            };
+            await SaveSectionReviewAsync(new SaveSectionReviewVm
+            {
+                ReviewId = vm.ReviewId,
+                SectionId = section.Id,
+                SectionDecision = decision,
+                RequiresCorrection = decision == "Needs correction",
+                RequiresInspection = decision == "Requires inspection",
+                SectionComment = decision == "Accepted" ? "Accepted from comparison view." : "Decision selected from comparison view."
+            }, currentUser);
         }
         private async Task<List<ValuerEvidenceFileVm>> BuildEvidenceFilesAsync(long attrId)
         {
@@ -716,7 +1034,7 @@ namespace AIVS.Services.Implementations
     ? tla
     : null,
                     Tla = calculations?.Tla,
-                   // CalcUpdateWgba = calculations?.CalcUpdateWgba,
+                    // CalcUpdateWgba = calculations?.CalcUpdateWgba,
                     CalcUpdateWgba = decimal.TryParse(calculations?.CalcUpdateWgba, out var Wgba)
     ? Wgba
     : null,
@@ -859,6 +1177,8 @@ namespace AIVS.Services.Implementations
             if (review.ReviewerUserId != currentUser.UserId.Value)
                 throw new InvalidOperationException("This review is not assigned to you.");
 
+            await EnsureCurrentAssignmentAsync(section.Attr_ID, currentUser);
+
             var now = DateTime.Now;
 
             section.SectionDecision = vm.SectionDecision.Trim();
@@ -874,15 +1194,15 @@ namespace AIVS.Services.Implementations
             review.UpdatedBy = currentUser.Username ?? currentUser.WindowsUsername;
             review.UpdatedDate = now;
 
-            if (vm.RequiresInspection || vm.SectionDecision == "Requires inspection")
-            {
-                review.RequiresInspection = true;
-            }
+            var reviewSections = await _context.AttrValuerReviewSections
+                .Where(x => x.ReviewId == review.Id)
+                .ToListAsync();
 
-            if (vm.RequiresCorrection || vm.SectionDecision == "Needs correction")
-            {
-                review.ReturnToClient = true;
-            }
+            review.RequiresInspection = reviewSections.Any(x =>
+                x.RequiresInspection || x.SectionDecision == "Requires inspection");
+
+            review.ReturnToClient = reviewSections.Any(x =>
+                x.RequiresCorrection || x.SectionDecision == "Needs correction");
 
             await _context.SaveChangesAsync();
         }
@@ -920,6 +1240,8 @@ namespace AIVS.Services.Implementations
             if (review.ReviewerUserId != currentUser.UserId.Value)
                 throw new InvalidOperationException("This review is not assigned to you.");
 
+            await EnsureCurrentAssignmentAsync(vm.AttrId, currentUser);
+
             var item = await _context.AttrPropertyInfo
                 .Include(x => x.PropertyDetails)
                 .FirstOrDefaultAsync(x => x.Attr_ID == vm.AttrId && x.IsActive == true);
@@ -950,6 +1272,8 @@ namespace AIVS.Services.Implementations
             var requiredCorrectionExists = requiredSections.Any(x =>
                 x.RequiresCorrection ||
                 x.SectionDecision == "Needs correction");
+            requiredCorrectionExists = requiredCorrectionExists || await _context.AttrValuerReviewFieldCorrections
+                .AnyAsync(x => x.ReviewId == vm.ReviewId && x.IsActive);
 
             var inspectionRequiredExists = sections.Any(x =>
                 x.RequiresInspection ||
@@ -992,9 +1316,16 @@ namespace AIVS.Services.Implementations
             switch (vm.FinalDecision)
             {
                 case "SubmitToOvvio":
-                    var selectedForSectorQa = await ShouldSelectForSectorManagerQaAsync(
-                        item.RoutedSector,
-                        now);
+                    var returnedQa = await _context.AttrSectorManagerQaReviews
+                        .AsNoTracking()
+                        .Where(x =>
+                            x.Attr_ID == item.Attr_ID &&
+                            x.QaStatus == "ReturnedToValuer")
+                        .OrderByDescending(x => x.QaCompletedAt)
+                        .ThenByDescending(x => x.Id)
+                        .FirstOrDefaultAsync();
+
+                    var selectedForSectorQa = returnedQa != null || ShouldSelectForSectorManagerQa();
 
                     review.ReviewStatus = selectedForSectorQa
                         ? "SubmittedForSectorManagerQa"
@@ -1038,11 +1369,18 @@ namespace AIVS.Services.Implementations
                             QaWeekStartDate = weekStart.Date,
                             QaWeekEndDate = weekEnd.Date,
                             IsRandomlySelected = true,
-                            SelectionReason = "Weekly random Sector Manager QA sample",
+                            SelectionReason = returnedQa == null
+                                ? $"{Math.Clamp(_sectorManagerQaSettings.Value.WeeklySamplePercent, 0, 100)}% weekly random Sector Manager QA sample"
+                                : "Resubmitted after Sector Manager QA return",
                             ValuerUserId = currentUser.UserId.Value,
                             ValuerName = currentUser.FullName,
                             ValuerSubmittedAt = now,
-                            QaStatus = "Pending",
+                            QaStatus = returnedQa?.SectorManagerUserId == null ? "Pending" : "InProgress",
+                            SectorManagerUserId = returnedQa?.SectorManagerUserId,
+                            SectorManagerUsername = returnedQa?.SectorManagerUsername,
+                            SectorManagerName = returnedQa?.SectorManagerName,
+                            SectorManagerEmail = returnedQa?.SectorManagerEmail,
+                            QaStartedAt = returnedQa?.SectorManagerUserId == null ? null : now,
                             ReviewedPdfPathBeforeQa = item.ValuerEvidencePath,
                             CreatedBy = currentUserName,
                             CreatedDate = now
@@ -1079,7 +1417,7 @@ namespace AIVS.Services.Implementations
                     item.RevisionReason = finalComment;
                     break;
 
-              
+
             }
 
             item.UpdatedBy = currentUserName;
@@ -1113,6 +1451,15 @@ namespace AIVS.Services.Implementations
                 ActionDateTime = now
             });
 
+            var completedLock = await _context.AttrValuerReviewLocks
+                .FirstOrDefaultAsync(x => x.ReviewId == review.Id);
+            if (completedLock != null)
+            {
+                completedLock.IsActive = false;
+                completedLock.LastActivityAt = now;
+                completedLock.ExpiresAt = now;
+            }
+
             // First save final decision so the reviewed PDF pulls the latest review/status values.
             await _context.SaveChangesAsync();
 
@@ -1127,7 +1474,7 @@ namespace AIVS.Services.Implementations
                 .FirstOrDefaultAsync(x =>
                     x.Attr_ID == item.Attr_ID &&
                     x.ValuerReviewId == review.Id &&
-                    x.QaStatus == "Pending");
+                    (x.QaStatus == "Pending" || x.QaStatus == "InProgress"));
 
             if (pendingQa != null)
             {
@@ -1294,6 +1641,8 @@ namespace AIVS.Services.Implementations
             if (item == null)
                 throw new InvalidOperationException("Attribute submission could not be found.");
 
+            await EnsureCurrentAssignmentAsync(vm.AttrId, currentUser);
+
             var existingOpenRequest = await _context.AttrInspectionRequests
       .FirstOrDefaultAsync(x =>
           x.Attr_ID == vm.AttrId &&
@@ -1306,7 +1655,7 @@ namespace AIVS.Services.Implementations
             if (existingOpenRequest != null)
                 throw new InvalidOperationException("There is already an active physical inspection request for this submission.");
 
-           
+
 
             var contact = await _context.AttrContactInfo
                 .AsNoTracking()
@@ -1468,6 +1817,8 @@ namespace AIVS.Services.Implementations
             if (property == null)
                 throw new InvalidOperationException("Attribute property could not be found.");
 
+            await EnsureCurrentAssignmentAsync(property.Attr_ID, currentUser);
+
             if (property.PropertyDetails == null)
                 throw new InvalidOperationException("Property details could not be found.");
 
@@ -1592,12 +1943,7 @@ namespace AIVS.Services.Implementations
 
         private static string GenerateInspectionPin()
         {
-            const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-            const int length = 6;
-
-            return new string(Enumerable.Range(0, length)
-                .Select(_ => chars[Random.Shared.Next(chars.Length)])
-                .ToArray());
+            return Random.Shared.Next(1000, 10000).ToString();
         }
         private async Task<List<ValuerPhysicalInspectionEvidenceVm>> BuildPhysicalInspectionEvidenceFilesAsync(long attrId)
         {
@@ -1625,6 +1971,27 @@ namespace AIVS.Services.Implementations
                 })
                 .ToListAsync();
         }
+
+        private async Task EnsureCurrentAssignmentAsync(
+            long attrId,
+            AivsCurrentUserVm currentUser)
+        {
+            if (currentUser.UserId == null)
+                throw new InvalidOperationException("Your AIVS user could not be verified.");
+
+            var userId = currentUser.UserId.Value.ToString();
+            var isAssigned = await _context.AttrPropertyInfo
+                .AsNoTracking()
+                .AnyAsync(x =>
+                    x.Attr_ID == attrId &&
+                    x.IsActive == true &&
+                    x.IsWithdrawn != true &&
+                    x.Task_Assigned_To_UserId == userId);
+
+            if (!isAssigned)
+                throw new InvalidOperationException("This submission is no longer assigned to you. Return to the Review Inbox and refresh the page.");
+        }
+
         private static string FriendlyStatus(string? status)
         {
             return status?.Trim() switch
@@ -1647,9 +2014,7 @@ namespace AIVS.Services.Implementations
             };
         }
 
-        private async Task<bool> ShouldSelectForSectorManagerQaAsync(
-      string? sector,
-      DateTime now)
+        private bool ShouldSelectForSectorManagerQa()
         {
             var settings = _sectorManagerQaSettings.Value;
 
@@ -1663,21 +2028,6 @@ namespace AIVS.Services.Implementations
 
             if (samplePercent <= 0)
                 return false;
-
-            var weekStart = StartOfWeek(now);
-            var weekEnd = weekStart.AddDays(6);
-
-            var sectorText = sector?.Trim();
-
-            var selectedThisWeek = await _context.AttrSectorManagerQaReviews
-                .AsNoTracking()
-                .CountAsync(x =>
-                    x.Sector == sectorText &&
-                    x.QaWeekStartDate == weekStart.Date &&
-                    x.QaWeekEndDate == weekEnd.Date);
-
-            if (selectedThisWeek < settings.MinimumWeeklySamplePerSector)
-                return true;
 
             return Random.Shared.Next(1, 101) <= samplePercent;
         }

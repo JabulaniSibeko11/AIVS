@@ -540,3 +540,480 @@
 .physical-evidence-actions {
     margin-top: 10px;
 }
+
+.cmp-shell {
+    margin: 0 0 1.25rem;
+    background: #fff;
+    border: 1px solid #d8e0e3;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(15,45,52,.08)
+}
+
+.cmp-evidence {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .8rem 1rem;
+    background: #0c4f59;
+    color: #fff
+}
+
+    .cmp-evidence strong, .cmp-evidence span {
+        display: block
+    }
+
+    .cmp-evidence span {
+        font-size: .8rem;
+        opacity: .82;
+        margin-top: .15rem
+    }
+
+.cmp-evidence-links {
+    display: flex;
+    gap: .45rem;
+    flex-wrap: wrap;
+    justify-content: flex-end
+}
+
+    .cmp-evidence-links a {
+        max-width: 190px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: #102f36;
+        background: #fff4c6;
+        border-radius: 999px;
+        padding: .35rem .65rem;
+        font-size: .76rem;
+        text-decoration: none
+    }
+
+.cmp-empty {
+    padding: 1rem;
+    background: #fff8dc;
+    color: #6b5200
+}
+
+.cmp-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .65rem 1rem;
+    background: #f7f9f9;
+    border-bottom: 1px solid #dbe2e4
+}
+
+.cmp-tabs {
+    display: flex;
+    gap: .45rem
+}
+
+.cmp-tab {
+    border: 1px solid #b9c8cc;
+    background: #fff;
+    color: #174b55;
+    border-radius: 9px;
+    padding: .55rem .9rem;
+    font-weight: 700
+}
+
+    .cmp-tab.active {
+        background: #00646f;
+        color: #fff;
+        border-color: #00646f
+    }
+
+.cmp-toggle {
+    font-size: .82rem;
+    font-weight: 700;
+    color: #355d65;
+    white-space: nowrap
+}
+
+.cmp-panel {
+    display: none;
+    padding: .75rem 1rem 1rem
+}
+
+    .cmp-panel.active {
+        display: block
+    }
+
+.cmp-section + .cmp-section {
+    margin-top: .75rem
+}
+
+.cmp-section h3 {
+    margin: 0;
+    padding: .5rem .7rem;
+    background: #eaf2f3;
+    color: #07535d;
+    font-size: .92rem;
+    border-left: 4px solid #e8b500
+}
+
+.cmp-table-wrap {
+    overflow: auto;
+    max-height: 42vh
+}
+
+.cmp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .82rem
+}
+
+    .cmp-table th, .cmp-table td {
+        padding: .48rem .65rem;
+        border-bottom: 1px solid #e2e7e9;
+        text-align: left;
+        vertical-align: middle
+    }
+
+    .cmp-table thead th {
+        position: sticky;
+        top: 0;
+        background: #183c44;
+        color: #fff;
+        z-index: 2
+    }
+
+.cmp-row.different {
+    background: #fff3ef
+}
+
+.cmp-row.matching {
+    background: #f5fbf7
+}
+
+.cmp-row.readonly {
+    background: #f4f6f7;
+    color: #63767b
+}
+
+.cmp-badge {
+    display: inline-block;
+    border-radius: 999px;
+    padding: .2rem .5rem;
+    font-size: .7rem;
+    font-weight: 800
+}
+
+    .cmp-badge.different {
+        background: #ffd8cf;
+        color: #8a2919
+    }
+
+    .cmp-badge.matching {
+        background: #d9f1df;
+        color: #1e6730
+    }
+
+    .cmp-badge.readonly {
+        background: #e5eaec;
+        color: #53666b
+    }
+
+@media(max-width:780px) {
+    .cmp-evidence, .cmp-toolbar {
+        align-items: flex-start;
+        flex-direction: column
+    }
+
+    .cmp-tabs {
+        width: 100%;
+        overflow: auto
+    }
+
+    .cmp-tab {
+        white-space: nowrap
+    }
+
+    .cmp-table {
+        min-width: 660px
+    }
+}
+
+.cmp-final {
+    position: sticky;
+    bottom: 0;
+    z-index: 18;
+    margin-top: .8rem;
+    padding: .75rem;
+    background: #fff;
+    border: 1px solid #d6e0e2;
+    border-radius: 12px;
+    box-shadow: 0 -7px 20px rgba(18,55,63,.1)
+}
+
+    .cmp-final label {
+        display: block;
+        margin-bottom: .3rem;
+        color: #124f59;
+        font-size: .8rem;
+        font-weight: 800
+    }
+
+    .cmp-final textarea {
+        width: 100%;
+        min-height: 58px;
+        max-height: 95px;
+        resize: vertical;
+        border: 1px solid #b9c8cc;
+        border-radius: 8px;
+        padding: .55rem
+    }
+
+.cmp-final-actions {
+    display: grid;
+    grid-template-columns: repeat(3,minmax(0,1fr));
+    gap: .55rem;
+    margin-top: .55rem
+}
+
+.cmp-action {
+    border: 0;
+    border-radius: 8px;
+    padding: .65rem .7rem;
+    color: #fff;
+    font-weight: 800
+}
+
+    .cmp-action.inspection {
+        background: #9b6a00
+    }
+
+    .cmp-action.return {
+        background: #a63d2d
+    }
+
+    .cmp-action.ovvio {
+        background: #00646f
+    }
+
+    .cmp-action:disabled {
+        opacity: .45;
+        cursor: not-allowed
+    }
+
+.cmp-block-reason {
+    margin-top: .45rem;
+    color: #8a2919;
+    font-size: .76rem;
+    font-weight: 700
+}
+
+.rv-legacy-final-decision {
+    display: none !important
+}
+
+@media(max-width:780px) {
+    .cmp-final-actions {
+        grid-template-columns: 1fr
+    }
+
+    .cmp-final {
+        position: static
+    }
+}
+
+.cmp-counts {
+    display: flex;
+    gap: .35rem;
+    flex-wrap: wrap
+}
+
+    .cmp-counts span {
+        padding: .22rem .48rem;
+        border-radius: 999px;
+        background: #e5eaec;
+        font-size: .7rem;
+        font-weight: 800
+    }
+
+    .cmp-counts .different {
+        background: #ffd8cf;
+        color: #8a2919
+    }
+
+    .cmp-counts .matching {
+        background: #d9f1df;
+        color: #1e6730
+    }
+
+.cmp-evidence-preview, .cmp-zip {
+    border: 0;
+    max-width: 190px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #102f36;
+    background: #fff4c6;
+    border-radius: 999px;
+    padding: .35rem .65rem;
+    font-size: .76rem;
+    text-decoration: none;
+    cursor: pointer
+}
+
+.cmp-zip {
+    background: #fff;
+    color: #07535d;
+    font-weight: 800
+}
+
+.cmp-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #eaf2f3;
+    border-left: 4px solid #e8b500
+}
+
+    .cmp-section-head h3 {
+        border: 0
+    }
+
+    .cmp-section-head > div {
+        display: flex;
+        gap: .3rem;
+        padding-right: .5rem
+    }
+
+.cmp-quick {
+    border: 0;
+    border-radius: 7px;
+    padding: .3rem .5rem;
+    background: #26733a;
+    color: #fff;
+    font-size: .69rem;
+    font-weight: 800
+}
+
+    .cmp-quick.warning {
+        background: #a63d2d
+    }
+
+    .cmp-quick.inspection {
+        background: #9b6a00
+    }
+
+.cmp-section-head.saved {
+    box-shadow: inset 0 0 0 2px #75b483
+}
+
+.cmp-correction {
+    margin-right: .4rem
+}
+
+.cmp-timeline {
+    margin-top: .75rem;
+    border: 1px solid #dbe2e4;
+    border-radius: 10px;
+    padding: .6rem
+}
+
+    .cmp-timeline summary {
+        cursor: pointer;
+        font-weight: 800;
+        color: #07535d
+    }
+
+.cmp-audit {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: .15rem .7rem;
+    padding: .45rem 0;
+    border-bottom: 1px solid #edf0f1
+}
+
+    .cmp-audit span, .cmp-audit small {
+        font-size: .72rem;
+        color: #687b80
+    }
+
+    .cmp-audit small {
+        grid-column: 1/-1
+    }
+
+.cmp-preview-modal, .cmp-confirm-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    background: rgba(5,25,30,.72);
+    display: grid;
+    place-items: center;
+    padding: 1rem
+}
+
+    .cmp-preview-modal[hidden], .cmp-confirm-modal[hidden] {
+        display: none
+    }
+
+.cmp-preview-dialog {
+    position: relative;
+    width: min(1000px,95vw);
+    height: min(760px,88vh);
+    background: #fff;
+    border-radius: 14px;
+    padding: 2.4rem .8rem .8rem
+}
+
+    .cmp-preview-dialog > button {
+        position: absolute;
+        right: .7rem;
+        top: .35rem;
+        border: 0;
+        background: transparent;
+        font-size: 1.7rem
+    }
+
+    .cmp-preview-dialog iframe, .cmp-preview-dialog img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        border: 0
+    }
+
+.cmp-confirm-dialog {
+    width: min(520px,94vw);
+    background: #fff;
+    border-radius: 14px;
+    padding: 1.2rem
+}
+
+    .cmp-confirm-dialog h3 {
+        margin-top: 0;
+        color: #07535d
+    }
+
+.cmp-confirm-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: .5rem
+}
+
+    .cmp-confirm-buttons button {
+        border: 0;
+        border-radius: 8px;
+        padding: .55rem .8rem;
+        font-weight: 800
+    }
+
+        .cmp-confirm-buttons button:last-child {
+            background: #00646f;
+            color: #fff
+        }
+
+.cmp-shell fieldset {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0
+}

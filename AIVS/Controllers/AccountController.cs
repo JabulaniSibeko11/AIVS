@@ -1,10 +1,11 @@
 ﻿using AIVS.Services.Interface;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using AIVS.Security;
 
 namespace AIVS.Controllers
 {
-    [Authorize]
+    [Authorize(Policy = AivsPolicyNames.AccessAivs)]
     public class AccountController : Controller
     {
         private readonly IUserManagementService _userManagement;

@@ -44,6 +44,24 @@
 
         public DateTime? QaCompletedAt { get; set; }
 
+        public string? SeniorQaStatus { get; set; }
+
+        public int? SeniorManagerUserId { get; set; }
+
+        public string? SeniorManagerUsername { get; set; }
+
+        public string? SeniorManagerName { get; set; }
+
+        public string? SeniorManagerEmail { get; set; }
+
+        public string? SeniorQaDecision { get; set; }
+
+        public string? SeniorQaComment { get; set; }
+
+        public DateTime? SeniorQaStartedAt { get; set; }
+
+        public DateTime? SeniorQaCompletedAt { get; set; }
+
         public string? ReviewedPdfPathBeforeQa { get; set; }
 
         public string? ReviewedPdfPathAfterQa { get; set; }

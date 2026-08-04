@@ -1,0 +1,67 @@
+﻿@model List<AIVS.Models.ViewModels.SeniorManager.SeniorManagerQaInboxItemVm>
+@{
+    ViewData["Title"] = "Senior Manager QA";
+    string D(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value;
+}
+<link href="~/css/sector-manager-qa.css" rel="stylesheet" asp-append-version="true" />
+
+<div class="smqa-page">
+    @if (TempData["Success"] != null)
+    {
+        <div class="smqa-alert smqa-alert-success">@TempData["Success"]</div>
+    }
+    @if (TempData["Error"] != null)
+    {
+        <div class="smqa-alert smqa-alert-danger">@TempData["Error"]</div>
+    }
+
+    <div class="smqa-header">
+        <div>
+            <h1>Senior Manager QA</h1>
+            <p>Final QA of Sector Manager-approved attribute reviews before OVVIO extract.</p>
+        </div>
+        <div class="smqa-header-count"><strong>@Model.Count</strong> pending QA</div>
+    </div>
+
+    @if (!Model.Any())
+    {
+        <div class="smqa-empty">No submissions are waiting for Senior Manager QA.</div>
+    }
+    else
+    {
+        <div class="smqa-card">
+            <div class="smqa-table-wrap">
+                <table class="smqa-table">
+                    <thead><tr><th>Reference</th><th>Property</th><th>Sector</th><th>Valuer</th><th>Sector Manager</th><th>Approved</th><th>Status</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var item in Model)
+                        {
+                            <tr>
+                                <td class="smqa-ref">@D(item.AttrNo)</td>
+                                <td>@D(item.PropertyDescription)</td>
+                                <td>@D(item.Sector)</td>
+                                <td>@D(item.ValuerName)</td>
+                                <td>@D(item.SectorManagerName)</td>
+                                <td>@(item.SectorManagerCompletedAt?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
+                                <td><span class="smqa-badge">@D(item.SeniorQaStatus)</span></td>
+                                <td>
+                                    @if (item.CanClaim)
+                                    {
+                                        <form method="post" asp-action="Claim" asp-route-id="@item.QaId">
+                                            @Html.AntiForgeryToken()
+                                            <button class="smqa-btn" type="submit" onclick="return confirm('Claim this Senior Manager QA item?');">Claim QA</button>
+                                        </form>
+                                    }
+                                    else if (item.IsAssignedToMe)
+                                    {
+                                        <a class="smqa-btn" asp-action="Details" asp-route-id="@item.QaId">Continue QA</a>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>

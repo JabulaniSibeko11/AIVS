@@ -2,6 +2,7 @@
 using AIVS.Models.ViewModels.Home;
 using AIVS.Models.ViewModels.UserManagement;
 using AIVS.Services.Interface;
+using AIVS.Security;
 using Microsoft.EntityFrameworkCore;
 
 namespace AIVS.Services.Implementations
@@ -9,23 +10,24 @@ namespace AIVS.Services.Implementations
     public class HomeDashboardService : IHomeDashboardService
     {
         private readonly AttributesDbContext _context;
+        private readonly IAivsRoleAccessService _roleAccess;
 
-        public HomeDashboardService(AttributesDbContext context)
+        public HomeDashboardService(AttributesDbContext context, IAivsRoleAccessService roleAccess)
         {
             _context = context;
+            _roleAccess = roleAccess;
         }
 
         public async Task<AivsHomeDashboardVm> BuildDashboardAsync(
             AivsCurrentUserVm currentUser,
             string? selectedValuerUserId)
         {
-            var role = Clean(currentUser.Role);
             var sector = Clean(currentUser.Sector);
             var userId = currentUser.UserId?.ToString();
 
-            var isValuer = IsValuerRole(role);
-            var isManager = IsManagerRole(role);
-            var isExecutive = IsExecutiveRole(role);
+            var isValuer = _roleAccess.IsValuer(currentUser);
+            var isManager = _roleAccess.IsSectorManager(currentUser) || _roleAccess.IsSeniorManager(currentUser);
+            var isExecutive = _roleAccess.IsLeadership(currentUser) || _roleAccess.IsAdministrator(currentUser);
 
             var query = _context.AttrPropertyInfo
                 .AsNoTracking()
@@ -102,14 +104,20 @@ namespace AIVS.Services.Implementations
             }
             else if (isManager)
             {
-                model.DashboardTitle = "Sector Manager Dashboard";
+                model.DashboardTitle = _roleAccess.IsSeniorManager(currentUser)
+                    ? "Senior Manager Dashboard"
+                    : "Sector Manager Dashboard";
                 model.DashboardScope = string.IsNullOrWhiteSpace(currentUser.Sector)
                     ? "No sector linked to your profile"
                     : $"Sector: {currentUser.Sector}";
             }
             else if (isExecutive)
             {
-                model.DashboardTitle = "Executive System Dashboard";
+                model.DashboardTitle = _roleAccess.NormalizeRole(currentUser.Role) == "DEPUTY DIRECTOR"
+                    ? "Deputy Director Dashboard"
+                    : _roleAccess.IsAdministrator(currentUser)
+                        ? "AIVS Administration Dashboard"
+                        : "Executive System Dashboard";
                 model.DashboardScope = "All sectors";
             }
             else
@@ -126,28 +134,6 @@ namespace AIVS.Services.Implementations
             PopulateRecentItems(model, rows);
 
             return model;
-        }
-        private static bool IsValuerRole(string role)
-        {
-            return role == "VALUER";
-        }
-
-        private static bool IsManagerRole(string role)
-        {
-            return role == "SECTOR MANAGER" ||
-                   role == "AREA MANAGER" ||
-                   role == "OPERATIONAL MANAGER";
-        }
-
-        private static bool IsExecutiveRole(string role)
-        {
-            return role == "EXECUTIVE" ||
-                   role == "SYSTEM ADMIN" ||
-                   role == "VALUATION ADMIN" ||
-                   role == "ADMIN" ||
-                   role == "ADMINISTRATOR" ||
-                   role == "IT MANAGER" ||
-                   role == "MANAGER";
         }
         private static void PopulateMainCounts(
             AivsHomeDashboardVm model,
@@ -166,6 +152,7 @@ namespace AIVS.Services.Implementations
 
             model.ReturnedToClient = CountStatus(rows, "ReturnedToClient");
             model.ReadyForOvvioExtract = CountStatus(rows, "ReadyForOvvioExtract");
+            model.SeniorManagerQa = CountStatus(rows, "SeniorManagerQa");
             model.Rejected = CountStatus(rows, "Rejected");
 
             model.Withdrawn = rows.Count(x => x.IsWithdrawn);
@@ -188,6 +175,7 @@ namespace AIVS.Services.Implementations
                 new() { Title = "Inspection Required", Count = model.InspectionRequired, CssClass = "tile-inspection" },
                 new() { Title = "Inspection Confirmed", Count = model.InspectionConfirmed, CssClass = "tile-confirmed" },
                 new() { Title = "Ready for OVVIO", Count = model.ReadyForOvvioExtract, CssClass = "tile-ovvio" },
+                new() { Title = "Senior Manager QA", Count = model.SeniorManagerQa, CssClass = "tile-review" },
                 new() { Title = "Returned", Count = model.ReturnedToClient, CssClass = "tile-returned" },
                 new() { Title = "Rejected", Count = model.Rejected, CssClass = "tile-rejected" }
             };

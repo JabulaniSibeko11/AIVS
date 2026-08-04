@@ -52,7 +52,9 @@ namespace AIVS.Services.Implementations
                 .AsNoTracking()
                 .Where(x =>
                     x.IsActive == true &&
+                    x.IsWithdrawn != true &&
                     x.Attr_Status == "SectorInbox" &&
+                    (x.Task_Assigned_To_UserId == null || x.Task_Assigned_To_UserId == "") &&
                     x.RoutedSector != null)
                 .GroupBy(x => x.RoutedSector!.Trim())
                 .Select(g => new
@@ -86,7 +88,9 @@ namespace AIVS.Services.Implementations
                 .Include(x => x.PropertyDetails)
                 .Where(x =>
                     x.IsActive == true &&
+                    x.IsWithdrawn != true &&
                     x.Attr_Status == "SectorInbox" &&
+                    (x.Task_Assigned_To_UserId == null || x.Task_Assigned_To_UserId == "") &&
                     x.RoutedSector != null &&
                     x.RoutedSector.Trim().ToUpper() == cleanedSector)
                 .OrderBy(x => x.RoutedToSectorDateTime)
@@ -120,32 +124,48 @@ namespace AIVS.Services.Implementations
             await using var transaction = await _context.Database.BeginTransactionAsync();
 
             var items = await _context.AttrPropertyInfo
+                .AsNoTracking()
                 .Where(x =>
                     attrIds.Contains(x.Attr_ID) &&
-                    x.IsActive == true)
+                    x.IsActive == true &&
+                    x.IsWithdrawn != true &&
+                    x.Attr_Status == "SectorInbox" &&
+                    (x.Task_Assigned_To_UserId == null || x.Task_Assigned_To_UserId == ""))
                 .ToListAsync();
 
-            if (!items.Any())
-                throw new InvalidOperationException("No valid attribute submissions were found.");
-
-            var invalidItems = items
-                .Where(x => x.Attr_Status != "SectorInbox")
-                .ToList();
-
-            if (invalidItems.Any())
+            if (items.Count != attrIds.Count)
                 throw new InvalidOperationException("Some selected items are no longer in Sector Inbox. Refresh the page and try again.");
 
-            var alreadyAssignedAttrIds = await _context.AttrValuerAssignments
-                .Where(x =>
-                    attrIds.Contains(x.Attr_ID) &&
-                    x.AssignmentStatus == "Active")
-                .Select(x => x.Attr_ID)
-                .ToListAsync();
+            var hasActiveAssignment = await _context.AttrValuerAssignments
+                .AnyAsync(x => attrIds.Contains(x.Attr_ID) && x.AssignmentStatus == "Active");
 
-            if (alreadyAssignedAttrIds.Any())
-                throw new InvalidOperationException("Some selected items are already assigned. Refresh the page and try again.");
+            if (hasActiveAssignment)
+                throw new InvalidOperationException("Some selected items already have an active assignment. Refresh the page and try again.");
 
             var now = DateTime.Now;
+
+            var claimedCount = await _context.AttrPropertyInfo
+                .Where(x =>
+                    attrIds.Contains(x.Attr_ID) &&
+                    x.IsActive == true &&
+                    x.IsWithdrawn != true &&
+                    x.Attr_Status == "SectorInbox" &&
+                    (x.Task_Assigned_To_UserId == null || x.Task_Assigned_To_UserId == ""))
+                .ExecuteUpdateAsync(update => update
+                    .SetProperty(x => x.Task_Assigned_To_UserId, userId.ToString())
+                    .SetProperty(x => x.Task_Assigned_To, fullName)
+                    .SetProperty(x => x.Task_Assigned_DateTime, now)
+                    .SetProperty(x => x.Task_Assigner, fullName)
+                    .SetProperty(x => x.TaskAssignerComment, "User claimed selected items from the shared Sector Inbox.")
+                    .SetProperty(x => x.Attr_Status, "Claimed")
+                    .SetProperty(x => x.UpdatedBy, username)
+                    .SetProperty(x => x.UpdatedDate, now));
+
+            if (claimedCount != attrIds.Count)
+            {
+                await transaction.RollbackAsync();
+                throw new InvalidOperationException("Another user claimed one or more selected items. Refresh the page and try again.");
+            }
 
             var result = new SectorAssignmentResultVm
             {
@@ -181,16 +201,6 @@ namespace AIVS.Services.Implementations
                     CreatedBy = username,
                     CreatedDate = now
                 });
-
-                item.Task_Assigned_To_UserId = userId.ToString();
-                item.Task_Assigned_To = fullName;
-                item.Task_Assigned_DateTime = now;
-                item.Task_Assigner = fullName;
-                item.TaskAssignerComment = "Valuer assigned selected items to themselves from Sector Inbox.";
-
-                item.Attr_Status = "Claimed";
-                item.UpdatedBy = username;
-                item.UpdatedDate = now;
 
                 _context.AttrPropertyInfoAuditTrail.Add(new AttrPropertyInfoAuditTrail
                 {
@@ -237,28 +247,48 @@ namespace AIVS.Services.Implementations
             await using var transaction = await _context.Database.BeginTransactionAsync();
 
             var items = await _context.AttrPropertyInfo
+                .AsNoTracking()
                 .Where(x =>
                     attrIds.Contains(x.Attr_ID) &&
-                    x.IsActive == true)
+                    x.IsActive == true &&
+                    x.IsWithdrawn != true &&
+                    x.Attr_Status == "SectorInbox" &&
+                    (x.Task_Assigned_To_UserId == null || x.Task_Assigned_To_UserId == ""))
                 .ToListAsync();
 
-            if (!items.Any())
-                throw new InvalidOperationException("No valid attribute submissions were found.");
-
-            if (items.Any(x => x.Attr_Status != "SectorInbox"))
+            if (items.Count != attrIds.Count)
                 throw new InvalidOperationException("Some selected items are no longer in Sector Inbox. Refresh the page and try again.");
 
-            var alreadyAssignedAttrIds = await _context.AttrValuerAssignments
-                .Where(x =>
-                    attrIds.Contains(x.Attr_ID) &&
-                    x.AssignmentStatus == "Active")
-                .Select(x => x.Attr_ID)
-                .ToListAsync();
+            var hasActiveAssignment = await _context.AttrValuerAssignments
+                .AnyAsync(x => attrIds.Contains(x.Attr_ID) && x.AssignmentStatus == "Active");
 
-            if (alreadyAssignedAttrIds.Any())
-                throw new InvalidOperationException("Some selected items are already assigned. Refresh the page and try again.");
+            if (hasActiveAssignment)
+                throw new InvalidOperationException("Some selected items already have an active assignment. Refresh the page and try again.");
 
             var now = DateTime.Now;
+
+            var assignedCount = await _context.AttrPropertyInfo
+                .Where(x =>
+                    attrIds.Contains(x.Attr_ID) &&
+                    x.IsActive == true &&
+                    x.IsWithdrawn != true &&
+                    x.Attr_Status == "SectorInbox" &&
+                    (x.Task_Assigned_To_UserId == null || x.Task_Assigned_To_UserId == ""))
+                .ExecuteUpdateAsync(update => update
+                    .SetProperty(x => x.Task_Assigned_To_UserId, valuerUserId.ToString())
+                    .SetProperty(x => x.Task_Assigned_To, valuerFullName)
+                    .SetProperty(x => x.Task_Assigned_DateTime, now)
+                    .SetProperty(x => x.Task_Assigner, managerFullName)
+                    .SetProperty(x => x.TaskAssignerComment, $"Assigned to {valuerFullName} from the shared Sector Inbox.")
+                    .SetProperty(x => x.Attr_Status, "Claimed")
+                    .SetProperty(x => x.UpdatedBy, managerUsername)
+                    .SetProperty(x => x.UpdatedDate, now));
+
+            if (assignedCount != attrIds.Count)
+            {
+                await transaction.RollbackAsync();
+                throw new InvalidOperationException("Another user claimed one or more selected items. Refresh the page and try again.");
+            }
 
             var result = new SectorAssignmentResultVm
             {
@@ -295,16 +325,6 @@ namespace AIVS.Services.Implementations
                     CreatedDate = now
                 });
 
-                item.Task_Assigned_To_UserId = valuerUserId.ToString();
-                item.Task_Assigned_To = valuerFullName;
-                item.Task_Assigned_DateTime = now;
-                item.Task_Assigner = managerFullName;
-                item.TaskAssignerComment = $"Sector Manager assigned selected items to {valuerFullName}.";
-
-                item.Attr_Status = "Claimed";
-                item.UpdatedBy = managerUsername;
-                item.UpdatedDate = now;
-
                 _context.AttrPropertyInfoAuditTrail.Add(new AttrPropertyInfoAuditTrail
                 {
                     Attr_ID = item.Attr_ID,
@@ -330,6 +350,6 @@ namespace AIVS.Services.Implementations
 
             return result;
         }
-     
+
     }
 }

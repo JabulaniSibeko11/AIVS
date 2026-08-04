@@ -56,6 +56,7 @@
                             <th>Submitted</th>
                             <th>Week</th>
                             <th>Status</th>
+                            <th>Assigned Manager</th>
                             <th></th>
                         </tr>
                     </thead>
@@ -78,13 +79,30 @@
                                 <td>
                                     <span class="smqa-badge">@item.StatusDisplay</span>
                                 </td>
+                                <td>@Display(item.SectorManagerName)</td>
                                 <td>
-                                    <a class="smqa-btn"
-                                           asp-controller="SectorManagerQa"
-                                           asp-action="Details"
-                                           asp-route-id="@item.QaId">
-                                        QA Review
-                                    </a>
+                                    @if (item.CanClaim)
+                                    {
+                                        <form method="post"
+                                              asp-controller="SectorManagerQa"
+                                              asp-action="Claim"
+                                              asp-route-id="@item.QaId">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="smqa-btn"
+                                                    onclick="return confirm('Assign this QA item to yourself?');">
+                                                Claim QA
+                                            </button>
+                                        </form>
+                                    }
+                                    else if (item.IsAssignedToMe)
+                                    {
+                                        <a class="smqa-btn"
+                                               asp-controller="SectorManagerQa"
+                                               asp-action="Details"
+                                               asp-route-id="@item.QaId">
+                                            Continue QA
+                                        </a>
+                                    }
                                 </td>
                             </tr>
                         }

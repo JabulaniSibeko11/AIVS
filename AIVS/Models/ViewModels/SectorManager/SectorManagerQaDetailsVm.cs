@@ -22,6 +22,14 @@ namespace AIVS.Models.ViewModels.SectorManager
 
         public string? QaStatus { get; set; }
 
+        public string? SectorManagerName { get; set; }
+
+        public string? SectorManagerComment { get; set; }
+
+        public DateTime? SectorManagerCompletedAt { get; set; }
+
+        public string? SeniorQaStatus { get; set; }
+
         public string? SelectionReason { get; set; }
 
         public DateTime QaWeekStartDate { get; set; }

@@ -2,9 +2,11 @@
 using AIVS.Models.Attributes;
 using AIVS.Models.Configuration;
 using AIVS.Models.ViewModels.SectorManager;
+using AIVS.Models.ViewModels.SeniorManager;
 using AIVS.Models.ViewModels.UserManagement;
 using AIVS.Models.ViewModels.ValuerInbox;
 using AIVS.Services.Interface;
+using AIVS.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -18,6 +20,7 @@ namespace AIVS.Services.Implementations
         private readonly INotificationService _notificationService;
         private readonly IEmailService _emailService;
         private readonly AttributeStorageSettings _storageSettings;
+        private readonly IAivsRoleAccessService _roleAccess;
 
         public SectorManagerQaService(
             AttributesDbContext context,
@@ -25,7 +28,8 @@ namespace AIVS.Services.Implementations
             IValuerReviewPdfService valuerReviewPdfService,
             INotificationService notificationService,
             IEmailService emailService,
-            IOptions<AttributeStorageSettings> storageSettings)
+            IOptions<AttributeStorageSettings> storageSettings,
+            IAivsRoleAccessService roleAccess)
         {
             _context = context;
             _logger = logger;
@@ -33,14 +37,13 @@ namespace AIVS.Services.Implementations
             _notificationService = notificationService;
             _emailService = emailService;
             _storageSettings = storageSettings.Value;
+            _roleAccess = roleAccess;
         }
 
         public async Task<List<SectorManagerQaInboxItemVm>> GetInboxAsync(AivsCurrentUserVm currentUser)
         {
             if (currentUser.UserId == null)
                 return new List<SectorManagerQaInboxItemVm>();
-
-            var sector = currentUser.Sector?.Trim();
 
             var query =
                 from qa in _context.AttrSectorManagerQaReviews.AsNoTracking()
@@ -51,18 +54,14 @@ namespace AIVS.Services.Implementations
                 from details in detailsJoin.DefaultIfEmpty()
                 where item.IsActive == true
                       && item.Attr_Status == "SectorManagerQa"
-                      && qa.QaStatus == "Pending"
+                      && (qa.QaStatus == "Pending" || qa.QaStatus == "InProgress")
+                      && (qa.SectorManagerUserId == null || qa.SectorManagerUserId == currentUser.UserId.Value)
                 select new
                 {
                     Qa = qa,
                     Item = item,
                     Details = details
                 };
-
-            if (!IsExecutiveOrAdmin(currentUser) && !string.IsNullOrWhiteSpace(sector))
-            {
-                query = query.Where(x => x.Qa.Sector == sector || x.Item.RoutedSector == sector);
-            }
 
             return await query
                 .OrderBy(x => x.Qa.ValuerSubmittedAt)
@@ -80,9 +79,40 @@ namespace AIVS.Services.Implementations
                     QaStatus = x.Qa.QaStatus,
                     SelectionReason = x.Qa.SelectionReason,
                     QaWeekStartDate = x.Qa.QaWeekStartDate,
-                    QaWeekEndDate = x.Qa.QaWeekEndDate
+                    QaWeekEndDate = x.Qa.QaWeekEndDate,
+                    SectorManagerUserId = x.Qa.SectorManagerUserId,
+                    SectorManagerName = x.Qa.SectorManagerName,
+                    CanClaim = x.Qa.SectorManagerUserId == null,
+                    IsAssignedToMe = x.Qa.SectorManagerUserId == currentUser.UserId.Value
                 })
                 .ToListAsync();
+        }
+
+        public async Task ClaimAsync(long qaId, AivsCurrentUserVm currentUser)
+        {
+            if (currentUser.UserId == null)
+                throw new InvalidOperationException("Your AIVS user could not be verified.");
+
+            var now = DateTime.Now;
+            var username = currentUser.Username ?? currentUser.WindowsUsername ?? currentUser.FullName ?? "AIVS";
+
+            var claimed = await _context.AttrSectorManagerQaReviews
+                .Where(x =>
+                    x.Id == qaId &&
+                    x.QaStatus == "Pending" &&
+                    x.SectorManagerUserId == null)
+                .ExecuteUpdateAsync(update => update
+                    .SetProperty(x => x.SectorManagerUserId, currentUser.UserId.Value)
+                    .SetProperty(x => x.SectorManagerUsername, currentUser.Username ?? currentUser.WindowsUsername)
+                    .SetProperty(x => x.SectorManagerName, currentUser.FullName)
+                    .SetProperty(x => x.SectorManagerEmail, currentUser.Email)
+                    .SetProperty(x => x.QaStatus, "InProgress")
+                    .SetProperty(x => x.QaStartedAt, now)
+                    .SetProperty(x => x.UpdatedBy, username)
+                    .SetProperty(x => x.UpdatedDate, now));
+
+            if (claimed != 1)
+                throw new InvalidOperationException("This QA item has already been claimed by another Sector Manager.");
         }
 
         public async Task<SectorManagerQaDetailsVm> GetDetailsAsync(long qaId, AivsCurrentUserVm currentUser)
@@ -97,6 +127,11 @@ namespace AIVS.Services.Implementations
             if (qa == null)
                 throw new InvalidOperationException("Sector Manager QA record could not be found.");
 
+            if (_roleAccess.IsSeniorManager(currentUser))
+                EnsureSeniorQaAssignment(qa, currentUser);
+            else
+                EnsureQaAssignment(qa, currentUser);
+
             var item = await _context.AttrPropertyInfo
                 .AsNoTracking()
                 .Include(x => x.PropertyDetails)
@@ -106,8 +141,6 @@ namespace AIVS.Services.Implementations
 
             if (item == null)
                 throw new InvalidOperationException("Attribute submission could not be found.");
-
-            EnsureSectorAccess(item.RoutedSector, currentUser);
 
             if (qa.ValuerReviewId == null)
                 throw new InvalidOperationException("Valuer review could not be found for this QA record.");
@@ -149,7 +182,11 @@ namespace AIVS.Services.Implementations
                 Township = item.PropertyDetails?.Township,
                 Sector = item.RoutedSector,
                 CurrentStatus = item.Attr_Status,
-                QaStatus = qa.QaStatus,
+                QaStatus = _roleAccess.IsSeniorManager(currentUser) ? qa.SeniorQaStatus : qa.QaStatus,
+                SectorManagerName = qa.SectorManagerName,
+                SectorManagerComment = qa.QaComment,
+                SectorManagerCompletedAt = qa.QaCompletedAt,
+                SeniorQaStatus = qa.SeniorQaStatus,
                 SelectionReason = qa.SelectionReason,
                 QaWeekStartDate = qa.QaWeekStartDate,
                 QaWeekEndDate = qa.QaWeekEndDate,
@@ -182,6 +219,8 @@ namespace AIVS.Services.Implementations
             if (qa == null)
                 throw new InvalidOperationException("Sector Manager QA record could not be found.");
 
+            EnsureQaAssignment(qa, currentUser);
+
             if (!string.Equals(qa.QaStatus, "Pending", StringComparison.OrdinalIgnoreCase) &&
                 !string.Equals(qa.QaStatus, "InProgress", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("This QA record has already been completed.");
@@ -194,8 +233,6 @@ namespace AIVS.Services.Implementations
 
             if (item == null)
                 throw new InvalidOperationException("Attribute submission could not be found.");
-
-            EnsureSectorAccess(item.RoutedSector, currentUser);
 
             if (!string.Equals(item.Attr_Status, "SectorManagerQa", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("This submission is not waiting for Sector Manager QA.");
@@ -220,6 +257,15 @@ namespace AIVS.Services.Implementations
             qa.QaComment = comment;
             qa.QaStartedAt ??= now;
             qa.QaCompletedAt = now;
+            qa.SeniorQaStatus = "Pending";
+            qa.SeniorManagerUserId = null;
+            qa.SeniorManagerUsername = null;
+            qa.SeniorManagerName = null;
+            qa.SeniorManagerEmail = null;
+            qa.SeniorQaDecision = null;
+            qa.SeniorQaComment = null;
+            qa.SeniorQaStartedAt = null;
+            qa.SeniorQaCompletedAt = null;
             qa.SectorManagerUserId = currentUser.UserId.Value;
             qa.SectorManagerUsername = currentUser.Username ?? currentUser.WindowsUsername;
             qa.SectorManagerName = currentUser.FullName;
@@ -227,16 +273,16 @@ namespace AIVS.Services.Implementations
             qa.UpdatedBy = currentUserName;
             qa.UpdatedDate = now;
 
-            review.ReviewStatus = "Completed";
-            review.ReadyForOvvioExtract = true;
+            review.ReviewStatus = "SubmittedForSeniorManagerQa";
+            review.ReadyForOvvioExtract = false;
             review.ReturnToClient = false;
             review.RequiresInspection = false;
             review.UpdatedBy = currentUserName;
             review.UpdatedDate = now;
 
-            item.Attr_Status = "ReadyForOvvioExtract";
-            item.ReadyForOvvioExtract = true;
-            item.OvvioExtractStatus = "Pending";
+            item.Attr_Status = "SeniorManagerQa";
+            item.ReadyForOvvioExtract = false;
+            item.OvvioExtractStatus = null;
             item.OvvioExtractBatchNo = null;
             item.OvvioExtractDateTime = null;
             item.OvvioExtractedBy = null;
@@ -255,9 +301,9 @@ namespace AIVS.Services.Implementations
             {
                 Attr_ID = item.Attr_ID,
                 Attr_No = item.Attr_No,
-                Action = "Sector Manager Approved for OVVIO",
+                Action = "Sector Manager Submitted for Senior Manager QA",
                 OldStatus = oldStatus,
-                NewStatus = "ReadyForOvvioExtract",
+                NewStatus = "SeniorManagerQa",
                 ActionByUserId = currentUserId,
                 ActionByName = currentUser.FullName,
                 ActionRole = currentUser.Role ?? "Sector Manager",
@@ -294,7 +340,17 @@ namespace AIVS.Services.Implementations
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            await NotifyAndEmailAfterSectorApprovalAsync(item, comment, currentUser);
+            await _notificationService.CreateNotificationAsync(
+                null,
+                null,
+                "SENIOR MANAGER",
+                "Senior Manager QA required",
+                $"{item.Attr_No} was approved by the Sector Manager and is waiting for Senior Manager QA.",
+                "SeniorManagerQa",
+                item.Attr_ID,
+                item.Attr_No,
+                qa.Id,
+                currentUser.FullName);
         }
 
         public async Task ReturnToValuerAsync(SectorManagerQaDecisionVm vm, AivsCurrentUserVm currentUser)
@@ -313,6 +369,8 @@ namespace AIVS.Services.Implementations
             if (qa == null)
                 throw new InvalidOperationException("Sector Manager QA record could not be found.");
 
+            EnsureQaAssignment(qa, currentUser);
+
             if (!string.Equals(qa.QaStatus, "Pending", StringComparison.OrdinalIgnoreCase) &&
                 !string.Equals(qa.QaStatus, "InProgress", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("This QA record has already been completed.");
@@ -324,8 +382,6 @@ namespace AIVS.Services.Implementations
 
             if (item == null)
                 throw new InvalidOperationException("Attribute submission could not be found.");
-
-            EnsureSectorAccess(item.RoutedSector, currentUser);
 
             if (!string.Equals(item.Attr_Status, "SectorManagerQa", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("This submission is not waiting for Sector Manager QA.");
@@ -412,6 +468,221 @@ namespace AIVS.Services.Implementations
                 currentUser.FullName);
         }
 
+        public async Task<List<SeniorManagerQaInboxItemVm>> GetSeniorManagerInboxAsync(AivsCurrentUserVm currentUser)
+        {
+            if (currentUser.UserId == null)
+                return new List<SeniorManagerQaInboxItemVm>();
+
+            return await (
+                from qa in _context.AttrSectorManagerQaReviews.AsNoTracking()
+                join item in _context.AttrPropertyInfo.AsNoTracking() on qa.Attr_ID equals item.Attr_ID
+                join details in _context.AttrPropertyDetails.AsNoTracking()
+                    on item.Attr_ID equals details.Id into detailsJoin
+                from details in detailsJoin.DefaultIfEmpty()
+                where item.IsActive == true
+                      && item.Attr_Status == "SeniorManagerQa"
+                      && qa.QaStatus == "Approved"
+                      && (qa.SeniorQaStatus == "Pending" || qa.SeniorQaStatus == "InProgress")
+                      && (qa.SeniorManagerUserId == null || qa.SeniorManagerUserId == currentUser.UserId.Value)
+                orderby qa.QaCompletedAt
+                select new SeniorManagerQaInboxItemVm
+                {
+                    QaId = qa.Id,
+                    AttrId = item.Attr_ID,
+                    AttrNo = item.Attr_No,
+                    PropertyDescription = item.Property_Desc,
+                    Township = details == null ? null : details.Township,
+                    Sector = item.RoutedSector,
+                    ValuerName = qa.ValuerName,
+                    SectorManagerName = qa.SectorManagerName,
+                    SectorManagerCompletedAt = qa.QaCompletedAt,
+                    SeniorQaStatus = qa.SeniorQaStatus,
+                    SeniorManagerUserId = qa.SeniorManagerUserId,
+                    SeniorManagerName = qa.SeniorManagerName,
+                    CanClaim = qa.SeniorManagerUserId == null,
+                    IsAssignedToMe = qa.SeniorManagerUserId == currentUser.UserId.Value
+                }).ToListAsync();
+        }
+
+        public async Task ClaimSeniorManagerQaAsync(long qaId, AivsCurrentUserVm currentUser)
+        {
+            if (currentUser.UserId == null)
+                throw new InvalidOperationException("Your AIVS user could not be verified.");
+
+            var now = DateTime.Now;
+            var username = CurrentUserName(currentUser);
+            var claimed = await _context.AttrSectorManagerQaReviews
+                .Where(x =>
+                    x.Id == qaId &&
+                    x.QaStatus == "Approved" &&
+                    x.SeniorQaStatus == "Pending" &&
+                    x.SeniorManagerUserId == null)
+                .ExecuteUpdateAsync(update => update
+                    .SetProperty(x => x.SeniorManagerUserId, currentUser.UserId.Value)
+                    .SetProperty(x => x.SeniorManagerUsername, currentUser.Username ?? currentUser.WindowsUsername)
+                    .SetProperty(x => x.SeniorManagerName, currentUser.FullName)
+                    .SetProperty(x => x.SeniorManagerEmail, currentUser.Email)
+                    .SetProperty(x => x.SeniorQaStatus, "InProgress")
+                    .SetProperty(x => x.SeniorQaStartedAt, now)
+                    .SetProperty(x => x.UpdatedBy, username)
+                    .SetProperty(x => x.UpdatedDate, now));
+
+            if (claimed != 1)
+                throw new InvalidOperationException("This Senior Manager QA item has already been claimed.");
+        }
+
+        public Task<SectorManagerQaDetailsVm> GetSeniorManagerDetailsAsync(
+            long qaId,
+            AivsCurrentUserVm currentUser) => GetDetailsAsync(qaId, currentUser);
+
+        public async Task ApproveSeniorManagerQaAsync(
+            SeniorManagerQaDecisionVm vm,
+            AivsCurrentUserVm currentUser)
+        {
+            if (currentUser.UserId == null)
+                throw new InvalidOperationException("Your AIVS user could not be verified.");
+            if (string.IsNullOrWhiteSpace(vm.Comment))
+                throw new InvalidOperationException("Please enter the Senior Manager QA approval comment.");
+
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            var qa = await _context.AttrSectorManagerQaReviews
+                .FirstOrDefaultAsync(x => x.Id == vm.QaId && x.Attr_ID == vm.AttrId)
+                ?? throw new InvalidOperationException("Senior Manager QA record could not be found.");
+
+            EnsureSeniorQaAssignment(qa, currentUser);
+            if (qa.SeniorQaStatus != "InProgress")
+                throw new InvalidOperationException("This Senior Manager QA record is no longer available.");
+
+            var item = await _context.AttrPropertyInfo
+                .Include(x => x.PropertyDetails)
+                .FirstOrDefaultAsync(x => x.Attr_ID == vm.AttrId && x.IsActive == true)
+                ?? throw new InvalidOperationException("Attribute submission could not be found.");
+
+            if (item.Attr_Status != "SeniorManagerQa")
+                throw new InvalidOperationException("This submission is not waiting for Senior Manager QA.");
+
+            var review = qa.ValuerReviewId == null ? null : await _context.AttrValuerReviews
+                .FirstOrDefaultAsync(x => x.Id == qa.ValuerReviewId.Value);
+            if (review == null)
+                throw new InvalidOperationException("Valuer review could not be found.");
+
+            var now = DateTime.Now;
+            var username = CurrentUserName(currentUser);
+            var comment = vm.Comment.Trim();
+            var oldStatus = item.Attr_Status;
+
+            qa.SeniorQaStatus = "Approved";
+            qa.SeniorQaDecision = "ApproveToOvvio";
+            qa.SeniorQaComment = comment;
+            qa.SeniorQaCompletedAt = now;
+            qa.UpdatedBy = username;
+            qa.UpdatedDate = now;
+
+            review.ReviewStatus = "Completed";
+            review.ReadyForOvvioExtract = true;
+            review.UpdatedBy = username;
+            review.UpdatedDate = now;
+
+            item.Attr_Status = "ReadyForOvvioExtract";
+            item.ReadyForOvvioExtract = true;
+            item.OvvioExtractStatus = "Pending";
+            item.UpdatedBy = username;
+            item.UpdatedDate = now;
+
+            _context.AttrPropertyInfoAuditTrail.Add(new AttrPropertyInfoAuditTrail
+            {
+                Attr_ID = item.Attr_ID,
+                Attr_No = item.Attr_No,
+                Action = "Senior Manager Approved for OVVIO",
+                OldStatus = oldStatus,
+                NewStatus = "ReadyForOvvioExtract",
+                ActionByUserId = currentUser.UserId.Value.ToString(),
+                ActionByName = currentUser.FullName,
+                ActionRole = currentUser.Role ?? "Senior Manager",
+                Comment = comment,
+                ActionDateTime = now
+            });
+
+            await _context.SaveChangesAsync();
+            var pdfPath = await _valuerReviewPdfService.GenerateReviewedFormPdfAsync(review.Id, currentUser);
+            item.ValuerEvidencePath = pdfPath;
+            qa.ReviewedPdfPathAfterQa = pdfPath;
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            await NotifyAndEmailAfterSeniorApprovalAsync(item, comment, currentUser);
+        }
+
+        public async Task ReturnToSectorManagerAsync(
+            SeniorManagerQaDecisionVm vm,
+            AivsCurrentUserVm currentUser)
+        {
+            if (currentUser.UserId == null)
+                throw new InvalidOperationException("Your AIVS user could not be verified.");
+            if (string.IsNullOrWhiteSpace(vm.Comment))
+                throw new InvalidOperationException("Please enter the reason for returning this QA review.");
+
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            var qa = await _context.AttrSectorManagerQaReviews
+                .FirstOrDefaultAsync(x => x.Id == vm.QaId && x.Attr_ID == vm.AttrId)
+                ?? throw new InvalidOperationException("Senior Manager QA record could not be found.");
+
+            EnsureSeniorQaAssignment(qa, currentUser);
+            var item = await _context.AttrPropertyInfo
+                .FirstOrDefaultAsync(x => x.Attr_ID == vm.AttrId && x.IsActive == true)
+                ?? throw new InvalidOperationException("Attribute submission could not be found.");
+
+            var now = DateTime.Now;
+            var username = CurrentUserName(currentUser);
+            var comment = vm.Comment.Trim();
+
+            qa.SeniorQaStatus = "ReturnedToSectorManager";
+            qa.SeniorQaDecision = "ReturnToSectorManager";
+            qa.SeniorQaComment = comment;
+            qa.SeniorQaCompletedAt = now;
+            qa.QaStatus = "InProgress";
+            qa.QaDecision = "ReturnedBySeniorManager";
+            qa.QaComment = comment;
+            qa.QaCompletedAt = null;
+            qa.UpdatedBy = username;
+            qa.UpdatedDate = now;
+
+            item.Attr_Status = "SectorManagerQa";
+            item.ReadyForOvvioExtract = false;
+            item.OvvioExtractStatus = null;
+            item.UpdatedBy = username;
+            item.UpdatedDate = now;
+
+            _context.AttrPropertyInfoAuditTrail.Add(new AttrPropertyInfoAuditTrail
+            {
+                Attr_ID = item.Attr_ID,
+                Attr_No = item.Attr_No,
+                Action = "Senior Manager Returned to Sector Manager",
+                OldStatus = "SeniorManagerQa",
+                NewStatus = "SectorManagerQa",
+                ActionByUserId = currentUser.UserId.Value.ToString(),
+                ActionByName = currentUser.FullName,
+                ActionRole = currentUser.Role ?? "Senior Manager",
+                Comment = comment,
+                ActionDateTime = now
+            });
+
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            await _notificationService.CreateNotificationAsync(
+                qa.SectorManagerUserId,
+                qa.SectorManagerUsername,
+                "SECTOR MANAGER",
+                "Returned by Senior Manager",
+                $"{item.Attr_No} was returned for Sector Manager QA correction.",
+                "SectorManagerQa",
+                item.Attr_ID,
+                item.Attr_No,
+                qa.Id,
+                currentUser.FullName);
+        }
+
         private async Task NotifyAndEmailAfterSectorApprovalAsync(
             AttrPropertyInfo item,
             string comment,
@@ -458,44 +729,66 @@ namespace AIVS.Services.Implementations
             }
         }
 
-        private void EnsureSectorAccess(string? itemSector, AivsCurrentUserVm currentUser)
+        private void EnsureQaAssignment(AttrSectorManagerQaReview qa, AivsCurrentUserVm currentUser)
         {
-            if (IsExecutiveOrAdmin(currentUser))
+            if (_roleAccess.IsAdministrator(currentUser))
                 return;
 
-            var userSector = currentUser.Sector?.Trim();
-
-            if (string.IsNullOrWhiteSpace(userSector))
-                throw new InvalidOperationException("Your sector could not be resolved from User Management.");
-
-            if (!string.Equals(userSector, itemSector?.Trim(), StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("This QA record does not belong to your sector.");
+            if (currentUser.UserId == null || qa.SectorManagerUserId != currentUser.UserId.Value)
+                throw new InvalidOperationException("Claim this QA item before opening or processing it.");
         }
 
-        private static bool IsExecutiveOrAdmin(AivsCurrentUserVm currentUser)
+        private void EnsureSeniorQaAssignment(AttrSectorManagerQaReview qa, AivsCurrentUserVm currentUser)
         {
-            var role = NormalizeRole(currentUser.Role);
+            if (_roleAccess.IsAdministrator(currentUser))
+                return;
 
-            return role == "EXECUTIVE" ||
-                   role == "SYSTEM ADMIN" ||
-                   role == "VALUATION ADMIN" ||
-                   role == "ADMIN" ||
-                   role == "ADMINISTRATOR" ||
-                   role == "IT MANAGER";
+            if (currentUser.UserId == null || qa.SeniorManagerUserId != currentUser.UserId.Value)
+                throw new InvalidOperationException("Claim this Senior Manager QA item before opening or processing it.");
         }
 
-        private static string NormalizeRole(string? role)
+        private async Task NotifyAndEmailAfterSeniorApprovalAsync(
+            AttrPropertyInfo item,
+            string comment,
+            AivsCurrentUserVm currentUser)
         {
-            if (string.IsNullOrWhiteSpace(role))
-                return string.Empty;
+            try
+            {
+                var contact = item.PropertyDetails == null
+                    ? null
+                    : await _context.AttrContactInfo.AsNoTracking()
+                        .Where(x => x.PropertyDetailsId == item.PropertyDetails.Id)
+                        .OrderBy(x => x.Id)
+                        .FirstOrDefaultAsync();
 
-            return role
-                .Replace('\u00A0', ' ')
-                .Replace("\t", " ")
-                .Replace("\r", " ")
-                .Replace("\n", " ")
-                .Trim()
-                .ToUpperInvariant();
+                if (contact != null && !string.IsNullOrWhiteSpace(contact.Email))
+                {
+                    await _emailService.SendAcceptedEmailAsync(
+                        contact.Email,
+                        BuildClientName(contact),
+                        item.Attr_No ?? "-",
+                        item.Property_Desc,
+                        comment);
+                }
+
+                await _notificationService.CreateNotificationAsync(
+                    currentUser.UserId,
+                    currentUser.Username ?? currentUser.WindowsUsername,
+                    currentUser.Role,
+                    "Senior Manager approved OVVIO extract",
+                    $"{item.Attr_No} passed Senior Manager QA and is ready for OVVIO extract.",
+                    "ReadyForOvvioExtract",
+                    item.Attr_ID,
+                    item.Attr_No,
+                    null,
+                    currentUser.FullName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Senior Manager QA completed, but email/notification failed for {AttrNo}",
+                    item.Attr_No);
+            }
         }
 
         private static string CurrentUserName(AivsCurrentUserVm currentUser)

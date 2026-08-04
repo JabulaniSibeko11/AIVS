@@ -22,5 +22,8 @@ namespace AIVS.Services.Interface
         Task SendInspectionDetailsToClientAsync(
     long inspectionRequestId,
     AivsCurrentUserVm currentUser);
+        Task SaveDraftAsync(SaveReviewDraftVm vm, AivsCurrentUserVm currentUser);
+        Task SaveCorrectionFieldsAsync(SaveCorrectionFieldsVm vm, AivsCurrentUserVm currentUser);
+        Task SaveQuickSectionDecisionAsync(QuickSectionDecisionVm vm, AivsCurrentUserVm currentUser);
     }
 }

@@ -2,10 +2,11 @@
 using AIVS.Services.Interface;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using AIVS.Security;
 
 namespace AIVS.Controllers
 {
-    [Authorize]
+    [Authorize(Policy = AivsPolicyNames.SectorManagerQa)]
     public class SectorManagerQaController : Controller
     {
         private readonly ISectorManagerQaService _sectorManagerQaService;
@@ -59,6 +60,25 @@ namespace AIVS.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Claim(long id)
+        {
+            var currentUser = await _userManagementService.GetCurrentUserAsync(User);
+
+            try
+            {
+                await _sectorManagerQaService.ClaimAsync(id, currentUser);
+                TempData["Success"] = "The QA item was assigned to you.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ex.Message;
+                return RedirectToAction(nameof(Index));
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Approve(SectorManagerQaDecisionVm vm)
         {
             var currentUser = await _userManagementService.GetCurrentUserAsync(User);
@@ -72,7 +92,7 @@ namespace AIVS.Controllers
             try
             {
                 await _sectorManagerQaService.ApproveToOvvioAsync(vm, currentUser);
-                TempData["Success"] = "Sector Manager QA approved. The submission is now ready for OVVIO extract.";
+                TempData["Success"] = "Sector Manager QA approved. The submission was sent to Senior Manager QA.";
                 return RedirectToAction(nameof(Index));
             }
             catch (Exception ex)
