@@ -1017,3 +1017,134 @@
     padding: 0;
     border: 0
 }
+
+/* Comparison-first review workspace */
+.rv-legacy-review-layout {
+    display: none !important;
+}
+
+.cmp-overview-card {
+    border: 1px solid var(--aivs-border);
+    border-radius: var(--aivs-radius);
+    background: var(--aivs-white);
+    margin-bottom: 14px;
+    overflow: hidden;
+}
+
+.cmp-overview-title {
+    background: #155f78;
+    color: #fff;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+    .cmp-overview-title strong {
+        font-size: 15px;
+    }
+
+    .cmp-overview-title span {
+        font-size: 12px;
+        opacity: .9;
+    }
+
+.cmp-overview-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1px;
+    background: var(--aivs-border);
+}
+
+    .cmp-overview-grid > div {
+        background: #fff;
+        min-height: 72px;
+        padding: 12px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .cmp-overview-grid small {
+        text-transform: uppercase;
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--aivs-text-muted);
+    }
+
+    .cmp-overview-grid strong {
+        font-size: 13px;
+        color: var(--aivs-black);
+        overflow-wrap: anywhere;
+    }
+
+.cmp-comments-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-top: 18px;
+}
+
+.cmp-comment-card {
+    border: 1px solid var(--aivs-border);
+    border-radius: var(--aivs-radius-sm);
+    background: #fff;
+    padding: 14px;
+}
+
+    .cmp-comment-card label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 700;
+        font-size: 13px;
+    }
+
+    .cmp-comment-card textarea {
+        width: 100%;
+        min-height: 115px;
+        resize: vertical;
+        border: 1px solid var(--aivs-border);
+        border-radius: 6px;
+        padding: 10px;
+    }
+
+    .cmp-comment-card.muted {
+        background: #f7f7f7;
+        color: var(--aivs-text-muted);
+    }
+
+.cmp-final-actions {
+    display: flex;
+    justify-content: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin: 20px 0 10px;
+}
+
+.cmp-action {
+    min-width: 180px;
+    min-height: 48px;
+    padding: 11px 16px;
+    font-weight: 700;
+    border-radius: 5px;
+}
+
+@media (max-width: 900px) {
+    .cmp-overview-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .cmp-comments-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 600px) {
+    .cmp-overview-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .cmp-action {
+        width: 100%;
+    }
+}

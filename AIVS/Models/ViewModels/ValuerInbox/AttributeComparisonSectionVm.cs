@@ -17,6 +17,7 @@
         public string? ClientValue { get; set; }
         public int DisplayOrder { get; set; }
         public bool IsReadOnly { get; set; }
+        public bool HasCityValue { get; set; }
         public bool HasDifference { get; set; }
         public bool IsSelectedForCorrection { get; set; }
     }

@@ -309,23 +309,17 @@ namespace AIVS.Services.Implementations
                 x.RequiresInspection ||
                 x.SectionDecision == "Requires inspection");
 
-            var hasUnreviewedRequired = requiredSections.Any(x =>
-                string.IsNullOrWhiteSpace(x.SectionDecision));
-
+            // Decisions are now made once, at the bottom of the comparison page.
+            // Individual section decisions are no longer required before OVVIO submission.
             var canSubmitToOvvio =
                 !hasRequiredCorrections &&
-                !hasInspectionRequired &&
-                !hasUnreviewedRequired;
+                !hasInspectionRequired;
 
             var submitBlockReason = "";
 
-            if (hasUnreviewedRequired)
+            if (hasRequiredCorrections)
             {
-                submitBlockReason = "Some required sections have not been reviewed.";
-            }
-            else if (hasRequiredCorrections)
-            {
-                submitBlockReason = "Required sections still need correction.";
+                submitBlockReason = "Required fields are selected for correction.";
             }
             else if (hasInspectionRequired)
             {
@@ -417,7 +411,7 @@ namespace AIVS.Services.Implementations
 
                 PhysicalInspectionEvidenceFiles = physicalInspectionEvidenceFiles,
                 ComparisonSections = comparisonSections,
-                HasCityData = comparisonSections.Any(x => x.Fields.Any()),
+                HasCityData = comparisonSections.Any(x => x.Fields.Any(f => f.HasCityValue)),
                 ActiveTab = draft?.ActiveTab ?? "1",
                 DifferencesOnly = draft?.DifferencesOnly ?? true,
                 FinalComment = draft?.ValuerComment ?? review.FinalComment,
@@ -445,74 +439,377 @@ namespace AIVS.Services.Implementations
 
         private async Task<List<AttributeComparisonSectionVm>> BuildComparisonSectionsAsync(long reviewId, AttributeSubmissionViewModel? submittedForm)
         {
-            var premiseId = submittedForm?.PropertyDetails?.PremiseId?.Trim();
-            if (string.IsNullOrWhiteSpace(premiseId) || submittedForm == null)
+            if (submittedForm == null)
                 return new();
 
+            var premiseId = submittedForm.PropertyDetails?.PremiseId?.Trim();
             var formType = submittedForm.FormType?.Trim();
-            var cityRows = await _context.AttrCityAttributeValues.AsNoTracking()
-                .Where(x => x.IsActive && x.PremiseId == premiseId &&
-                    (x.FormType == null || x.FormType == "" || x.FormType == formType))
-                .OrderBy(x => x.SectionCode).ThenBy(x => x.DisplayOrder).ThenBy(x => x.FieldLabel)
-                .ToListAsync();
 
-            if (cityRows.Count == 0) return new();
+            var cityRows = new List<AttrCityAttributeValue>();
+            if (!string.IsNullOrWhiteSpace(premiseId))
+            {
+                var premiseKey = premiseId.ToUpperInvariant();
+                var cityRowsForPremise = await _context.AttrCityAttributeValues
+                    .AsNoTracking()
+                    .Where(x => x.IsActive && x.PremiseId.Trim().ToUpper() == premiseKey)
+                    .OrderBy(x => x.SectionCode)
+                    .ThenBy(x => x.DisplayOrder)
+                    .ThenBy(x => x.FieldLabel)
+                    .ToListAsync();
+
+                cityRows = cityRowsForPremise;
+                if (cityRowsForPremise.Count > 0 && !string.IsNullOrWhiteSpace(formType))
+                {
+                    var normalisedFormType = NormalizeFormType(formType);
+                    var matchingRows = cityRowsForPremise
+                        .Where(x => string.IsNullOrWhiteSpace(x.FormType) ||
+                                    NormalizeFormType(x.FormType) == normalisedFormType)
+                        .ToList();
+
+                    if (matchingRows.Count > 0)
+                        cityRows = matchingRows;
+                }
+            }
+
             var clientValues = BuildClientValueLookup(submittedForm);
+            var clientLabels = BuildClientFieldLabelLookup(submittedForm);
+
             var selectedKeys = await _context.AttrValuerReviewFieldCorrections.AsNoTracking()
                 .Where(x => x.ReviewId == reviewId && x.IsActive)
                 .Select(x => x.SectionCode + ":" + x.FieldCode)
                 .ToListAsync();
             var selected = selectedKeys.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            return cityRows.GroupBy(x => NormalizeCode(x.SectionCode)).Select(group =>
-            {
-                var sectionCode = group.Key;
-                return new AttributeComparisonSectionVm
+            // Build from BOTH sources. Client-only keys remain visible while the City
+            // table is empty; once the extract is loaded the same rows become a true
+            // side-by-side comparison without changing the page structure.
+            var cityByKey = cityRows
+                .GroupBy(x => BuildComparisonKey(x.SectionCode, x.FieldCode), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(x => x.Key, x => x.OrderBy(r => r.DisplayOrder).First(), StringComparer.OrdinalIgnoreCase);
+
+            var allKeys = clientValues.Keys
+                .Concat(cityByKey.Keys)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var allowedSections = GetComparisonSectionsForForm(submittedForm);
+            allKeys = allKeys
+     .Where(key =>
+     {
+         var sectionCode = key.Split(':', 2)[0];
+
+         return
+             !IsExcludedComparisonSection(sectionCode) &&
+             allowedSections.Contains(sectionCode);
+     })
+     .ToList();
+
+            return allKeys
+                .GroupBy(key => key.Split(':', 2)[0], StringComparer.OrdinalIgnoreCase)
+                .Select(group =>
                 {
-                    SectionCode = sectionCode,
-                    SectionName = GetComparisonSectionName(sectionCode),
-                    TabNumber = IsPropertyOrValuationSection(sectionCode) ? 1 : 2,
-                    DisplayOrder = GetComparisonSectionOrder(sectionCode),
-                    Fields = group.Select(row =>
+                    var sectionCode = NormalizeCode(group.Key);
+                    var fields = group.Select((key, index) =>
                     {
-                        var fieldCode = NormalizeCode(row.FieldCode);
-                        clientValues.TryGetValue(BuildComparisonKey(sectionCode, fieldCode), out var clientValue);
+                        var parts = key.Split(':', 2);
+                        var fieldCode = parts.Length > 1 ? NormalizeCode(parts[1]) : string.Empty;
+                        cityByKey.TryGetValue(key, out var cityRow);
+                        clientValues.TryGetValue(key, out var clientValue);
+                        clientLabels.TryGetValue(key, out var clientLabel);
+
+                        var cityValue = CleanComparisonValue(cityRow?.FieldValue);
+                        var cleanedClientValue = CleanComparisonValue(clientValue);
+                        var hasCityValue = !string.IsNullOrWhiteSpace(cityValue);
                         var readOnly = fieldCode is "H_AREA" or "HAREA";
+
                         return new AttributeComparisonFieldVm
                         {
                             FieldCode = fieldCode,
-                            FieldLabel = row.FieldLabel,
-                            CityValue = CleanComparisonValue(row.FieldValue),
-                            ClientValue = CleanComparisonValue(clientValue),
-                            DisplayOrder = row.DisplayOrder,
+                            FieldLabel = cityRow?.FieldLabel
+                                         ?? clientLabel
+                                         ?? HumaniseFieldCode(fieldCode),
+                            CityValue = cityValue,
+                            ClientValue = cleanedClientValue,
+                            DisplayOrder = cityRow?.DisplayOrder ?? (index + 1) * 10,
                             IsReadOnly = readOnly,
-                            HasDifference = !readOnly && !ComparisonValuesEqual(row.FieldValue, clientValue)
-                            ,
+                            HasCityValue = hasCityValue,
+                            HasDifference = hasCityValue && !readOnly && !ComparisonValuesEqual(cityValue, cleanedClientValue),
                             IsSelectedForCorrection = selected.Contains(BuildComparisonKey(sectionCode, fieldCode))
                         };
-                    }).ToList()
-                };
-            }).OrderBy(x => x.TabNumber).ThenBy(x => x.DisplayOrder).ThenBy(x => x.SectionName).ToList();
+                    })
+                    // Do not create rows that are empty on both sides. Client-submitted
+                    // zero/No values are retained because they are meaningful values.
+                    .Where(x => !string.IsNullOrWhiteSpace(x.ClientValue) || x.HasCityValue)
+                    .OrderBy(x => x.DisplayOrder)
+                    .ThenBy(x => x.FieldLabel)
+                    .ToList();
+
+                    return new AttributeComparisonSectionVm
+                    {
+                        SectionCode = sectionCode,
+                        SectionName = GetComparisonSectionName(sectionCode),
+                        TabNumber = IsPropertyOrValuationSection(sectionCode) ? 1 : 2,
+                        DisplayOrder = GetComparisonSectionOrder(sectionCode),
+                        Fields = fields
+                    };
+                })
+                .Where(x => x.Fields.Count > 0)
+                .OrderBy(x => x.TabNumber)
+                .ThenBy(x => x.DisplayOrder)
+                .ThenBy(x => x.SectionName)
+                .ToList();
         }
 
-        private static Dictionary<string, string?> BuildClientValueLookup(AttributeSubmissionViewModel form)
+        private static HashSet<string> GetComparisonSectionsForForm(
+     AttributeSubmissionViewModel form)
         {
-            var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
-            AddObjectValues(values, "PROPERTY", form.PropertyDetails);
-            AddObjectValues(values, "PROPERTY_DETAILS", form.PropertyDetails);
-            AddObjectValues(values, "VALUATION", form.ValuationDetails);
-            AddObjectValues(values, "VALUATION_DETAILS", form.ValuationDetails);
-            AddObjectValues(values, "PRIMARY_ATTRIBUTES", form.PrimaryAttributes);
-            AddObjectValues(values, "SECONDARY_ATTRIBUTES", form.SecondaryAttributes);
-            AddObjectValues(values, "CALCULATIONS", form.Calculations);
-            AddObjectValues(values, "BUSINESS_GENERAL", form.BusinessGeneral);
-            AddObjectValues(values, "DRC_MARKET_VALUE", form.DrcMarketValueDemolition);
-            AddListValues(values, "BUSINESS_BUILDINGS", "BUILDING", form.BusinessBuildings);
-            AddListValues(values, "BUSINESS_SECTIONS", "SECTION", form.BusinessSections);
-            AddListValues(values, "DRC_BUILDINGS", "BUILDING", form.DrcBuildings);
-            AddListValues(values, "DRC_IMPROVEMENTS", "IMPROVEMENT", form.DrcImprovements);
-            AddListValues(values, "DRC_VACANT_LAND", "LAND", form.DrcVacantLands);
+            var sections = new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase)
+    {
+        "VALUATION_DETAILS",
+        "ACCESS"
+    };
+
+            var type = NormalizeFormType(form.FormType);
+
+            if (type == "BUSINESS")
+            {
+                sections.UnionWith(new[]
+                {
+            "BUSINESS_BUILDINGS",
+            "BUSINESS_SECTIONS",
+            "BUSINESS_GENERAL",
+            "CALCULATIONS"
+        });
+            }
+            else if (type == "DRC")
+            {
+                sections.UnionWith(new[]
+                {
+            "DRC_BUILDINGS",
+            "DRC_IMPROVEMENTS",
+            "DRC_VACANT_LAND",
+            "DRC_MARKET_VALUE",
+            "CALCULATIONS"
+        });
+            }
+            else
+            {
+                sections.UnionWith(new[]
+                {
+            "PRIMARY_ATTRIBUTES",
+            "SECONDARY_ATTRIBUTES",
+            "CALCULATIONS"
+        });
+            }
+
+            return sections;
+        }
+
+        private static Dictionary<string, string>
+     BuildClientFieldLabelLookup(
+         AttributeSubmissionViewModel form)
+        {
+            var labels = new Dictionary<string, string>(
+                StringComparer.OrdinalIgnoreCase);
+
+            AddObjectLabels(
+                labels,
+                "VALUATION_DETAILS",
+                form.ValuationDetails);
+
+            AddObjectLabels(
+                labels,
+                "ACCESS",
+                form.Access);
+
+            AddObjectLabels(
+                labels,
+                "PRIMARY_ATTRIBUTES",
+                form.PrimaryAttributes);
+
+            AddObjectLabels(
+                labels,
+                "SECONDARY_ATTRIBUTES",
+                form.SecondaryAttributes);
+
+            AddObjectLabels(
+                labels,
+                "CALCULATIONS",
+                form.Calculations);
+
+            AddObjectLabels(
+                labels,
+                "BUSINESS_GENERAL",
+                form.BusinessGeneral);
+
+            AddObjectLabels(
+                labels,
+                "DRC_MARKET_VALUE",
+                form.DrcMarketValueDemolition);
+
+            AddListLabels(
+                labels,
+                "BUSINESS_BUILDINGS",
+                "BUILDING",
+                form.BusinessBuildings);
+
+            AddListLabels(
+                labels,
+                "BUSINESS_SECTIONS",
+                "SECTION",
+                form.BusinessSections);
+
+            AddListLabels(
+                labels,
+                "DRC_BUILDINGS",
+                "BUILDING",
+                form.DrcBuildings);
+
+            AddListLabels(
+                labels,
+                "DRC_IMPROVEMENTS",
+                "IMPROVEMENT",
+                form.DrcImprovements);
+
+            AddListLabels(
+                labels,
+                "DRC_VACANT_LAND",
+                "LAND",
+                form.DrcVacantLands);
+
+            return labels;
+        }
+        private static void AddObjectLabels(IDictionary<string, string> labels, string sectionCode, object? source)
+        {
+            if (source == null) return;
+            foreach (var property in source.GetType().GetProperties())
+            {
+                if (!property.CanRead || property.GetIndexParameters().Length > 0) continue;
+                if (typeof(System.Collections.IEnumerable).IsAssignableFrom(property.PropertyType) && property.PropertyType != typeof(string)) continue;
+                labels[BuildComparisonKey(sectionCode, property.Name)] = HumaniseFieldCode(property.Name);
+            }
+        }
+
+        private static void AddListLabels<T>(IDictionary<string, string> labels, string sectionCode, string rowPrefix, IEnumerable<T>? rows)
+        {
+            if (rows == null) return;
+            var rowNumber = 0;
+            foreach (var row in rows)
+            {
+                rowNumber++;
+                if (row == null) continue;
+                foreach (var property in row.GetType().GetProperties())
+                {
+                    if (!property.CanRead || property.GetIndexParameters().Length > 0) continue;
+                    var fieldCode = $"{rowPrefix}_{rowNumber}_{NormalizeCode(property.Name)}";
+                    labels[BuildComparisonKey(sectionCode, fieldCode)] = $"{HumaniseFieldCode(rowPrefix)} {rowNumber} - {HumaniseFieldCode(property.Name)}";
+                }
+            }
+        }
+
+        private static string HumaniseFieldCode(string? value)
+        {
+            var code = NormalizeCode(value);
+            if (string.IsNullOrWhiteSpace(code)) return "Field";
+            return System.Globalization.CultureInfo.InvariantCulture.TextInfo
+                .ToTitleCase(code.Replace('_', ' ').ToLowerInvariant())
+                .Replace("Id", "ID")
+                .Replace("Sg", "SG")
+                .Replace("Tla", "TLA")
+                .Replace("Gba", "GBA")
+                .Replace("Nla", "NLA")
+                .Replace("Drc", "DRC")
+                .Replace("Sqm", "SQM");
+        }
+
+        private static Dictionary<string, string?>
+    BuildClientValueLookup(
+        AttributeSubmissionViewModel form)
+        {
+            var values = new Dictionary<string, string?>(
+                StringComparer.OrdinalIgnoreCase);
+
+            AddObjectValues(
+                values,
+                "VALUATION_DETAILS",
+                form.ValuationDetails);
+
+            AddObjectValues(
+                values,
+                "ACCESS",
+                form.Access);
+
+            AddObjectValues(
+                values,
+                "PRIMARY_ATTRIBUTES",
+                form.PrimaryAttributes);
+
+            AddObjectValues(
+                values,
+                "SECONDARY_ATTRIBUTES",
+                form.SecondaryAttributes);
+
+            AddObjectValues(
+                values,
+                "CALCULATIONS",
+                form.Calculations);
+
+            AddObjectValues(
+                values,
+                "BUSINESS_GENERAL",
+                form.BusinessGeneral);
+
+            AddObjectValues(
+                values,
+                "DRC_MARKET_VALUE",
+                form.DrcMarketValueDemolition);
+
+            AddListValues(
+                values,
+                "BUSINESS_BUILDINGS",
+                "BUILDING",
+                form.BusinessBuildings);
+
+            AddListValues(
+                values,
+                "BUSINESS_SECTIONS",
+                "SECTION",
+                form.BusinessSections);
+
+            AddListValues(
+                values,
+                "DRC_BUILDINGS",
+                "BUILDING",
+                form.DrcBuildings);
+
+            AddListValues(
+                values,
+                "DRC_IMPROVEMENTS",
+                "IMPROVEMENT",
+                form.DrcImprovements);
+
+            AddListValues(
+                values,
+                "DRC_VACANT_LAND",
+                "LAND",
+                form.DrcVacantLands);
+
             return values;
+        }
+
+
+        private static bool IsExcludedComparisonSection(
+    string? sectionCode)
+        {
+            var code = NormalizeCode(sectionCode);
+
+            return code is
+                "PROPERTY" or
+                "PROPERTY_DETAILS" or
+                "CONTACT" or
+                "CONTACT_INFO" or
+                "CONTACT_INFORMATION";
         }
 
         private static void AddObjectValues(IDictionary<string, string?> values, string sectionCode, object? source)
@@ -545,6 +842,25 @@ namespace AIVS.Services.Implementations
         }
 
         private static string BuildComparisonKey(string sectionCode, string fieldCode) => $"{NormalizeCode(sectionCode)}:{NormalizeCode(fieldCode)}";
+
+        private static string NormalizeFormType(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+
+            var normalised = new string(value
+                .Where(char.IsLetterOrDigit)
+                .Select(char.ToUpperInvariant)
+                .ToArray());
+
+            // Treat the common portal/City descriptions as the same logical form.
+            return normalised switch
+            {
+                "RESIDENTIAL" or "STRESIDENTIAL" or "SECTIONALTITLERESIDENTIAL" => "RESIDENTIAL",
+                "BUSINESS" or "BUSINESSCOMMERCIAL" or "COMMERCIAL" or "NONRES" or "NONRESIDENTIAL" => "BUSINESS",
+                "DRC" or "DRCMETHOD" or "DEPRECIATEDREPLACEMENTCOST" => "DRC",
+                _ => normalised
+            };
+        }
         private static string NormalizeCode(string? value)
         {
             if (string.IsNullOrWhiteSpace(value)) return string.Empty;
@@ -583,11 +899,13 @@ namespace AIVS.Services.Implementations
                 return cityNumber == clientNumber;
             return string.Equals(city, client, StringComparison.OrdinalIgnoreCase);
         }
-        private static bool IsPropertyOrValuationSection(string code) => code is "PROPERTY" or "PROPERTY_DETAILS" or "VALUATION" or "VALUATION_DETAILS";
+        private static bool IsPropertyOrValuationSection(string code) => code is "PROPERTY" or "PROPERTY_DETAILS" or "VALUATION" or "VALUATION_DETAILS" or "ACCESS" or "CONTACT_INFO";
         private static int GetComparisonSectionOrder(string code) => code switch
         {
             "PROPERTY" or "PROPERTY_DETAILS" => 10,
             "VALUATION" or "VALUATION_DETAILS" => 20,
+            "ACCESS" => 25,
+            "CONTACT_INFO" => 27,
             "PRIMARY_ATTRIBUTES" => 30,
             "SECONDARY_ATTRIBUTES" => 40,
             "BUSINESS_BUILDINGS" => 50,
@@ -604,6 +922,8 @@ namespace AIVS.Services.Implementations
         {
             "PROPERTY" or "PROPERTY_DETAILS" => "Property Details",
             "VALUATION" or "VALUATION_DETAILS" => "Valuation Details",
+            "ACCESS" => "Access",
+            "CONTACT_INFO" => "Contact Information",
             "PRIMARY_ATTRIBUTES" => "Primary Attributes",
             "SECONDARY_ATTRIBUTES" => "Secondary Attributes",
             "BUSINESS_BUILDINGS" => "Business Buildings",
@@ -829,11 +1149,12 @@ namespace AIVS.Services.Implementations
         }
         private static List<(string Code, string Name)> GetSectionsForFormType(string? formType)
         {
+            // Property Details and Contact Information are identification/reference data.
+            // Valuers do not review or make section decisions on them, so they are
+            // intentionally excluded from the review section list.
             var common = new List<(string Code, string Name)>
             {
-                ("PROPERTY_DETAILS", "Property Details"),
                 ("VALUATION_DETAILS", "Valuation Details"),
-                ("CONTACT_INFORMATION", "Contact Information"),
                 ("ACCESS_INFORMATION", "Access Information"),
                 ("EVIDENCE", "Client Evidence"),
                 ("DECLARATION", "Declaration")
@@ -876,6 +1197,8 @@ namespace AIVS.Services.Implementations
                     .ThenInclude(x => x!.ValuationDetails)
                 .Include(x => x.PropertyDetails)
                     .ThenInclude(x => x!.Calculations)
+                .Include(x => x.PropertyDetails)
+                    .ThenInclude(x => x!.Access)
                 .FirstOrDefaultAsync(x => x.Attr_ID == attrId);
 
             if (info?.PropertyDetails == null)
@@ -886,6 +1209,7 @@ namespace AIVS.Services.Implementations
 
             var valuation = property.ValuationDetails;
             var calculations = property.Calculations;
+            var access = property.Access;
 
             var contacts = await _context.AttrContactInfo
                 .AsNoTracking()
@@ -983,6 +1307,13 @@ namespace AIVS.Services.Implementations
                     OwnersFinancials = valuation?.OwnersFinancials
                 },
 
+                Access = new AttributeAccessVm
+                {
+                    AccessType = access?.AccessType,
+                    PermissionStatus = access?.PermissionStatus,
+                    Comments = access?.Comments
+                },
+
                 ContactInfos = contacts.Select(c => new AttributeContactInfoVm
                 {
                     ContactType = c.ContactType,
@@ -991,12 +1322,21 @@ namespace AIVS.Services.Implementations
                     CompanyRegistrationNumber = c.CompanyRegistrationNumber,
                     FirstNames = c.FirstNames,
                     LastName = c.LastName,
+                    MaidenName = c.MaidenName,
+                    IDNumber = c.IDNumber,
+                    DateOfBirth = c.DateOfBirth,
+                    Gender = c.Gender,
+                    MaritalStatus = c.MaritalStatus,
+                    Citizenship = c.Citizenship,
                     PhysicalAddress = c.PhysicalAddress,
                     PostalAddress = c.PostalAddress,
                     Email = c.Email,
                     HomePhoneNo = c.HomePhoneNo,
                     WorkPhoneNo = c.WorkPhoneNo,
-                    CellNo = c.CellNo
+                    CellNo = c.CellNo,
+                    FaxNo = c.FaxNo,
+                    Interviewed = c.Interviewed.HasValue ? (c.Interviewed.Value ? "Yes" : "No") : null,
+                    Comments = c.Comments
                 }).ToList(),
 
                 PrimaryAttributes = new AttributePrimaryAttributesVm
@@ -1279,19 +1619,27 @@ namespace AIVS.Services.Implementations
                 x.RequiresInspection ||
                 x.SectionDecision == "Requires inspection");
 
-            var unreviewedRequiredExists = requiredSections.Any(x =>
-                string.IsNullOrWhiteSpace(x.SectionDecision));
-
             if (vm.FinalDecision == "SubmitToOvvio")
             {
-                if (unreviewedRequiredExists)
-                    throw new InvalidOperationException("You cannot submit to OVVIO. Some required sections have not been reviewed.");
-
                 if (requiredCorrectionExists)
-                    throw new InvalidOperationException("You cannot submit to OVVIO. Required sections still need correction.");
+                    throw new InvalidOperationException("You cannot submit to OVVIO. Required fields are still selected for correction.");
 
                 if (inspectionRequiredExists)
                     throw new InvalidOperationException("You cannot submit to OVVIO. A physical inspection is required.");
+
+                // The single bottom OVVIO action accepts every required section.
+                // This replaces the removed Accept button on each section.
+                foreach (var section in requiredSections)
+                {
+                    section.SectionDecision = "Accepted";
+                    section.RequiresCorrection = false;
+                    section.RequiresInspection = false;
+                    section.UpdatedBy = currentUser.Username
+                        ?? currentUser.WindowsUsername
+                        ?? currentUser.FullName
+                        ?? "AIVS";
+                    section.UpdatedDate = DateTime.Now;
+                }
             }
 
             var now = DateTime.Now;
@@ -1573,11 +1921,12 @@ namespace AIVS.Services.Implementations
                     currentUser.FullName);
             }
         }
-        private static HashSet<string> GetRequiredReviewSectionCodes(string? formType)
+        private static HashSet<string> GetRequiredReviewSectionCodes(
+     string? formType)
         {
-            var required = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            var required = new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase)
     {
-        "PROPERTY_DETAILS",
         "VALUATION_DETAILS",
         "DECLARATION"
     };
@@ -1589,6 +1938,7 @@ namespace AIVS.Services.Implementations
                 required.Add("BUSINESS_BUILDINGS");
                 required.Add("BUSINESS_SECTIONS");
                 required.Add("BUSINESS_GENERAL");
+
                 return required;
             }
 
@@ -1597,6 +1947,7 @@ namespace AIVS.Services.Implementations
                 required.Add("DRC_BUILDINGS");
                 required.Add("DRC_IMPROVEMENTS");
                 required.Add("DRC_VACANT_LAND");
+
                 return required;
             }
 

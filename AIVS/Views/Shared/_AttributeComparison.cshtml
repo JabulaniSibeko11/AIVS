@@ -2,11 +2,39 @@
 @{
     var tab1 = Model.ComparisonSections.Where(x => x.TabNumber == 1).ToList();
     var tab2 = Model.ComparisonSections.Where(x => x.TabNumber == 2).ToList();
+    var property = Model.SubmittedForm?.PropertyDetails;
+    var owner = Model.SubmittedForm?.ContactInfos?
+        .FirstOrDefault(x => string.Equals(x.ContactType, "Owner", StringComparison.OrdinalIgnoreCase))
+        ?? Model.SubmittedForm?.ContactInfos?.FirstOrDefault();
+    var ownerName = owner == null
+        ? null
+        : (!string.IsNullOrWhiteSpace(owner.CompanyName)
+            ? owner.CompanyName
+            : string.Join(" ", new[] { owner.FirstNames, owner.LastName }.Where(x => !string.IsNullOrWhiteSpace(x))));
 }
+
 <section class="cmp-shell" id="attributeComparison">
     <fieldset disabled="@(Model.IsLockedByAnotherUser ? "disabled" : null)">
+        <div class="cmp-overview-card">
+            <div class="cmp-overview-title">
+                <strong>Property and owner details</strong>
+                <span>Confirm that the submission belongs to the correct City property before reviewing the attributes.</span>
+            </div>
+            <div class="cmp-overview-grid">
+                <div><small>Property description</small><strong>@(Model.PropertyDescription ?? property?.PropertyDesc ?? "Not supplied")</strong></div>
+                <div><small>Premise ID</small><strong>@(property?.PremiseId ?? "Not supplied")</strong></div>
+                <div><small>Township</small><strong>@(Model.Township ?? property?.Township ?? "Not supplied")</strong></div>
+                <div><small>Erf</small><strong>@(property?.Erf ?? "Not supplied")</strong></div>
+                <div><small>Owner / applicant</small><strong>@(string.IsNullOrWhiteSpace(ownerName) ? "Not supplied" : ownerName)</strong></div>
+                <div><small>Email</small><strong>@(owner?.Email ?? "Not supplied")</strong></div>
+            </div>
+        </div>
+
         <div class="cmp-evidence">
-            <div><strong>Evidence available immediately</strong><span>@Model.EvidenceFiles.Count client file(s) · @Model.PhysicalInspectionEvidenceCount inspection file(s)</span></div>
+            <div>
+                <strong>Evidence</strong>
+                <span>@Model.EvidenceFiles.Count client file(s) · @Model.PhysicalInspectionEvidenceCount inspection file(s)</span>
+            </div>
             <div class="cmp-evidence-links">
                 @foreach (var file in Model.EvidenceFiles.Take(4))
                 {
@@ -15,84 +43,243 @@
                 }
                 @if (Model.EvidenceFiles.Any())
                 {
-                    <a class="cmp-zip" asp-controller="ValuerInbox" asp-action="DownloadEvidenceZip" asp-route-attrId="@Model.AttrId" asp-route-kind="client">Client ZIP</a>
+                    <a class="cmp-zip" asp-controller="ValuerInbox" asp-action="DownloadEvidenceZip" asp-route-attrId="@Model.AttrId" asp-route-kind="client">Download client ZIP</a>
                 }
                 @if (Model.PhysicalInspectionEvidenceFiles.Any())
                 {
-                    <a class="cmp-zip" asp-controller="ValuerInbox" asp-action="DownloadEvidenceZip" asp-route-attrId="@Model.AttrId" asp-route-kind="inspection">Inspection ZIP</a>
+                    <a class="cmp-zip" asp-controller="ValuerInbox" asp-action="DownloadEvidenceZip" asp-route-attrId="@Model.AttrId" asp-route-kind="inspection">Download inspection ZIP</a>
                 }
             </div>
         </div>
+
         @if (!Model.HasCityData)
         {
-            <div class="cmp-empty">City attribute data has not yet been loaded for premise <strong>@Model.SubmittedForm?.PropertyDetails?.PremiseId</strong>.</div>
+            <div class="cmp-empty">
+                <strong>City snapshot is not loaded yet.</strong>
+                The sections and values submitted by the client are displayed below. The City column will remain empty until
+                Attr_CityAttributeValues is loaded for premise <strong>@(property?.PremiseId ?? "not supplied")</strong>.
+            </div>
         }
-        else
+
+        @if (Model.ComparisonSections.Any())
         {
             <div class="cmp-toolbar">
-                <div class="cmp-tabs" role="tablist">
-                    <button type="button" class="cmp-tab active" data-cmp-tab="1">1. Property &amp; Valuation</button>
-                    <button type="button" class="cmp-tab" data-cmp-tab="2">2. Submitted Attributes</button>
+                <div class="cmp-tabs" role="tablist" aria-label="Attribute comparison sections">
+                    <button type="button" class="cmp-tab active" data-cmp-tab="1">1. Property and valuation</button>
+                    <button type="button" class="cmp-tab" data-cmp-tab="2">2. Submitted attributes</button>
                 </div>
-                <div class="cmp-counts"><span class="different">@Model.DifferenceCount differences</span><span class="matching">@Model.MatchingCount matches</span><span>@Model.MissingCityCount missing City values</span></div>
-                <label class="cmp-toggle"><input type="checkbox" id="cmpDifferencesOnly" checked="@Model.DifferencesOnly" /> Differences only</label>
+                <div class="cmp-counts">
+                    @if (Model.HasCityData)
+                    {
+                        <span class="different">@Model.DifferenceCount differences</span>
+                        <span class="matching">@Model.MatchingCount matches</span>
+                    }
+                    <span>@Model.MissingCityCount awaiting City values</span>
+                </div>
+                <label class="cmp-toggle"><input type="checkbox" id="cmpDifferencesOnly" checked="@Model.DifferencesOnly" /> Show differences only</label>
             </div>
-            <div class="cmp-panel active" data-cmp-panel="1">@await Html.PartialAsync("_AttributeComparisonSections", tab1)</div>
+
+            <div class="cmp-panel active" data-cmp-panel="1">
+                @await Html.PartialAsync("_AttributeComparisonSections", tab1)
+            </div>
             <div class="cmp-panel" data-cmp-panel="2">
                 @await Html.PartialAsync("_AttributeComparisonSections", tab2)
-                <div class="cmp-final">
-                    <label for="cmpFinalComment">Valuer comment</label>
-                    <textarea id="cmpFinalComment" placeholder="Enter the final review comment...">@Model.FinalComment</textarea>
-                    <div class="cmp-final-actions">
-                        <button type="button" class="cmp-action inspection" id="cmpInspection">Require Physical Inspection</button>
-                        <button type="button" class="cmp-action return" id="cmpReturn"
-                                disabled="@(string.Equals(Model.Status, "ReadyForOvvioExtract", StringComparison.OrdinalIgnoreCase))">
-                            Return to Client
-                        </button>
-                        <button type="button" class="cmp-action ovvio" id="cmpOvvio"
-                                disabled="@(!Model.CanSubmitToOvvio || string.Equals(Model.Status, "ReadyForOvvioExtract", StringComparison.OrdinalIgnoreCase))">
-                            Submit for OVVIO
-                        </button>
-                    </div>
-                    @if (!Model.CanSubmitToOvvio && !string.IsNullOrWhiteSpace(Model.SubmitBlockReason))
-                    {
-                        <div class="cmp-block-reason">OVVIO submission is blocked: @Model.SubmitBlockReason</div>
-                    }
-                </div>
-                <details class="cmp-timeline">
-                    <summary>Review audit timeline (@Model.AuditTimeline.Count)</summary>
-                    @foreach (var audit in Model.AuditTimeline)
-                    {
-                        <div class="cmp-audit"><strong>@audit.Action</strong><span>@audit.ActionDateTime.ToString("dd MMM yyyy HH:mm") · @audit.ActionBy</span><small>@audit.Comment</small></div>
-                    }
-                </details>
             </div>
         }
+
+        <div class="cmp-comments-grid">
+            <div class="cmp-comment-card">
+                <label for="cmpFinalComment">Valuer comment</label>
+                <textarea id="cmpFinalComment" placeholder="Record the review outcome, differences found and any action required...">@Model.FinalComment</textarea>
+            </div>
+            <div class="cmp-comment-card muted">
+                <label>Sector manager comment</label>
+                <div>This will be displayed when the submission is selected for Sector Manager QA.</div>
+            </div>
+        </div>
+
+        <div class="cmp-final-actions">
+            @if (Model.ActiveInspectionRequest == null)
+            {
+                <button type="button" class="cmp-action inspection" id="cmpInspection">
+                    Require physical inspection
+                </button>
+            }
+            else if (string.Equals(Model.ActiveInspectionRequest.Status, "PendingClientResponse", StringComparison.OrdinalIgnoreCase))
+            {
+                <button type="button" class="cmp-action inspection" disabled
+                        title="The client must first select and confirm one of the proposed inspection dates.">
+                    Waiting for client to confirm date
+                </button>
+            }
+            else if (string.Equals(Model.ActiveInspectionRequest.Status, "Confirmed", StringComparison.OrdinalIgnoreCase)
+                     && !Model.ActiveInspectionRequest.ValuerDetailsSent)
+            {
+                <form asp-controller="ValuerInbox"
+                      asp-action="SendInspectionDetails"
+                      method="post"
+                      class="cmp-inline-action-form"
+                      onsubmit="return confirm('Generate the inspection PIN and email it to the client?');">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="inspectionRequestId" value="@Model.ActiveInspectionRequest.Id" />
+                    <input type="hidden" name="attrId" value="@Model.AttrId" />
+                    <button type="submit" class="cmp-action inspection">
+                        Generate inspection PIN
+                    </button>
+                </form>
+            }
+            else if (string.Equals(Model.ActiveInspectionRequest.Status, "InspectionDetailsSent", StringComparison.OrdinalIgnoreCase)
+                     || Model.ActiveInspectionRequest.ValuerDetailsSent)
+            {
+                <button type="button" class="cmp-action inspection" disabled
+                        title="The inspection PIN and valuer details have already been sent to the client.">
+                    Inspection PIN generated
+                </button>
+            }
+            else if (string.Equals(Model.ActiveInspectionRequest.Status, "Expired", StringComparison.OrdinalIgnoreCase))
+            {
+                <button type="button" class="cmp-action inspection" id="cmpInspection">
+                    Send new inspection dates
+                </button>
+            }
+            else
+            {
+                <button type="button" class="cmp-action inspection" disabled>
+                    Inspection request in progress
+                </button>
+            }
+
+            <button type="button" class="cmp-action return" id="cmpReturn"
+                    disabled="@(string.Equals(Model.Status, "ReadyForOvvioExtract", StringComparison.OrdinalIgnoreCase))">
+                Return selected fields to client
+            </button>
+            <button type="button" class="cmp-action ovvio" id="cmpOvvio"
+                    disabled="@(!Model.CanSubmitToOvvio || string.Equals(Model.Status, "ReadyForOvvioExtract", StringComparison.OrdinalIgnoreCase))">
+                Submit for OVVIO
+            </button>
+        </div>
+
+        @if (!Model.CanSubmitToOvvio && !string.IsNullOrWhiteSpace(Model.SubmitBlockReason))
+        {
+            <div class="cmp-block-reason">OVVIO submission is blocked: @Model.SubmitBlockReason</div>
+        }
+
+        <details class="cmp-timeline">
+            <summary>Review audit timeline (@Model.AuditTimeline.Count)</summary>
+            @foreach (var audit in Model.AuditTimeline)
+            {
+                <div class="cmp-audit"><strong>@audit.Action</strong><span>@audit.ActionDateTime.ToString("dd MMM yyyy HH:mm") · @audit.ActionBy</span><small>@audit.Comment</small></div>
+            }
+        </details>
     </fieldset>
 </section>
+
 <div class="cmp-preview-modal" id="cmpPreviewModal" hidden><div class="cmp-preview-dialog"><button type="button" id="cmpPreviewClose">&times;</button><iframe id="cmpPreviewFrame" title="Evidence preview"></iframe><img id="cmpPreviewImage" alt="Evidence preview" /></div></div>
 <div class="cmp-confirm-modal" id="cmpConfirmModal" hidden><div class="cmp-confirm-dialog"><h3>Confirm review decision</h3><div id="cmpConfirmSummary"></div><div class="cmp-confirm-buttons"><button type="button" id="cmpConfirmCancel">Cancel</button><button type="button" id="cmpConfirmProceed">Confirm and continue</button></div></div></div>
+
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-     const shell=document.getElementById('attributeComparison'); if(!shell)return;
-     let activeTab='@Model.ActiveTab', saveTimer, pendingDecision;
-     const token=document.querySelector('input[name="__RequestVerificationToken"]')?.value;
-     function applyTab(tab){activeTab=tab;shell.querySelectorAll('[data-cmp-tab]').forEach(x=>x.classList.toggle('active',x.dataset.cmpTab===tab));shell.querySelectorAll('[data-cmp-panel]').forEach(x=>x.classList.toggle('active',x.dataset.cmpPanel===tab));scheduleSave();}
-     shell.querySelectorAll('[data-cmp-tab]').forEach(function(button){button.addEventListener('click',function(){applyTab(button.dataset.cmpTab);});});
-     const toggle=document.getElementById('cmpDifferencesOnly');function applyFilter(){shell.querySelectorAll('.cmp-row').forEach(function(row){row.hidden=toggle.checked&&row.dataset.difference!=='true';});}if(toggle){toggle.addEventListener('change',function(){applyFilter();scheduleSave();});applyFilter();}
-     const cmpComment=document.getElementById('cmpFinalComment');
-     function scheduleSave(){clearTimeout(saveTimer);saveTimer=setTimeout(saveDraft,700);}if(cmpComment)cmpComment.addEventListener('input',scheduleSave);
-     async function saveDraft(){try{await fetch('@Url.Action("AutoSaveDraft", "ValuerInbox")',{method:'POST',headers:{'Content-Type':'application/json','RequestVerificationToken':token},body:JSON.stringify({reviewId:@Model.ReviewId,attrId:@Model.AttrId,activeTab:activeTab,valuerComment:cmpComment?.value||'',differencesOnly:toggle?.checked||false})});}catch(e){console.warn('Review autosave failed.',e);}}
-     async function saveCorrections(){const keys=Array.from(shell.querySelectorAll('.cmp-correction:checked')).map(x=>x.value);await fetch('@Url.Action("SaveCorrectionFields", "ValuerInbox")',{method:'POST',headers:{'Content-Type':'application/json','RequestVerificationToken':token},body:JSON.stringify({reviewId:@Model.ReviewId,attrId:@Model.AttrId,fieldKeys:keys})});}
-     shell.querySelectorAll('.cmp-correction').forEach(x=>x.addEventListener('change',function(){saveCorrections();}));
-     shell.querySelectorAll('.cmp-quick').forEach(button=>button.addEventListener('click',async function(){const response=await fetch('@Url.Action("QuickSectionDecision", "ValuerInbox")',{method:'POST',headers:{'Content-Type':'application/json','RequestVerificationToken':token},body:JSON.stringify({reviewId:@Model.ReviewId,attrId:@Model.AttrId,sectionCode:button.dataset.section,decision:button.dataset.decision})});if(response.ok){button.closest('.cmp-section-head').classList.add('saved');button.textContent='Saved';}}));
-     function showConfirmation(decision){pendingDecision=decision;const selected=shell.querySelectorAll('.cmp-correction:checked').length;const summary=document.getElementById('cmpConfirmSummary');summary.innerHTML='<p><strong>Decision:</strong> '+(decision==='SubmitToOvvio'?'Submit for OVVIO':'Return to Client')+'</p><p><strong>Differences:</strong> @Model.DifferenceCount</p><p><strong>Selected correction fields:</strong> '+selected+'</p><p><strong>Inspection required:</strong> @(Model.HasInspectionRequired ? "Yes" : "No")</p><p><strong>Comment:</strong> '+(cmpComment?.value||'No comment')+'</p>';document.getElementById('cmpConfirmModal').hidden=false;}
-     function submitDecision(decision){const form=document.getElementById('finalReviewForm');const target=document.querySelector('#finalReviewForm textarea[name="FinalComment"]');if(!form||!target)return;target.value=cmpComment?cmpComment.value:'';if(typeof window.setFinalDecision==='function'&&window.setFinalDecision(decision))form.requestSubmit();}
-     const inspection=document.getElementById('cmpInspection');if(inspection)inspection.addEventListener('click',function(){if(typeof window.openInspectionModal==='function')window.openInspectionModal();});
-     const returnButton=document.getElementById('cmpReturn');if(returnButton)returnButton.addEventListener('click',function(){showConfirmation('ReturnToClient');});
-     const ovvioButton=document.getElementById('cmpOvvio');if(ovvioButton)ovvioButton.addEventListener('click',function(){showConfirmation('SubmitToOvvio');});
-     document.getElementById('cmpConfirmCancel').addEventListener('click',()=>document.getElementById('cmpConfirmModal').hidden=true);document.getElementById('cmpConfirmProceed').addEventListener('click',async function(){await saveCorrections();document.getElementById('cmpConfirmModal').hidden=true;submitDecision(pendingDecision);});
-     const preview=document.getElementById('cmpPreviewModal'),frame=document.getElementById('cmpPreviewFrame'),image=document.getElementById('cmpPreviewImage');shell.querySelectorAll('.cmp-evidence-preview').forEach(button=>button.addEventListener('click',function(){const isImage=(button.dataset.type||'').startsWith('image/');frame.hidden=isImage;image.hidden=!isImage;if(isImage)image.src=button.dataset.url;else frame.src=button.dataset.url;preview.hidden=false;}));document.getElementById('cmpPreviewClose').addEventListener('click',function(){preview.hidden=true;frame.src='about:blank';image.removeAttribute('src');});
-     applyTab(activeTab==='2'?'2':'1');
+        const shell = document.getElementById('attributeComparison');
+        if (!shell) return;
+
+        let activeTab = '@Model.ActiveTab', saveTimer, pendingDecision;
+        const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+
+        function applyTab(tab) {
+            activeTab = tab;
+            shell.querySelectorAll('[data-cmp-tab]').forEach(x => x.classList.toggle('active', x.dataset.cmpTab === tab));
+            shell.querySelectorAll('[data-cmp-panel]').forEach(x => x.classList.toggle('active', x.dataset.cmpPanel === tab));
+            scheduleSave();
+        }
+
+        shell.querySelectorAll('[data-cmp-tab]').forEach(button =>
+            button.addEventListener('click', () => applyTab(button.dataset.cmpTab)));
+
+        const toggle = document.getElementById('cmpDifferencesOnly');
+        function applyFilter() {
+            shell.querySelectorAll('.cmp-row').forEach(row => {
+                row.hidden = !!toggle?.checked && row.dataset.result === 'matching';
+            });
+        }
+        if (toggle) {
+            toggle.addEventListener('change', function () { applyFilter(); scheduleSave(); });
+            applyFilter();
+        }
+
+        const cmpComment = document.getElementById('cmpFinalComment');
+        function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(saveDraft, 700); }
+        if (cmpComment) cmpComment.addEventListener('input', scheduleSave);
+
+        async function saveDraft() {
+            try {
+                await fetch('@Url.Action("AutoSaveDraft", "ValuerInbox")', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+                    body: JSON.stringify({ reviewId: @Model.ReviewId, attrId: @Model.AttrId, activeTab, valuerComment: cmpComment?.value || '', differencesOnly: toggle?.checked || false })
+                });
+            } catch (e) { console.warn('Review autosave failed.', e); }
+        }
+
+        async function saveCorrections() {
+            const keys = Array.from(shell.querySelectorAll('.cmp-correction:checked')).map(x => x.value);
+            await fetch('@Url.Action("SaveCorrectionFields", "ValuerInbox")', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+                body: JSON.stringify({ reviewId: @Model.ReviewId, attrId: @Model.AttrId, fieldKeys: keys })
+            });
+        }
+
+        shell.querySelectorAll('.cmp-correction').forEach(x => x.addEventListener('change', saveCorrections));
+
+        function showConfirmation(decision) {
+            pendingDecision = decision;
+            const selected = shell.querySelectorAll('.cmp-correction:checked').length;
+            document.getElementById('cmpConfirmSummary').innerHTML =
+                '<p><strong>Decision:</strong> ' + (decision === 'SubmitToOvvio' ? 'Submit for OVVIO' : 'Return to Client') + '</p>' +
+                '<p><strong>Differences:</strong> @Model.DifferenceCount</p>' +
+                '<p><strong>Selected correction fields:</strong> ' + selected + '</p>' +
+                '<p><strong>Comment:</strong> ' + (cmpComment?.value || 'No comment') + '</p>';
+            document.getElementById('cmpConfirmModal').hidden = false;
+        }
+
+        function submitDecision(decision) {
+            const form = document.getElementById('finalReviewForm');
+            const target = document.querySelector('#finalReviewForm textarea[name="FinalComment"]');
+            if (!form || !target) return;
+            target.value = cmpComment?.value || '';
+            if (typeof window.setFinalDecision === 'function' && window.setFinalDecision(decision)) form.requestSubmit();
+        }
+
+        document.getElementById('cmpInspection')?.addEventListener('click', () => {
+            if (typeof window.openInspectionModal === 'function') window.openInspectionModal();
+        });
+        document.getElementById('cmpReturn')?.addEventListener('click', () => {
+            const selected = shell.querySelectorAll('.cmp-correction:checked').length;
+            if (selected === 0) {
+                alert('Select at least one different field to return to the client.');
+                return;
+            }
+            showConfirmation('ReturnToClient');
+        });
+        document.getElementById('cmpOvvio')?.addEventListener('click', () => showConfirmation('SubmitToOvvio'));
+        document.getElementById('cmpConfirmCancel')?.addEventListener('click', () => document.getElementById('cmpConfirmModal').hidden = true);
+        document.getElementById('cmpConfirmProceed')?.addEventListener('click', async function () {
+            await saveCorrections();
+            document.getElementById('cmpConfirmModal').hidden = true;
+            submitDecision(pendingDecision);
+        });
+
+        const preview = document.getElementById('cmpPreviewModal'), frame = document.getElementById('cmpPreviewFrame'), image = document.getElementById('cmpPreviewImage');
+        shell.querySelectorAll('.cmp-evidence-preview').forEach(button => button.addEventListener('click', function () {
+            const isImage = (button.dataset.type || '').startsWith('image/');
+            frame.hidden = isImage; image.hidden = !isImage;
+            if (isImage) image.src = button.dataset.url; else frame.src = button.dataset.url;
+            preview.hidden = false;
+        }));
+        document.getElementById('cmpPreviewClose')?.addEventListener('click', function () {
+            preview.hidden = true; frame.src = 'about:blank'; image.removeAttribute('src');
+        });
+
+        applyTab(activeTab === '2' ? '2' : '1');
     });
 </script>

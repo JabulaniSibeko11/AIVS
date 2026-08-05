@@ -2,32 +2,53 @@
 @foreach (var sec in Model)
 {
     <div class="cmp-section">
-        <div class="cmp-section-head"><h3>@sec.SectionName</h3><div><button type="button" class="cmp-quick" data-section="@sec.SectionCode" data-decision="Accepted">Accept</button><button type="button" class="cmp-quick warning" data-section="@sec.SectionCode" data-decision="Needs correction">Return fields</button><button type="button" class="cmp-quick inspection" data-section="@sec.SectionCode" data-decision="Requires inspection">Inspect</button></div></div>
-        <div class="cmp-table-wrap"><table class="cmp-table">
-            <thead><tr><th>Field</th><th>City data</th><th>Client submitted</th><th>Result</th></tr></thead>
-            <tbody>
-            @foreach (var field in sec.Fields.OrderBy(x => x.DisplayOrder))
-            {
-                var rowClass = field.IsReadOnly ? "readonly" : field.HasDifference ? "different" : "matching";
-                <tr class="cmp-row @rowClass" data-difference="@(field.HasDifference ? "true" : "false")">
-                    <th>
-                        @if (field.HasDifference && !field.IsReadOnly)
-                        {
-                            <input type="checkbox" class="cmp-correction" value="@($"{sec.SectionCode}:{field.FieldCode}")"
-                                   checked="@field.IsSelectedForCorrection" aria-label="Return @field.FieldLabel to client" />
-                        }
-                        @field.FieldLabel
-                    </th>
-                    <td>@(string.IsNullOrWhiteSpace(field.CityValue) ? "—" : field.CityValue)</td>
-                    <td>@(string.IsNullOrWhiteSpace(field.ClientValue) ? "—" : field.ClientValue)</td>
-                    <td>
-                        @if (field.IsReadOnly) { <span class="cmp-badge readonly">Read only</span> }
-                        else if (field.HasDifference) { <span class="cmp-badge different">Different</span> }
-                        else { <span class="cmp-badge matching">Matches</span> }
-                    </td>
-                </tr>
-            }
-            </tbody>
-        </table></div>
+        <div class="cmp-section-head">
+            <h3>@sec.SectionName</h3>
+        </div>
+        <div class="cmp-table-wrap">
+            <table class="cmp-table">
+                <thead><tr><th>Field</th><th>City data</th><th>Client submitted</th><th>Result</th></tr></thead>
+                <tbody>
+                    @foreach (var field in sec.Fields.OrderBy(x => x.DisplayOrder))
+                    {
+                        var rowClass = !field.HasCityValue ? "pending" : field.IsReadOnly ? "readonly" : field.HasDifference ? "different" : "matching";
+                        var resultName = !field.HasCityValue ? "pending" : field.HasDifference ? "different" : "matching";
+                        <tr class="cmp-row @rowClass" data-result="@resultName" data-difference="@(field.HasDifference ? "true" : "false")">
+                            <th>
+                                @if (field.HasCityValue && field.HasDifference && !field.IsReadOnly)
+                                {
+                                    <input type="checkbox" class="cmp-correction" value="@($"{sec.SectionCode}:{field.FieldCode}")"
+                                           checked="@field.IsSelectedForCorrection" aria-label="Return @field.FieldLabel to client" />
+                                }
+                                @field.FieldLabel
+                            </th>
+                            <td>@(string.IsNullOrWhiteSpace(field.CityValue) ? "—" : field.CityValue)</td>
+                            <td>@(string.IsNullOrWhiteSpace(field.ClientValue) ? "—" : field.ClientValue)</td>
+                            <td>
+                                @if (!field.HasCityValue)
+                                {
+                                    <span class="cmp-badge pending">City pending</span>
+                                }
+                                else if (field.IsReadOnly)
+                                {
+
+                                    <span class="cmp-badge readonly">Read only</span>
+                                }
+                                else if (field.HasDifference)
+                                {
+
+                                    <span class="cmp-badge different">Different</span>
+                                }
+                                else
+                                {
+
+                                    <span class="cmp-badge matching">Matches</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
     </div>
 }

@@ -3,7 +3,9 @@ using AIVS.Data;
 using AIVS.Models.Configuration;
 using AIVS.Services.Implementations;
 using AIVS.Services.Interface;
+using AIVS.Security;
 using Microsoft.AspNetCore.Authentication.Negotiate;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -58,6 +60,8 @@ builder.Services.AddAuthentication(NegotiateDefaults.AuthenticationScheme)
 // User Management Service
 // ─────────────────────────────────────────────
 builder.Services.AddScoped<IUserManagementService, UserManagementService>();
+builder.Services.AddScoped<IAivsRoleAccessService, AivsRoleAccessService>();
+builder.Services.AddScoped<IAuthorizationHandler, AivsPermissionHandler>();
 
 
 
@@ -81,36 +85,52 @@ builder.Services.AddAuthorization(options =>
 {
     options.FallbackPolicy = options.DefaultPolicy;
 
-    options.AddPolicy(aivsUsersPolicy, policy =>
-    {
-        policy.RequireAuthenticatedUser();
-    });
+    // Permission-based policies used by the controllers.
+    AddPermissionPolicy(options, AivsPolicyNames.AccessAivs, AivsPermission.AccessAivs);
+    AddPermissionPolicy(options, AivsPolicyNames.ViewSectorInbox, AivsPermission.ViewSectorInbox);
+    AddPermissionPolicy(options, AivsPolicyNames.SelfAssign, AivsPermission.SelfAssign);
+    AddPermissionPolicy(options, AivsPolicyNames.AssignWork, AivsPermission.AssignWork);
+    AddPermissionPolicy(options, AivsPolicyNames.ReviewSubmission, AivsPermission.ReviewSubmission);
+    AddPermissionPolicy(options, AivsPolicyNames.SectorManagerQa, AivsPermission.PerformSectorManagerQa);
+    AddPermissionPolicy(options, AivsPolicyNames.SeniorManagerQa, AivsPermission.PerformSeniorManagerQa);
+    AddPermissionPolicy(options, AivsPolicyNames.ViewSectorStatistics, AivsPermission.ViewSectorStatistics);
+    AddPermissionPolicy(options, AivsPolicyNames.ViewExecutiveStatistics, AivsPermission.ViewExecutiveStatistics);
+    AddPermissionPolicy(options, AivsPolicyNames.ExportStatistics, AivsPermission.ExportStatistics);
+    AddPermissionPolicy(options, AivsPolicyNames.ViewAllSectors, AivsPermission.ViewAllSectors);
+    AddPermissionPolicy(options, AivsPolicyNames.AdministerAivs, AivsPermission.AdministerAivs);
 
-    options.AddPolicy(valuerOnlyPolicy, policy =>
-    {
-        policy.RequireAuthenticatedUser();
-    });
-
-    options.AddPolicy(sectorManagerOnlyPolicy, policy =>
-    {
-        policy.RequireAuthenticatedUser();
-    });
-
-    options.AddPolicy(managementPolicy, policy =>
-    {
-        policy.RequireAuthenticatedUser();
-    });
-
-    options.AddPolicy(sectorInboxPolicy, policy =>
-    {
-        policy.RequireAuthenticatedUser();
-    });
-
-    options.AddPolicy(allSectorAccessPolicy, policy =>
-    {
-        policy.RequireAuthenticatedUser();
-    });
+    // Keep the older configuration-based policy names available while views or
+    // controllers are migrated to the permission-based policy names above.
+    AddAuthenticatedPolicy(options, aivsUsersPolicy);
+    AddAuthenticatedPolicy(options, valuerOnlyPolicy);
+    AddAuthenticatedPolicy(options, sectorManagerOnlyPolicy);
+    AddAuthenticatedPolicy(options, managementPolicy);
+    AddAuthenticatedPolicy(options, sectorInboxPolicy);
+    AddAuthenticatedPolicy(options, allSectorAccessPolicy);
 });
+
+static void AddPermissionPolicy(
+    AuthorizationOptions options,
+    string policyName,
+    AivsPermission permission)
+{
+    options.AddPolicy(policyName, policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.AddRequirements(new AivsPermissionRequirement(permission));
+    });
+}
+
+static void AddAuthenticatedPolicy(AuthorizationOptions options, string policyName)
+{
+    // Avoid attempting to register a duplicate policy name.
+    if (string.IsNullOrWhiteSpace(policyName))
+    {
+        return;
+    }
+
+    options.AddPolicy(policyName, policy => policy.RequireAuthenticatedUser());
+}
 
 var app = builder.Build();
 
