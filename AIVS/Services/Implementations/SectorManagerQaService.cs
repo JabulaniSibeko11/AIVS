@@ -26,6 +26,7 @@ namespace AIVS.Services.Implementations
         private readonly IAttributeApprovalNoticeService _approvalNoticeService;
         private readonly IOvvioAttributeService _ovvioAttributeService;
         private readonly IProcessorFileService _processorFiles;
+        private readonly IValuerInboxService _valuerInboxService;
 
         public SectorManagerQaService(
             AttributesDbContext context,
@@ -39,7 +40,8 @@ namespace AIVS.Services.Implementations
             IOptions<DemoQaSettings> demoQa,
             IAttributeApprovalNoticeService approvalNoticeService,
             IOvvioAttributeService ovvioAttributeService,
-            IProcessorFileService processorFiles)
+            IProcessorFileService processorFiles,
+            IValuerInboxService valuerInboxService)
         {
             _context = context;
             _logger = logger;
@@ -53,6 +55,7 @@ namespace AIVS.Services.Implementations
             _approvalNoticeService = approvalNoticeService;
             _ovvioAttributeService = ovvioAttributeService;
             _processorFiles = processorFiles;
+            _valuerInboxService = valuerInboxService;
         }
 
         public async Task<List<SectorManagerQaInboxItemVm>> GetInboxAsync(AivsCurrentUserVm currentUser)
@@ -187,6 +190,10 @@ namespace AIVS.Services.Implementations
             var evidenceFiles = await BuildEvidenceFilesAsync(item.Attr_ID);
             var physicalEvidenceFiles = await BuildPhysicalInspectionEvidenceFilesAsync(item.Attr_ID);
             var processorEvidenceFiles = await _processorFiles.GetEvidenceAsync(item.Attr_ID);
+            var reviewPage = await _valuerInboxService.GetReviewForQaAsync(review.Id, currentUser);
+            var sectorManagerWasProcessor =
+                string.Equals(qa.QaDecision, "SectorManagerPerformedValuation", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(qa.SelectionReason, "Processor is a Sector Manager - direct Senior Manager QA required", StringComparison.OrdinalIgnoreCase);
 
             return new SectorManagerQaDetailsVm
             {
@@ -216,7 +223,11 @@ namespace AIVS.Services.Implementations
                 Sections = sections,
                 EvidenceFiles = evidenceFiles,
                 PhysicalInspectionEvidenceFiles = physicalEvidenceFiles,
-                ProcessorEvidenceFiles = processorEvidenceFiles
+                ProcessorEvidenceFiles = processorEvidenceFiles,
+                ReviewPage = reviewPage,
+                SeniorManagerName = qa.SeniorManagerName,
+                SeniorManagerComment = qa.SeniorQaComment,
+                SectorManagerWasProcessor = sectorManagerWasProcessor
             };
         }
 
@@ -231,10 +242,8 @@ namespace AIVS.Services.Implementations
             await using var transaction = await _context.Database.BeginTransactionAsync();
 
             var qa = await _context.AttrSectorManagerQaReviews
-                .FirstOrDefaultAsync(x => x.Id == vm.QaId && x.Attr_ID == vm.AttrId);
-
-            if (qa == null)
-                throw new InvalidOperationException("Sector Manager QA record could not be found.");
+                .FirstOrDefaultAsync(x => x.Id == vm.QaId && x.Attr_ID == vm.AttrId)
+                ?? throw new InvalidOperationException("Sector Manager QA record could not be found.");
 
             EnsureQaAssignment(qa, currentUser);
 
@@ -244,12 +253,8 @@ namespace AIVS.Services.Implementations
 
             var item = await _context.AttrPropertyInfo
                 .Include(x => x.PropertyDetails)
-                .FirstOrDefaultAsync(x =>
-                    x.Attr_ID == vm.AttrId &&
-                    x.IsActive == true);
-
-            if (item == null)
-                throw new InvalidOperationException("Attribute submission could not be found.");
+                .FirstOrDefaultAsync(x => x.Attr_ID == vm.AttrId && x.IsActive == true)
+                ?? throw new InvalidOperationException("Attribute submission could not be found.");
 
             if (!string.Equals(item.Attr_Status, "SectorManagerQa", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("This submission is not waiting for Sector Manager QA.");
@@ -258,10 +263,8 @@ namespace AIVS.Services.Implementations
                 throw new InvalidOperationException("Valuer review could not be found for this QA record.");
 
             var review = await _context.AttrValuerReviews
-                .FirstOrDefaultAsync(x => x.Id == qa.ValuerReviewId.Value);
-
-            if (review == null)
-                throw new InvalidOperationException("Valuer review could not be found.");
+                .FirstOrDefaultAsync(x => x.Id == qa.ValuerReviewId.Value)
+                ?? throw new InvalidOperationException("Valuer review could not be found.");
 
             var now = DateTime.Now;
             var comment = vm.Comment.Trim();
@@ -269,12 +272,19 @@ namespace AIVS.Services.Implementations
             var currentUserName = CurrentUserName(currentUser);
             var currentUserId = currentUser.UserId.Value.ToString();
 
+            // Normal Valuer -> Sector Manager QA ends here. Senior Manager QA is not required.
+            // Senior Manager QA is reserved for work processed by a Sector Manager acting as the Valuer.
             qa.QaStatus = "Approved";
             qa.QaDecision = "ApproveToOvvio";
             qa.QaComment = comment;
             qa.QaStartedAt ??= now;
             qa.QaCompletedAt = now;
-            qa.SeniorQaStatus = "Pending";
+            qa.SectorManagerUserId = currentUser.UserId.Value;
+            qa.SectorManagerUsername = currentUser.Username ?? currentUser.WindowsUsername;
+            qa.SectorManagerName = currentUser.FullName;
+            qa.SectorManagerEmail = currentUser.Email;
+
+            qa.SeniorQaStatus = null;
             qa.SeniorManagerUserId = null;
             qa.SeniorManagerUsername = null;
             qa.SeniorManagerName = null;
@@ -283,54 +293,28 @@ namespace AIVS.Services.Implementations
             qa.SeniorQaComment = null;
             qa.SeniorQaStartedAt = null;
             qa.SeniorQaCompletedAt = null;
-
-            var demoSenior = await GetDemoQaUserAsync();
-            var currentIsDemoUser = IsCurrentDemoQaUser(currentUser);
-            if (_demoQa.Enabled && _demoQa.AutoAssignQaToTestUser && (demoSenior != null || currentIsDemoUser))
-            {
-                qa.SeniorManagerUserId = demoSenior?.UserID ?? currentUser.UserId;
-                qa.SeniorManagerUsername = demoSenior?.Username?.Trim()
-                    ?? currentUser.Username
-                    ?? currentUser.WindowsUsername
-                    ?? _demoQa.TestUserWindowsUsername;
-                qa.SeniorManagerName = !string.IsNullOrWhiteSpace(demoSenior?.FullName)
-                    ? demoSenior!.FullName
-                    : (currentUser.FullName ?? _demoQa.TestUserDisplayName);
-                qa.SeniorManagerEmail = demoSenior?.EmailAddress?.Trim()
-                    ?? currentUser.Email
-                    ?? _demoQa.TestUserEmail;
-                qa.SeniorQaStatus = "InProgress";
-                qa.SeniorQaStartedAt = now;
-            }
-
-            qa.SectorManagerUserId = currentUser.UserId.Value;
-            qa.SectorManagerUsername = currentUser.Username ?? currentUser.WindowsUsername;
-            qa.SectorManagerName = currentUser.FullName;
-            qa.SectorManagerEmail = currentUser.Email;
             qa.UpdatedBy = currentUserName;
             qa.UpdatedDate = now;
 
-            review.ReviewStatus = "SubmittedForSeniorManagerQa";
-            review.ReadyForOvvioExtract = false;
+            review.ReviewStatus = "Completed";
+            review.ReadyForOvvioExtract = true;
             review.ReturnToClient = false;
             review.RequiresInspection = false;
             review.UpdatedBy = currentUserName;
             review.UpdatedDate = now;
 
-            item.Attr_Status = "SeniorManagerQa";
-            item.ReadyForOvvioExtract = false;
-            item.OvvioExtractStatus = null;
+            item.Attr_Status = "Approved";
+            item.ReadyForOvvioExtract = true;
+            item.OvvioExtractStatus = "Pending";
             item.OvvioExtractBatchNo = null;
             item.OvvioExtractDateTime = null;
             item.OvvioExtractedBy = null;
             item.OvvioExtractError = null;
-
             item.SectorManagerQaDecision = "ApproveToOvvio";
             item.SectorManagerQaComment = comment;
             item.SectorManagerQaBy = currentUser.FullName;
             item.SectorManagerQaUserId = currentUserId;
             item.SectorManagerQaDateTime = now;
-
             item.UpdatedBy = currentUserName;
             item.UpdatedDate = now;
 
@@ -338,9 +322,9 @@ namespace AIVS.Services.Implementations
             {
                 Attr_ID = item.Attr_ID,
                 Attr_No = item.Attr_No,
-                Action = "Sector Manager Submitted for Senior Manager QA",
+                Action = "Sector Manager Final Approval for OVVIO",
                 OldStatus = oldStatus,
-                NewStatus = "SeniorManagerQa",
+                NewStatus = "Approved",
                 ActionByUserId = currentUserId,
                 ActionByName = currentUser.FullName,
                 ActionRole = currentUser.Role ?? "Sector Manager",
@@ -360,34 +344,42 @@ namespace AIVS.Services.Implementations
             qa.UpdatedBy = currentUserName;
             qa.UpdatedDate = DateTime.Now;
 
+            var approvalNoticePath = await _approvalNoticeService
+                .GenerateAsync(item, comment, currentUser);
+
+            await _ovvioAttributeService
+                .InsertApprovedSubmissionAsync(item, comment, approvalNoticePath, currentUser);
+
+            item.Attr_Status = "OvvioInserted";
+            item.OvvioExtractStatus = "Inserted";
+            item.OvvioExtractDateTime = DateTime.Now;
+            item.OvvioExtractedBy = currentUser.FullName;
+            item.OvvioExtractError = null;
+            item.UpdatedBy = currentUserName;
+            item.UpdatedDate = DateTime.Now;
+
             _context.AttrPropertyInfoAuditTrail.Add(new AttrPropertyInfoAuditTrail
             {
                 Attr_ID = item.Attr_ID,
                 Attr_No = item.Attr_No,
-                Action = "Reviewed PDF Updated After Sector Manager QA",
-                OldStatus = item.Attr_Status,
-                NewStatus = item.Attr_Status,
+                Action = "Approved Attributes Inserted to OVVIO Staging",
+                OldStatus = "Approved",
+                NewStatus = "OvvioInserted",
                 ActionByUserId = currentUserId,
                 ActionByName = currentUser.FullName,
                 ActionRole = currentUser.Role ?? "Sector Manager",
-                Comment = $"Reviewed PDF updated after Sector Manager QA: {Path.GetFileName(reviewedPdfPath)}",
+                Comment = $"Sector Manager final approval notice: {Path.GetFileName(approvalNoticePath)}",
                 ActionDateTime = DateTime.Now
             });
 
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            await _notificationService.CreateNotificationAsync(
-                null,
-                null,
-                "SENIOR MANAGER",
-                "Senior Manager QA required",
-                $"{item.Attr_No} was approved by the Sector Manager and is waiting for Senior Manager QA.",
-                "SeniorManagerQa",
-                item.Attr_ID,
-                item.Attr_No,
-                qa.Id,
-                currentUser.FullName);
+            await NotifyAndEmailAfterSectorFinalApprovalAsync(
+                item,
+                comment,
+                currentUser,
+                approvalNoticePath);
         }
 
         public async Task ReturnToValuerAsync(SectorManagerQaDecisionVm vm, AivsCurrentUserVm currentUser)
@@ -828,6 +820,55 @@ namespace AIVS.Services.Implementations
                 _logger.LogError(
                     ex,
                     "Sector Manager QA approval completed, but email/notification failed for {AttrNo}",
+                    item.Attr_No);
+            }
+        }
+
+        private async Task NotifyAndEmailAfterSectorFinalApprovalAsync(
+            AttrPropertyInfo item,
+            string comment,
+            AivsCurrentUserVm currentUser,
+            string approvalNoticePath)
+        {
+            try
+            {
+                var contact = item.PropertyDetails == null
+                    ? null
+                    : await _context.AttrContactInfo.AsNoTracking()
+                        .Where(x => x.PropertyDetailsId == item.PropertyDetails.Id)
+                        .OrderBy(x => x.Id)
+                        .FirstOrDefaultAsync();
+
+                if (contact != null && !string.IsNullOrWhiteSpace(contact.Email))
+                {
+                    var noticeBytes = await File.ReadAllBytesAsync(approvalNoticePath);
+                    await _emailService.SendAttributeApprovalEmailAsync(
+                        contact.Email,
+                        BuildClientName(contact),
+                        item.Attr_No ?? "-",
+                        item.Property_Desc,
+                        comment,
+                        noticeBytes,
+                        Path.GetFileName(approvalNoticePath));
+                }
+
+                await _notificationService.CreateNotificationAsync(
+                    currentUser.UserId,
+                    currentUser.Username ?? currentUser.WindowsUsername,
+                    currentUser.Role,
+                    "Attribute submission finally approved",
+                    $"{item.Attr_No} passed Sector Manager QA, was inserted into OVVIO staging, and the client approval notice was generated.",
+                    "OvvioInserted",
+                    item.Attr_ID,
+                    item.Attr_No,
+                    null,
+                    currentUser.FullName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Sector Manager final QA completed, but email/notification failed for {AttrNo}",
                     item.Attr_No);
             }
         }

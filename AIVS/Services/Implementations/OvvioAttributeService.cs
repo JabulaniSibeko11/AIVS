@@ -29,6 +29,24 @@ public class OvvioAttributeService : IOvvioAttributeService
         var details = await _context.AttrPropertyDetails.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == detailsId.Value);
 
+        var fieldResolutions = await _context.AttrValuerReviewFieldResolutions.AsNoTracking()
+            .Where(x => x.Attr_ID == item.Attr_ID && x.IsActive)
+            .OrderBy(x => x.SectionCode)
+            .ThenBy(x => x.FieldCode)
+            .Select(x => new
+            {
+                x.SectionCode,
+                x.FieldCode,
+                x.FieldLabel,
+                x.CityValue,
+                x.ClientValue,
+                x.Decision,
+                x.ResolvedValue,
+                x.ResolvedByName,
+                x.ResolvedAt
+            })
+            .ToListAsync();
+
         var payload = new
         {
             Property = details,
@@ -42,7 +60,10 @@ public class OvvioAttributeService : IOvvioAttributeService
             BusinessSections = await _context.AttrBusinessSections.AsNoTracking().Where(x => x.PropertyDetailsId == detailsId.Value).ToListAsync(),
             DrcBuildings = await _context.AttrDrcBuildings.AsNoTracking().Where(x => x.PropertyDetailsId == detailsId.Value).ToListAsync(),
             DrcImprovements = await _context.AttrDrcImprovements.AsNoTracking().Where(x => x.PropertyDetailsId == detailsId.Value).ToListAsync(),
-            DrcVacantLand = await _context.AttrDrcVacantLand.AsNoTracking().Where(x => x.PropertyDetailsId == detailsId.Value).ToListAsync()
+            DrcVacantLand = await _context.AttrDrcVacantLand.AsNoTracking().Where(x => x.PropertyDetailsId == detailsId.Value).ToListAsync(),
+            // Keep the City's original snapshot unchanged. These records capture the Valuer's
+            // accepted final value where a condition dropdown differed from the client submission.
+            FieldResolutions = fieldResolutions
         };
 
         var existing = await _context.AttrOvvioApprovedAttributes

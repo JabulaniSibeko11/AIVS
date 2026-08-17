@@ -8,6 +8,7 @@ namespace AIVS.Services.Interface
         Task<List<ValuerInboxItemVm>> GetMyInboxAsync(AivsCurrentUserVm currentUser);
 
         Task<ValuerReviewPageVm> OpenReviewAsync(long attrId, AivsCurrentUserVm currentUser);
+        Task<ValuerReviewPageVm> GetReviewForQaAsync(long reviewId, AivsCurrentUserVm currentUser);
         Task SaveSectionReviewAsync(
     SaveSectionReviewVm vm,
     AivsCurrentUserVm currentUser);
@@ -28,6 +29,7 @@ namespace AIVS.Services.Interface
     AivsCurrentUserVm currentUser);
         Task SaveDraftAsync(SaveReviewDraftVm vm, AivsCurrentUserVm currentUser);
         Task SaveCorrectionFieldsAsync(SaveCorrectionFieldsVm vm, AivsCurrentUserVm currentUser);
+        Task ResolveRatingDifferenceAsync(ResolveRatingDifferenceVm vm, AivsCurrentUserVm currentUser);
         Task SaveQuickSectionDecisionAsync(QuickSectionDecisionVm vm, AivsCurrentUserVm currentUser);
     }
 }

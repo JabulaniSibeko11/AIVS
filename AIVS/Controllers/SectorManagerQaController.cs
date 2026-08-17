@@ -81,6 +81,48 @@ namespace AIVS.Controllers
         }
 
         [HttpGet]
+        public async Task<IActionResult> EvidenceFile(long id, long attrFileId, string fileName, bool download = false)
+        {
+            var currentUser = await _userManagementService.GetCurrentUserAsync(User);
+            try
+            {
+                var model = await _sectorManagerQaService.GetDetailsAsync(id, currentUser);
+                var file = model.EvidenceFiles.FirstOrDefault(x =>
+                    x.AttrFileId == attrFileId &&
+                    string.Equals(x.FileName, fileName, StringComparison.OrdinalIgnoreCase));
+
+                if (file == null || string.IsNullOrWhiteSpace(file.FilePath) || !System.IO.File.Exists(file.FilePath))
+                    return NotFound("Client evidence file was not found.");
+
+                var contentType = string.IsNullOrWhiteSpace(file.FileType) ? "application/octet-stream" : file.FileType;
+                return download
+                    ? PhysicalFile(file.FilePath, contentType, file.FileName, enableRangeProcessing: true)
+                    : PhysicalFile(file.FilePath, contentType, enableRangeProcessing: true);
+            }
+            catch { return Forbid(); }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> PhysicalInspectionEvidenceFile(long id, long evidenceId, bool download = false)
+        {
+            var currentUser = await _userManagementService.GetCurrentUserAsync(User);
+            try
+            {
+                var model = await _sectorManagerQaService.GetDetailsAsync(id, currentUser);
+                var file = model.PhysicalInspectionEvidenceFiles.FirstOrDefault(x => x.Id == evidenceId);
+
+                if (file == null || string.IsNullOrWhiteSpace(file.FilePath) || !System.IO.File.Exists(file.FilePath))
+                    return NotFound("Inspection evidence file was not found.");
+
+                var contentType = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType;
+                return download
+                    ? PhysicalFile(file.FilePath, contentType, file.FileName, enableRangeProcessing: true)
+                    : PhysicalFile(file.FilePath, contentType, enableRangeProcessing: true);
+            }
+            catch { return Forbid(); }
+        }
+
+        [HttpGet]
         public async Task<IActionResult> ProcessorEvidenceFile(long id, long evidenceId, bool download = false)
         {
             var currentUser = await _userManagementService.GetCurrentUserAsync(User);
@@ -130,7 +172,7 @@ namespace AIVS.Controllers
             try
             {
                 await _sectorManagerQaService.ApproveToOvvioAsync(vm, currentUser);
-                TempData["Success"] = "Sector Manager QA approved. The submission was sent to Senior Manager QA.";
+                TempData["Success"] = "Sector Manager QA approved. The final resolved values were submitted to OVVIO.";
                 return RedirectToAction(nameof(Index));
             }
             catch (Exception ex)

@@ -60,6 +60,7 @@ namespace AIVS.Data
         public DbSet<AttrOvvioApprovedAttribute> AttrOvvioApprovedAttributes { get; set; } = null!;
         public DbSet<AttrValuerReviewDraft> AttrValuerReviewDrafts { get; set; } = null!;
         public DbSet<AttrValuerReviewFieldCorrection> AttrValuerReviewFieldCorrections { get; set; } = null!;
+        public DbSet<AttrValuerReviewFieldResolution> AttrValuerReviewFieldResolutions { get; set; } = null!;
         public DbSet<AttrValuerReviewLock> AttrValuerReviewLocks { get; set; } = null!;
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -118,6 +119,10 @@ namespace AIVS.Data
                 entity.HasIndex(x => new { x.ReviewId, x.UserId }).IsUnique();
             });
             modelBuilder.Entity<AttrValuerReviewFieldCorrection>(entity =>
+            {
+                entity.HasIndex(x => new { x.ReviewId, x.SectionCode, x.FieldCode }).IsUnique();
+            });
+            modelBuilder.Entity<AttrValuerReviewFieldResolution>(entity =>
             {
                 entity.HasIndex(x => new { x.ReviewId, x.SectionCode, x.FieldCode }).IsUnique();
             });

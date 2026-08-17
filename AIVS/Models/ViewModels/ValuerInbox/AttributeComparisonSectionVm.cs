@@ -20,6 +20,10 @@
         public bool HasCityValue { get; set; }
         public bool HasDifference { get; set; }
         public bool IsSelectedForCorrection { get; set; }
+        public bool CanResolveRatingDifference { get; set; }
+        public bool IsResolved { get; set; }
+        public string? ResolutionDecision { get; set; }
+        public string? ResolvedValue { get; set; }
     }
 
     public class AttributeAuditEventVm

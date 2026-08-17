@@ -59,6 +59,7 @@ namespace AIVS.Models.ViewModels.ValuerInbox
         public int DifferenceCount => ComparisonSections.Sum(x => x.Fields.Count(f => f.HasCityValue && f.HasDifference));
         public int MatchingCount => ComparisonSections.Sum(x => x.Fields.Count(f => f.HasCityValue && !f.HasDifference && !f.IsReadOnly));
         public int MissingCityCount => ComparisonSections.Sum(x => x.Fields.Count(f => string.IsNullOrWhiteSpace(f.CityValue)));
+        public int UnresolvedRatingDifferenceCount => ComparisonSections.Sum(x => x.Fields.Count(f => f.CanResolveRatingDifference && !f.IsResolved && f.HasDifference));
         public string ActiveTab { get; set; } = "1";
         public bool DifferencesOnly { get; set; } = true;
         public bool IsLockedByAnotherUser { get; set; }

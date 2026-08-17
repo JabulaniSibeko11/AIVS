@@ -58,6 +58,14 @@ namespace AIVS.Models.ViewModels.SectorManager
 
         public List<ProcessorEvidenceFileVm> ProcessorEvidenceFiles { get; set; } = new();
 
+        public ValuerReviewPageVm? ReviewPage { get; set; }
+
+        public string? SeniorManagerName { get; set; }
+
+        public string? SeniorManagerComment { get; set; }
+
+        public bool SectorManagerWasProcessor { get; set; }
+
         public int TotalSections => Sections?.Count ?? 0;
 
         public int ReviewedSections => Sections?.Count(x => !string.IsNullOrWhiteSpace(x.SectionDecision)) ?? 0;

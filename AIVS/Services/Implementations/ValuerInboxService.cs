@@ -244,6 +244,16 @@ namespace AIVS.Services.Implementations
             return await BuildReviewPageAsync(review.Id, currentUser);
         }
 
+        public async Task<ValuerReviewPageVm> GetReviewForQaAsync(long reviewId, AivsCurrentUserVm currentUser)
+        {
+            if (currentUser.UserId == null)
+                throw new InvalidOperationException("Your AIVS user could not be verified.");
+
+            // QA reuses the same City-vs-client comparison builder as the Valuer Review.
+            // This is read-only for QA and does not change task ownership or workflow status.
+            return await BuildReviewPageAsync(reviewId, currentUser);
+        }
+
         private async Task CreateDefaultReviewSectionsAsync(
             AttrValuerReview review,
             AttrPropertyInfo item,
@@ -347,6 +357,15 @@ namespace AIVS.Services.Implementations
             var physicalInspectionEvidenceFiles = await BuildPhysicalInspectionEvidenceFilesAsync(item.Attr_ID);
             var processorEvidenceFiles = await _processorFiles.GetEvidenceAsync(item.Attr_ID);
             var comparisonSections = await BuildComparisonSectionsAsync(review.Id, submittedForm);
+            var unresolvedRatingDifferences = comparisonSections
+                .SelectMany(x => x.Fields)
+                .Count(x => x.CanResolveRatingDifference && x.HasDifference && !x.IsResolved);
+            if (unresolvedRatingDifferences > 0)
+            {
+                canSubmitToOvvio = false;
+                if (string.IsNullOrWhiteSpace(submitBlockReason))
+                    submitBlockReason = $"Resolve {unresolvedRatingDifferences} condition rating difference(s) before submitting to OVVIO.";
+            }
 
             var draft = currentUser.UserId == null ? null : await _context.AttrValuerReviewDrafts
                 .AsNoTracking()
@@ -530,6 +549,13 @@ namespace AIVS.Services.Implementations
                 .ToListAsync();
             var selected = selectedKeys.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+            var resolutionRows = await _context.AttrValuerReviewFieldResolutions.AsNoTracking()
+                .Where(x => x.ReviewId == reviewId && x.IsActive)
+                .ToListAsync();
+            var resolutions = resolutionRows
+                .GroupBy(x => BuildComparisonKey(x.SectionCode, x.FieldCode), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(x => x.Key, x => x.OrderByDescending(r => r.ResolvedAt).First(), StringComparer.OrdinalIgnoreCase);
+
             // Build from BOTH sources. Client-only keys remain visible while the City
             // table is empty; once the extract is loaded the same rows become a true
             // side-by-side comparison without changing the page structure.
@@ -571,6 +597,10 @@ namespace AIVS.Services.Implementations
                         var cleanedClientValue = CleanComparisonValue(clientValue);
                         var hasCityValue = !string.IsNullOrWhiteSpace(cityValue);
                         var readOnly = fieldCode is "H_AREA" or "HAREA";
+                        var rawDifference = hasCityValue && !readOnly && !ComparisonValuesEqual(cityValue, cleanedClientValue);
+                        var canResolveRating = rawDifference && IsConditionRatingPair(cityValue, cleanedClientValue);
+                        resolutions.TryGetValue(BuildComparisonKey(sectionCode, fieldCode), out var resolution);
+                        var isResolved = canResolveRating && resolution != null;
 
                         return new AttributeComparisonFieldVm
                         {
@@ -583,8 +613,12 @@ namespace AIVS.Services.Implementations
                             DisplayOrder = cityRow?.DisplayOrder ?? (index + 1) * 10,
                             IsReadOnly = readOnly,
                             HasCityValue = hasCityValue,
-                            HasDifference = hasCityValue && !readOnly && !ComparisonValuesEqual(cityValue, cleanedClientValue),
-                            IsSelectedForCorrection = selected.Contains(BuildComparisonKey(sectionCode, fieldCode))
+                            HasDifference = rawDifference && !isResolved,
+                            IsSelectedForCorrection = !isResolved && selected.Contains(BuildComparisonKey(sectionCode, fieldCode)),
+                            CanResolveRatingDifference = canResolveRating,
+                            IsResolved = isResolved,
+                            ResolutionDecision = resolution?.Decision,
+                            ResolvedValue = resolution?.ResolvedValue
                         };
                     })
                     // Do not create rows that are empty on both sides. Client-submitted
@@ -608,6 +642,19 @@ namespace AIVS.Services.Implementations
                 .ThenBy(x => x.DisplayOrder)
                 .ThenBy(x => x.SectionName)
                 .ToList();
+        }
+
+        private static bool IsConditionRatingPair(string? cityValue, string? clientValue)
+        {
+            if (string.IsNullOrWhiteSpace(cityValue) || string.IsNullOrWhiteSpace(clientValue))
+                return false;
+
+            var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "Excellent", "Good", "Fair", "Poor"
+            };
+
+            return allowed.Contains(cityValue.Trim()) && allowed.Contains(clientValue.Trim());
         }
 
         private static HashSet<string> GetComparisonSectionsForForm(
@@ -1068,6 +1115,79 @@ namespace AIVS.Services.Implementations
                     SelectedAt = DateTime.Now
                 });
             }
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task ResolveRatingDifferenceAsync(ResolveRatingDifferenceVm vm, AivsCurrentUserVm currentUser)
+        {
+            if (currentUser.UserId == null)
+                throw new InvalidOperationException("Your AIVS user could not be verified.");
+
+            await EnsureCurrentAssignmentAsync(vm.AttrId, currentUser);
+
+            var review = await _context.AttrValuerReviews
+                .FirstOrDefaultAsync(x => x.Id == vm.ReviewId && x.Attr_ID == vm.AttrId && x.ReviewerUserId == currentUser.UserId.Value)
+                ?? throw new InvalidOperationException("This review is not assigned to you.");
+
+            var decision = (vm.Decision ?? string.Empty).Trim();
+            if (decision is not ("AcceptClient" or "KeepCity"))
+                throw new InvalidOperationException("Choose either Accept Client Value or Keep City Value.");
+
+            var form = await BuildSubmittedAttributeViewModelAsync(vm.AttrId);
+            var comparisons = await BuildComparisonSectionsAsync(vm.ReviewId, form);
+            var sectionCode = NormalizeCode(vm.SectionCode);
+            var fieldCode = NormalizeCode(vm.FieldCode);
+            var field = comparisons
+                .FirstOrDefault(x => string.Equals(x.SectionCode, sectionCode, StringComparison.OrdinalIgnoreCase))?
+                .Fields.FirstOrDefault(x => string.Equals(x.FieldCode, fieldCode, StringComparison.OrdinalIgnoreCase));
+
+            if (field == null || !field.CanResolveRatingDifference)
+                throw new InvalidOperationException("This field is not an Excellent / Good / Fair / Poor rating difference.");
+
+            var existing = await _context.AttrValuerReviewFieldResolutions
+                .FirstOrDefaultAsync(x => x.ReviewId == review.Id && x.SectionCode == sectionCode && x.FieldCode == fieldCode);
+
+            if (existing == null)
+            {
+                existing = new AttrValuerReviewFieldResolution
+                {
+                    ReviewId = review.Id,
+                    Attr_ID = review.Attr_ID,
+                    SectionCode = sectionCode,
+                    FieldCode = fieldCode
+                };
+                _context.AttrValuerReviewFieldResolutions.Add(existing);
+            }
+
+            existing.FieldLabel = field.FieldLabel;
+            existing.CityValue = field.CityValue;
+            existing.ClientValue = field.ClientValue;
+            existing.Decision = decision;
+            existing.ResolvedValue = decision == "AcceptClient" ? field.ClientValue : field.CityValue;
+            existing.IsActive = true;
+            existing.ResolvedByUserId = currentUser.UserId.Value;
+            existing.ResolvedByName = currentUser.FullName ?? currentUser.Username;
+            existing.ResolvedAt = DateTime.Now;
+
+            // A resolved rating is a professional Valuer decision, not a client correction.
+            var correction = await _context.AttrValuerReviewFieldCorrections
+                .FirstOrDefaultAsync(x => x.ReviewId == review.Id && x.SectionCode == sectionCode && x.FieldCode == fieldCode);
+            if (correction != null) correction.IsActive = false;
+
+            _context.AttrPropertyInfoAuditTrail.Add(new AttrPropertyInfoAuditTrail
+            {
+                Attr_ID = review.Attr_ID,
+                Attr_No = (await _context.AttrPropertyInfo.AsNoTracking().FirstOrDefaultAsync(x => x.Attr_ID == review.Attr_ID))?.Attr_No,
+                Action = "Rating Difference Resolved",
+                OldStatus = review.ReviewStatus,
+                NewStatus = review.ReviewStatus,
+                ActionByUserId = currentUser.UserId.Value.ToString(),
+                ActionByName = currentUser.FullName ?? currentUser.Username ?? "Valuer",
+                ActionRole = "Processor",
+                Comment = $"{field.FieldLabel}: City '{field.CityValue}', Client '{field.ClientValue}'. Decision: {(decision == "AcceptClient" ? "Accept client value" : "Keep City value")}. Final review value: '{existing.ResolvedValue}'.",
+                ActionDateTime = DateTime.Now
+            });
+
             await _context.SaveChangesAsync();
         }
 

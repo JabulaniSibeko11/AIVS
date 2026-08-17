@@ -23,3 +23,12 @@ public class QuickSectionDecisionVm
     public string SectionCode { get; set; } = string.Empty;
     public string Decision { get; set; } = string.Empty;
 }
+
+public class ResolveRatingDifferenceVm
+{
+    public long ReviewId { get; set; }
+    public long AttrId { get; set; }
+    public string SectionCode { get; set; } = string.Empty;
+    public string FieldCode { get; set; } = string.Empty;
+    public string Decision { get; set; } = string.Empty;
+}

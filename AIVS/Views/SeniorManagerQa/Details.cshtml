@@ -2,87 +2,92 @@
 @using AIVS.Workflow
 @{
     ViewData["Title"] = "Senior Manager QA " + Model.AttrNo;
-    string D(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value;
+    string D(object? value)
+    {
+        var text = value?.ToString();
+        return string.IsNullOrWhiteSpace(text) ? "-" : text;
+    }
+    var review = Model.ReviewPage;
+    var returnLabel = Model.SectorManagerWasProcessor ? "Return to Processor" : "Return to Sector Manager";
+    var sectorComment = Model.SectorManagerWasProcessor
+        ? "Sector Manager performed the Processor review. Sector Manager QA was skipped and the task was routed directly to Senior Manager QA."
+        : D(Model.SectorManagerComment);
 }
+
+<link href="~/css/review-page.css" rel="stylesheet" asp-append-version="true" />
 <link href="~/css/sector-manager-qa.css" rel="stylesheet" asp-append-version="true" />
 
-<div class="smqa-page">
-    <div class="smqa-actions-top"><a class="smqa-link-back" asp-action="Index">Back to Senior Manager QA</a></div>
+<div class="rv-page">
+    <div class="rv-actions">
+        <a class="rv-btn-back" asp-action="Index">Back to Senior Manager QA</a>
+        <div class="rv-top-badges">
+            <span class="rv-badge">QA Status: @AttributeWorkflowStatus.QaDisplay(Model.SeniorQaStatus, senior: true)</span>
+            <span class="rv-badge rv-badge-dark">@Model.AttrNo</span>
+        </div>
+    </div>
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="rv-alert rv-alert-success">@TempData["Success"]</div>
+    }
     @if (TempData["Error"] != null)
     {
-        <div class="smqa-alert smqa-alert-danger">@TempData["Error"]</div>
+        <div class="rv-alert rv-alert-danger">@TempData["Error"]</div>
     }
 
-    <div class="smqa-header">
-        <div><h1>Senior Manager QA: @Model.AttrNo</h1><p>Perform the final QA review. Approval inserts the attributes into OVVIO staging and generates the client approval notice/email.</p></div>
-        <div class="smqa-header-count"><strong>@AttributeWorkflowStatus.QaDisplay(Model.SeniorQaStatus, senior: true)</strong> QA status</div>
+    <div class="rv-header">
+        <div class="rv-title-row">
+            <div>
+                <h1 class="rv-title">Senior Manager QA: @Model.AttrNo</h1>
+                <div class="rv-subtitle">Final QA review of the City-vs-client assessment. Final approval inserts the resolved result into OVVIO staging and generates the client approval notice.</div>
+            </div>
+            <span class="rv-badge">@D(review?.FormType)</span>
+        </div>
+
+        <div class="rv-grid">
+            <div class="rv-box"><div class="rv-label">Property</div><div class="rv-value">@D(Model.PropertyDescription)</div></div>
+            <div class="rv-box"><div class="rv-label">Township</div><div class="rv-value">@D(Model.Township)</div></div>
+            <div class="rv-box"><div class="rv-label">Sector</div><div class="rv-value">@D(Model.Sector)</div></div>
+            <div class="rv-box"><div class="rv-label">Processor / Valuer</div><div class="rv-value">@D(Model.ValuerName)</div></div>
+            <div class="rv-box"><div class="rv-label">Sector Manager</div><div class="rv-value">@(Model.SectorManagerWasProcessor ? "Processor role - QA skipped" : D(Model.SectorManagerName))</div></div>
+        </div>
     </div>
 
-    <div class="smqa-summary-grid">
-        <div class="smqa-summary-box"><span>Property</span><strong>@D(Model.PropertyDescription)</strong></div>
-        <div class="smqa-summary-box"><span>Sector</span><strong>@D(Model.Sector)</strong></div>
-        <div class="smqa-summary-box"><span>Valuer</span><strong>@D(Model.ValuerName)</strong></div>
-        <div class="smqa-summary-box"><span>Sector Manager</span><strong>@D(Model.SectorManagerName)</strong></div>
-        <div class="smqa-summary-box"><span>Sector Manager Comment</span><strong>@D(Model.SectorManagerComment)</strong></div>
-        <div class="smqa-summary-box"><span>Sector QA Completed</span><strong>@(Model.SectorManagerCompletedAt?.ToString("yyyy-MM-dd HH:mm") ?? "-")</strong></div>
-    </div>
+    @if (Model.SectorManagerWasProcessor)
+    {
+        <div class="rv-alert rv-alert-success">
+            <strong>Direct Senior Manager QA:</strong> The Sector Manager performed the processing work, therefore Sector Manager QA was skipped as required.
+        </div>
+    }
 
-    <div class="smqa-layout">
-        <main class="smqa-main">
-            <div class="smqa-section-card">
-                <div class="smqa-section-head"><h3>Review Section Decisions</h3></div><div class="smqa-section-body">
-                @foreach (var section in Model.Sections)
-                {
-                    <div class="smqa-section-decision"><strong>@D(section.SectionName ?? section.SectionCode)</strong><span>@D(section.SectionDecision)</span><small>@D(section.SectionComment)</small></div>
-                }
+    @{
+        ViewData["EvidenceController"] = "SeniorManagerQa";
+    }
+    @await Html.PartialAsync("~/Views/Shared/_QaReviewComparison.cshtml", Model, ViewData)
+
+    <section class="rv-comment-panel mt-3">
+        <div class="rv-comment-grid rv-comment-grid-three">
+            <div class="rv-comment-card">
+                <div class="rv-comment-title">Valuer / Processor Comment</div>
+                <div class="rv-comment-readonly">@D(Model.ValuerFinalComment)</div>
+            </div>
+            <div class="rv-comment-card">
+                <div class="rv-comment-title">Sector Manager Comment</div>
+                <div class="rv-comment-readonly">@sectorComment</div>
+            </div>
+            <div class="rv-comment-card">
+                <div class="rv-comment-title">Senior Manager Comment</div>
+                <form method="post" id="seniorQaDecisionForm">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="QaId" value="@Model.QaId" />
+                    <input type="hidden" name="AttrId" value="@Model.AttrId" />
+                    <textarea name="Comment" class="form-control" rows="6" maxlength="2000" required placeholder="Enter the Senior Manager final QA comment...">@Model.SeniorManagerComment</textarea>
+                    <div class="cmp-final-actions mt-3">
+                        <button type="submit" class="cmp-action ovvio" formaction="@Url.Action("Approve")" onclick="return confirm('Final approve this submission and insert the resolved attributes into OVVIO staging?');">Final Approve &amp; Submit to OVVIO</button>
+                        <button type="submit" class="cmp-action return" formaction="@Url.Action("ReturnToSectorManager")" onclick="return confirm('Return this QA review for correction?');">@returnLabel</button>
+                    </div>
+                </form>
             </div>
         </div>
-    </main>
-    <aside class="smqa-side">
-        <div class="smqa-side-card">
-            <div class="smqa-side-head">Client Evidence</div><div class="smqa-side-body">
-            @foreach (var file in Model.EvidenceFiles)
-            {
-                <div class="smqa-file"><strong>@D(file.FileName)</strong><a asp-action="EvidenceFile" asp-route-id="@Model.QaId" asp-route-attrFileId="@file.AttrFileId" asp-route-fileName="@file.FileName" target="_blank">View / Download</a></div>
-            }
-            @if (!Model.EvidenceFiles.Any())
-            {
-                <div class="smqa-note">No client evidence available.</div>
-            }
-        </div>
-    </div>
-    <div class="smqa-side-card">
-        <div class="smqa-side-head">Processor Evidence / Working Papers</div>
-        <div class="smqa-side-body">
-            @foreach (var file in Model.ProcessorEvidenceFiles)
-            {
-                <div class="smqa-file">
-                    <strong>@D(file.FileName)</strong>
-                    <span>@(file.UploadedByName ?? "Processor") · @file.UploadedAt.ToString("yyyy-MM-dd HH:mm") · @D(file.EvidenceStage)</span>
-                    @if (!string.IsNullOrWhiteSpace(file.EvidenceComment)) { <small>@file.EvidenceComment</small> }
-                    <a asp-action="ProcessorEvidenceFile" asp-route-id="@Model.QaId" asp-route-evidenceId="@file.Id" target="_blank">View</a>
-                    <a asp-action="ProcessorEvidenceFile" asp-route-id="@Model.QaId" asp-route-evidenceId="@file.Id" asp-route-download="true">Download</a>
-                </div>
-            }
-            @if (!Model.ProcessorEvidenceFiles.Any())
-            {
-                <div class="smqa-note">No processor evidence available.</div>
-            }
-        </div>
-    </div>
-
-    <div class="smqa-side-card">
-        <div class="smqa-side-head">Final Senior Manager Decision</div><div class="smqa-side-body">
-        <form method="post" id="seniorQaForm">
-            @Html.AntiForgeryToken()
-            <input type="hidden" name="QaId" value="@Model.QaId" />
-            <input type="hidden" name="AttrId" value="@Model.AttrId" />
-            <textarea name="Comment" class="form-control" rows="5" maxlength="2000" required placeholder="Enter the mandatory QA comment"></textarea>
-            <button class="smqa-btn mt-3" type="submit" formaction="@Url.Action("Approve")" onclick="return confirm('Final approve this submission, insert the attributes into OVVIO staging, and generate the client approval notice/email?');">Final Approve &amp; Insert to OVVIO</button>
-            <button class="smqa-btn mt-2" type="submit" formaction="@Url.Action("ReturnToSectorManager")" onclick="return confirm('Return this QA review to the Sector Manager?');">Return for Correction</button>
-        </form>
-    </div>
-</div>
-</aside>
-</div>
+    </section>
 </div>

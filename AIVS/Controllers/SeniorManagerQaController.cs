@@ -89,6 +89,26 @@ public class SeniorManagerQaController : Controller
 
 
     [HttpGet]
+    public async Task<IActionResult> PhysicalInspectionEvidenceFile(long id, long evidenceId, bool download = false)
+    {
+        var user = await _users.GetCurrentUserAsync(User);
+        try
+        {
+            var model = await _qaService.GetSeniorManagerDetailsAsync(id, user);
+            var file = model.PhysicalInspectionEvidenceFiles.FirstOrDefault(x => x.Id == evidenceId);
+
+            if (file == null || string.IsNullOrWhiteSpace(file.FilePath) || !System.IO.File.Exists(file.FilePath))
+                return NotFound("Inspection evidence file was not found.");
+
+            var contentType = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType;
+            return download
+                ? PhysicalFile(file.FilePath, contentType, file.FileName, enableRangeProcessing: true)
+                : PhysicalFile(file.FilePath, contentType, enableRangeProcessing: true);
+        }
+        catch { return Forbid(); }
+    }
+
+    [HttpGet]
     public async Task<IActionResult> ProcessorEvidenceFile(long id, long evidenceId, bool download = false)
     {
         var user = await _users.GetCurrentUserAsync(User);
@@ -130,7 +150,7 @@ public class SeniorManagerQaController : Controller
         try
         {
             await _qaService.ReturnToSectorManagerAsync(vm, user);
-            TempData["Success"] = "The QA review was returned to the Sector Manager.";
+            TempData["Success"] = "The QA review was returned for correction.";
             return RedirectToAction(nameof(Index));
         }
         catch (Exception ex)

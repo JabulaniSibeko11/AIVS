@@ -1,0 +1,229 @@
+﻿@model AIVS.Models.ViewModels.SectorManager.SectorManagerQaDetailsVm
+@using AIVS.Models.ViewModels.ValuerInbox
+@{
+    var review = Model.ReviewPage;
+    var evidenceController = (ViewData["EvidenceController"] as string) ?? "SectorManagerQa";
+    string D(object? value)
+    {
+        var text = value?.ToString();
+        return string.IsNullOrWhiteSpace(text) ? "-" : text;
+    }
+    string ResultText(AttributeComparisonFieldVm field)
+    {
+        if (!field.HasCityValue) return "City pending";
+        if (field.IsResolved)
+        {
+            return string.Equals(field.ResolutionDecision, "AcceptClient", StringComparison.OrdinalIgnoreCase)
+                ? "Resolved - Client accepted"
+                : "Resolved - City retained";
+        }
+        return field.HasDifference ? "Difference" : "Matching";
+    }
+    string ResultClass(AttributeComparisonFieldVm field)
+    {
+        if (!field.HasCityValue) return "pending";
+        if (field.IsResolved || !field.HasDifference) return "matching";
+        return "different";
+    }
+}
+
+@if (review == null)
+{
+    <div class="rv-alert rv-alert-danger">The Valuer review comparison could not be loaded.</div>
+    return;
+}
+
+@if (review.EvidenceFiles != null && review.EvidenceFiles.Any())
+{
+    <section class="rv-evidence-panel" id="qa-client-evidence">
+        <div class="rv-evidence-panel-head">
+            <div>
+                <div class="rv-evidence-panel-title"><i class="fa-solid fa-paperclip"></i> Client Uploaded Evidence</div>
+                <div class="rv-evidence-panel-subtitle">Evidence submitted by the client and considered by the Processor.</div>
+            </div>
+        </div>
+        <div class="rv-evidence-grid">
+            @foreach (var file in review.EvidenceFiles)
+            {
+                <article class="rv-evidence-file-card">
+                    <div class="rv-evidence-file-icon"><i class="fa-solid fa-file"></i></div>
+                    <div class="rv-evidence-file-info">
+                        <div class="rv-evidence-file-name">@D(file.FileName)</div>
+                        <div class="rv-evidence-file-meta">@(file.UploadedDateTime?.ToString("dd MMM yyyy HH:mm") ?? "Date unavailable")</div>
+                    </div>
+                    <div class="rv-evidence-file-actions">
+                        <a class="rv-evidence-view"
+                           asp-controller="@evidenceController"
+                           asp-action="EvidenceFile"
+                           asp-route-id="@Model.QaId"
+                           asp-route-attrFileId="@file.AttrFileId"
+                           asp-route-fileName="@file.FileName"
+                           target="_blank"><i class="fa-solid fa-eye"></i> View</a>
+                    </div>
+                </article>
+            }
+        </div>
+    </section>
+}
+
+<section class="rv-evidence-panel" id="qa-inspection-evidence">
+    <div class="rv-evidence-panel-head">
+        <div>
+            <div class="rv-evidence-panel-title"><i class="fa-solid fa-camera"></i> Inspection Evidence</div>
+            <div class="rv-evidence-panel-subtitle">Evidence captured during the physical inspection and forming part of the Processor's review.</div>
+        </div>
+    </div>
+    @if (review.PhysicalInspectionEvidenceFiles == null || !review.PhysicalInspectionEvidenceFiles.Any())
+    {
+        <div class="rv-evidence-empty">No physical inspection evidence was required or uploaded.</div>
+    }
+    else
+    {
+        <div class="rv-evidence-grid">
+            @foreach (var file in review.PhysicalInspectionEvidenceFiles)
+            {
+                <article class="rv-evidence-file-card">
+                    <div class="rv-evidence-file-icon"><i class="@(file.IsImage ? "fa-solid fa-file-image" : "fa-solid fa-file")"></i></div>
+                    <div class="rv-evidence-file-info">
+                        <div class="rv-evidence-file-name">@D(file.FileName)</div>
+                        <div class="rv-evidence-file-meta">@file.UploadedAt.ToString("dd MMM yyyy HH:mm") · @D(file.UploadedByName)</div>
+                        @if (!string.IsNullOrWhiteSpace(file.EvidenceComment))
+                        {
+                            <div class="rv-evidence-file-meta">@file.EvidenceComment</div>
+                        }
+                    </div>
+                    <div class="rv-evidence-file-actions">
+                        <a class="rv-evidence-view"
+                           asp-controller="@evidenceController"
+                           asp-action="PhysicalInspectionEvidenceFile"
+                           asp-route-id="@Model.QaId"
+                           asp-route-evidenceId="@file.Id"
+                           asp-route-download="false"
+                           target="_blank"><i class="fa-solid fa-eye"></i> View</a>
+                        <a class="rv-evidence-download"
+                           asp-controller="@evidenceController"
+                           asp-action="PhysicalInspectionEvidenceFile"
+                           asp-route-id="@Model.QaId"
+                           asp-route-evidenceId="@file.Id"
+                           asp-route-download="true"><i class="fa-solid fa-download"></i> Download</a>
+                    </div>
+                </article>
+            }
+        </div>
+    }
+</section>
+
+<section class="rv-evidence-panel" id="qa-processor-evidence">
+    <div class="rv-evidence-panel-head">
+        <div>
+            <div class="rv-evidence-panel-title"><i class="fa-solid fa-shield-halved"></i> Internal Processor Evidence</div>
+            <div class="rv-evidence-panel-subtitle">Internal working evidence used by the Valuer / Processor to verify the submission.</div>
+        </div>
+    </div>
+    @if (review.ProcessorEvidenceFiles == null || !review.ProcessorEvidenceFiles.Any())
+    {
+        <div class="rv-evidence-empty">No internal processor evidence is attached.</div>
+    }
+    else
+    {
+        <div class="rv-evidence-grid">
+            @foreach (var file in review.ProcessorEvidenceFiles)
+            {
+                <article class="rv-evidence-file-card">
+                    <div class="rv-evidence-file-icon"><i class="fa-solid fa-file-shield"></i></div>
+                    <div class="rv-evidence-file-info">
+                        <div class="rv-evidence-file-name">@D(file.FileName)</div>
+                        <div class="rv-evidence-file-meta">@file.UploadedAt.ToString("dd MMM yyyy HH:mm") · @D(file.UploadedByName) · @D(file.EvidenceStage)</div>
+                        @if (!string.IsNullOrWhiteSpace(file.EvidenceComment))
+                        {
+                            <div class="rv-evidence-file-meta">@file.EvidenceComment</div>
+                        }
+                    </div>
+                    <div class="rv-evidence-file-actions">
+                        <a class="rv-evidence-view"
+                           asp-controller="@evidenceController"
+                           asp-action="ProcessorEvidenceFile"
+                           asp-route-id="@Model.QaId"
+                           asp-route-evidenceId="@file.Id"
+                           target="_blank"><i class="fa-solid fa-eye"></i> View</a>
+                        <a class="rv-evidence-download"
+                           asp-controller="@evidenceController"
+                           asp-action="ProcessorEvidenceFile"
+                           asp-route-id="@Model.QaId"
+                           asp-route-evidenceId="@file.Id"
+                           asp-route-download="true"><i class="fa-solid fa-download"></i> Download</a>
+                    </div>
+                </article>
+            }
+        </div>
+    }
+</section>
+
+<section class="cmp-shell qa-comparison-shell">
+    <div class="cmp-heading-row">
+        <div>
+            <h2>City Record Compared with Client Submission</h2>
+            <p>This is the same comparison reviewed by the Valuer / Processor. QA is read-only.</p>
+        </div>
+        <label class="cmp-toggle"><input type="checkbox" id="qaDifferencesOnly" /> Show differences only</label>
+    </div>
+
+    @if (!review.HasCityData)
+    {
+        <div class="rv-alert rv-alert-warning">City snapshot is not loaded yet. The City column will remain empty until Attr_CityAttributeValues is loaded.</div>
+    }
+
+    @foreach (var sect in review.ComparisonSections.OrderBy(x => x.DisplayOrder))
+    {
+        <div class="cmp-section-card" data-qa-section>
+            <div class="cmp-section-title">@sect.SectionName</div>
+            <div class="cmp-table-wrap">
+                <table class="cmp-table">
+                    <thead>
+                        <tr><th>Field</th><th>City data</th><th>Client submitted</th><th>QA result</th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var field in sect.Fields.OrderBy(x => x.DisplayOrder))
+                    {
+                        var resultClass = ResultClass(field);
+                        <tr class="cmp-row qa-cmp-row @resultClass" data-result="@resultClass">
+                            <td><strong>@field.FieldLabel</strong></td>
+                            <td>@D(field.CityValue)</td>
+                            <td>@D(field.ClientValue)</td>
+                            <td>
+                                <span class="cmp-result @resultClass">@ResultText(field)</span>
+                                @if (field.IsResolved)
+                                {
+                                    <small class="d-block mt-1">Final resolved value: <strong>@D(field.ResolvedValue)</strong></small>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</section>
+
+<details class="cmp-timeline mt-3">
+    <summary>Review audit timeline (@review.AuditTimeline.Count)</summary>
+    @foreach (var audit in review.AuditTimeline)
+    {
+        <div class="cmp-audit"><strong>@audit.Action</strong><span>@audit.ActionDateTime.ToString("dd MMM yyyy HH:mm") · @D(audit.ActionBy)</span><small>@audit.Comment</small></div>
+    }
+</details>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const toggle = document.getElementById('qaDifferencesOnly');
+        if (!toggle) return;
+        const rows = Array.from(document.querySelectorAll('.qa-cmp-row'));
+        function apply() {
+            rows.forEach(row => {
+                row.hidden = toggle.checked && row.dataset.result === 'matching';
+            });
+        }
+        toggle.addEventListener('change', apply);
+    });
+</script>

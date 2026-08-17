@@ -149,6 +149,24 @@ namespace AIVS.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ResolveRatingDifference([FromBody] ResolveRatingDifferenceVm vm)
+        {
+            var currentUser = await _userManagementService.GetCurrentUserAsync(User);
+            if (!currentUser.HasAccess) return Forbid();
+
+            try
+            {
+                await _valuerInboxService.ResolveRatingDifferenceAsync(vm, currentUser);
+                return Json(new { success = true });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> QuickSectionDecision([FromBody] QuickSectionDecisionVm vm)
         {
             var currentUser = await _userManagementService.GetCurrentUserAsync(User);

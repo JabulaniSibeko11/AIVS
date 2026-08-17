@@ -11,13 +11,26 @@
                 <tbody>
                     @foreach (var field in sec.Fields.OrderBy(x => x.DisplayOrder))
                     {
-                        var rowClass = !field.HasCityValue ? "pending" : field.IsReadOnly ? "readonly" : field.HasDifference ? "different" : "matching";
-                        var resultName = !field.HasCityValue ? "pending" : field.HasDifference ? "different" : "matching";
-                        <tr class="cmp-row @rowClass" data-result="@resultName" data-difference="@(field.HasDifference ? "true" : "false")">
+                        var rowClass = !field.HasCityValue
+                            ? "pending"
+                            : field.IsReadOnly
+                                ? "readonly"
+                                : field.IsResolved
+                                    ? "resolved"
+                                    : field.HasDifference ? "different" : "matching";
+                        var resultName = !field.HasCityValue
+                            ? "pending"
+                            : field.IsResolved || !field.HasDifference ? "matching" : "different";
+                        var fieldKey = $"{sec.SectionCode}:{field.FieldCode}";
+
+                        <tr class="cmp-row @rowClass"
+                            data-result="@resultName"
+                            data-difference="@(field.HasDifference ? "true" : "false")"
+                            data-field-key="@fieldKey">
                             <th>
-                                @if (field.HasCityValue && field.HasDifference && !field.IsReadOnly)
+                                @if (field.HasCityValue && field.HasDifference && !field.IsReadOnly && !field.CanResolveRatingDifference)
                                 {
-                                    <input type="checkbox" class="cmp-correction" value="@($"{sec.SectionCode}:{field.FieldCode}")"
+                                    <input type="checkbox" class="cmp-correction" value="@fieldKey"
                                            checked="@field.IsSelectedForCorrection" aria-label="Return @field.FieldLabel to client" />
                                 }
                                 @field.FieldLabel
@@ -31,17 +44,42 @@
                                 }
                                 else if (field.IsReadOnly)
                                 {
-
                                     <span class="cmp-badge readonly">Read only</span>
+                                }
+                                else if (field.IsResolved)
+                                {
+                                    if (string.Equals(field.ResolutionDecision, "AcceptClient", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        <span class="cmp-badge resolved">Client value accepted</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="cmp-badge resolved">City value retained</span>
+                                    }
+                                    <div class="cmp-resolved-value">Final: <strong>@field.ResolvedValue</strong></div>
+                                }
+                                else if (field.HasDifference && field.CanResolveRatingDifference)
+                                {
+                                    <div class="cmp-rating-resolution"
+                                         data-section-code="@sec.SectionCode"
+                                         data-field-code="@field.FieldCode">
+                                        <span class="cmp-badge different">Different</span>
+                                        <div class="cmp-rating-actions">
+                                            <button type="button" class="cmp-rating-btn accept" data-rating-decision="AcceptClient">
+                                                <i class="fa-solid fa-check"></i> Accept Client
+                                            </button>
+                                            <button type="button" class="cmp-rating-btn keep-city" data-rating-decision="KeepCity">
+                                                <i class="fa-solid fa-building"></i> Keep City
+                                            </button>
+                                        </div>
+                                    </div>
                                 }
                                 else if (field.HasDifference)
                                 {
-
                                     <span class="cmp-badge different">Different</span>
                                 }
                                 else
                                 {
-
                                     <span class="cmp-badge matching">Matches</span>
                                 }
                             </td>

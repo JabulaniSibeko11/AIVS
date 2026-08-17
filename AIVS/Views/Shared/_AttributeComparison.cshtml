@@ -55,8 +55,8 @@
                 <div class="cmp-counts">
                     @if (Model.HasCityData)
                     {
-                        <span class="different">@Model.DifferenceCount differences</span>
-                        <span class="matching">@Model.MatchingCount matches</span>
+                        <span class="different" id="cmpDifferenceCount">@Model.DifferenceCount differences</span>
+                        <span class="matching" id="cmpMatchingCount">@Model.MatchingCount matches</span>
                     }
                     <span>@Model.MissingCityCount awaiting City values</span>
                 </div>
@@ -355,6 +355,49 @@
         }
 
         shell.querySelectorAll('.cmp-correction').forEach(x => x.addEventListener('change', saveCorrections));
+
+        shell.querySelectorAll('.cmp-rating-btn').forEach(button => button.addEventListener('click', async function () {
+            const host = button.closest('.cmp-rating-resolution');
+            const row = button.closest('.cmp-row');
+            if (!host || !row) return;
+
+            const decision = button.dataset.ratingDecision;
+            const buttons = Array.from(host.querySelectorAll('.cmp-rating-btn'));
+            buttons.forEach(x => x.disabled = true);
+
+            try {
+                const response = await fetch('@Url.Action("ResolveRatingDifference", "ValuerInbox")', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+                    body: JSON.stringify({
+                        reviewId: @Model.ReviewId,
+                        attrId: @Model.AttrId,
+                        sectionCode: host.dataset.sectionCode,
+                        fieldCode: host.dataset.fieldCode,
+                        decision: decision
+                    })
+                });
+
+                let result = null;
+                try { result = await response.json(); } catch { }
+                if (!response.ok || !result?.success)
+                    throw new Error(result?.message || 'The rating decision could not be saved.');
+
+                row.classList.remove('different');
+                row.classList.add('resolved');
+                row.dataset.result = 'matching';
+                row.dataset.difference = 'false';
+                host.innerHTML = decision === 'AcceptClient'
+                    ? '<span class="cmp-badge resolved">Client value accepted</span>'
+                    : '<span class="cmp-badge resolved">City value retained</span>';
+
+                // Reload so counts, correction state and OVVIO eligibility are recalculated server-side.
+                setTimeout(() => window.location.reload(), 300);
+            } catch (error) {
+                alert(error.message || 'The rating decision could not be saved.');
+                buttons.forEach(x => x.disabled = false);
+            }
+        }));
 
         function showConfirmation(decision) {
             pendingDecision = decision;
