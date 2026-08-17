@@ -1,7 +1,7 @@
-﻿
-.vi-page {
-    padding: 6px 2px 30px;
-}
+﻿/* ==========================================================================
+   AIVS — Review Inbox (Valuer / Sector Manager)
+   Uses the shared brand tokens from site.css
+   ========================================================================== */
 
 .vi-header-stats {
     display: flex;
@@ -20,7 +20,30 @@
         font-weight: 700;
     }
 
-    .vi-header-stat.is-urgent strong {
+/* ---------- Urgent alert ---------- */
+.vi-urgent-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: var(--aivs-danger-bg);
+    border: 1.5px solid var(--aivs-danger-border);
+    border-left: 5px solid var(--aivs-danger);
+    border-radius: var(--aivs-radius-sm);
+    padding: 14px 18px;
+    margin-bottom: 18px;
+    font-size: 13.5px;
+    color: #7a2020;
+    line-height: 1.6;
+}
+
+    .vi-urgent-alert i {
+        color: var(--aivs-danger);
+        font-size: 17px;
+        margin-top: 1px;
+        flex-shrink: 0;
+    }
+
+    .vi-urgent-alert strong {
         color: var(--aivs-danger);
     }
 
@@ -65,57 +88,71 @@
 }
 
 .vi-chip {
-    border: 1px solid var(--aivs-border);
+    border: 1.5px solid var(--aivs-border);
     background: var(--aivs-white);
     border-radius: 999px;
-    padding: 6px 13px;
+    padding: 7px 14px;
     font-size: 12px;
     font-weight: 600;
+    font-family: var(--aivs-font);
     color: var(--aivs-text);
     cursor: pointer;
-    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+    transition: background 150ms ease, border-color 150ms ease, color 150ms ease, transform 150ms ease;
     display: inline-flex;
     align-items: center;
     gap: 6px;
 }
+
+    .vi-chip:hover {
+        border-color: var(--aivs-gold);
+        transform: translateY(-1px);
+    }
 
 .vi-chip-dot {
     width: 7px;
     height: 7px;
     border-radius: 999px;
     display: inline-block;
-}
-
-.vi-chip:hover {
-    border-color: var(--aivs-gold);
+    flex-shrink: 0;
 }
 
 .vi-chip.active {
-    background: var(--aivs-black);
-    border-color: var(--aivs-black);
-    color: var(--aivs-white);
+    background: var(--aivs-black-soft);
+    border-color: var(--aivs-black-soft);
+    color: var(--aivs-gold);
 }
+
+    .vi-chip.active .vi-chip-dot {
+        box-shadow: 0 0 0 2px rgba(255,255,255,.15);
+    }
 
 .vi-search {
     position: relative;
-    min-width: 240px;
+    min-width: 260px;
 }
 
     .vi-search input {
         width: 100%;
-        border: 1px solid var(--aivs-border);
+        border: 1.5px solid var(--aivs-border);
         border-radius: var(--aivs-radius-sm);
-        padding: 8px 12px 8px 34px;
+        padding: 9px 12px 9px 36px;
         font-family: var(--aivs-font);
         font-size: 13px;
+        transition: border-color 150ms ease;
     }
+
+        .vi-search input:focus {
+            outline: none;
+            border-color: var(--aivs-gold);
+        }
 
     .vi-search svg {
         position: absolute;
-        left: 11px;
+        left: 12px;
         top: 50%;
         transform: translateY(-50%);
         color: var(--aivs-text-muted);
+        pointer-events: none;
     }
 
 /* ---------- Card ---------- */
@@ -124,14 +161,16 @@
     border: 1px solid var(--aivs-border);
     border-radius: var(--aivs-radius);
     overflow: hidden;
-    box-shadow: var(--aivs-shadow-sm);
+    box-shadow: 0 4px 20px rgba(13,13,13,.07), 0 1px 3px rgba(13,13,13,.05);
 }
 
 .vi-card-title {
-    background: var(--aivs-black);
+    background: linear-gradient(135deg, var(--aivs-black-soft) 0%, #050505 100%);
+    border-bottom: 3px solid var(--aivs-gold);
     color: var(--aivs-white);
-    padding: 14px 18px;
+    padding: 15px 20px;
     font-weight: 700;
+    font-size: 14px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -140,9 +179,9 @@
 }
 
 .vi-card-title-count {
-    font-size: 13px;
-    font-weight: 500;
-    color: #d7d7d7;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--aivs-gold);
 }
 
 .vi-table-scroll {
@@ -160,30 +199,30 @@
         top: 0;
         z-index: 2;
         background: #faf9f7;
-        font-size: 11px;
+        font-size: 10.5px;
         font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: .03em;
+        letter-spacing: .04em;
         color: var(--aivs-text-muted);
-        border-bottom: 1px solid var(--aivs-border);
-        padding: 11px 10px;
+        border-bottom: 1.5px solid var(--aivs-border);
+        padding: 12px 10px;
         white-space: nowrap;
         text-align: left;
     }
 
     .vi-table td {
-        padding: 11px 10px;
+        padding: 12px 10px;
         border-bottom: 1px solid #f1efeb;
         font-size: 13px;
         vertical-align: middle;
     }
 
     .vi-table tbody tr {
-        transition: background 100ms ease;
+        transition: background 120ms ease;
     }
 
         .vi-table tbody tr:hover {
-            background: #fafaf8;
+            background: var(--aivs-gold-light);
         }
 
         .vi-table tbody tr.vi-row-hidden {
@@ -191,88 +230,154 @@
         }
 
 .vi-ref {
-    font-weight: 700;
+    font-weight: 800;
     color: var(--aivs-black);
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
+    letter-spacing: -.01em;
 }
 
+/* ---------- Status badges — icon + label, all from brand tokens ---------- */
 .vi-badge {
-    display: inline-block;
-    padding: 5px 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 11px;
     border-radius: 999px;
-    font-size: 12px;
+    font-size: 11.5px;
     font-weight: 700;
     white-space: nowrap;
+    border: 1px solid transparent;
 }
+
+    .vi-badge i {
+        font-size: 10px;
+    }
 
 .vi-badge-claimed {
     background: #f1efeb;
     color: var(--aivs-text);
+    border-color: var(--aivs-border);
 }
 
 .vi-badge-review {
     background: var(--aivs-warning-bg);
     color: var(--aivs-orange);
+    border-color: var(--aivs-warning-border);
 }
 
 .vi-badge-waiting {
     background: var(--aivs-gold-light);
     color: var(--aivs-gold-dark);
+    border-color: rgba(230,176,0,.3);
 }
 
 .vi-badge-confirmed {
     background: var(--aivs-success-bg);
     color: var(--aivs-success);
+    border-color: var(--aivs-success-border);
 }
 
 .vi-badge-sent {
     background: var(--aivs-info-bg);
     color: var(--aivs-info);
+    border-color: var(--aivs-info-border);
 }
 
 .vi-badge-expired {
     background: var(--aivs-danger-bg);
     color: var(--aivs-danger);
+    border-color: var(--aivs-danger-border);
 }
 
 .vi-badge-default {
-    background: var(--aivs-black);
+    background: var(--aivs-black-soft);
     color: var(--aivs-white);
 }
 
+.vi-badge-returned {
+    background: var(--aivs-danger-bg);
+    color: var(--aivs-danger);
+    border-color: var(--aivs-danger-border);
+}
+
+.vi-badge-resubmitted {
+    background: var(--aivs-info-bg);
+    color: var(--aivs-info);
+    border-color: var(--aivs-info-border);
+}
+
+.vi-badge-completed {
+    background: var(--aivs-success-bg);
+    color: var(--aivs-success);
+    border-color: var(--aivs-success-border);
+}
+
+.vi-badge-qa {
+    background: var(--aivs-warning-bg);
+    color: var(--aivs-gold-dark);
+    border-color: var(--aivs-warning-border);
+}
+
+.vi-badge-ready {
+    background: var(--aivs-success-bg);
+    color: var(--aivs-success);
+    border-color: var(--aivs-success-border);
+}
+
+.vi-badge-extracted {
+    background: var(--aivs-info-bg);
+    color: var(--aivs-evening);
+    border-color: var(--aivs-info-border);
+}
+
+/* ---------- Action button ---------- */
 .vi-btn {
-    background: var(--aivs-black);
-    color: var(--aivs-white);
+    background: var(--aivs-gold);
+    color: var(--aivs-black-soft);
     border-radius: var(--aivs-radius-sm);
-    padding: 7px 13px;
+    padding: 8px 15px;
     text-decoration: none;
     font-size: 12px;
     font-weight: 700;
     display: inline-block;
     white-space: nowrap;
-    transition: background 120ms ease, color 120ms ease;
+    box-shadow: 0 2px 8px rgba(230,176,0,.35);
+    transition: background 150ms ease, transform 150ms ease;
 }
 
     .vi-btn:hover {
-        background: var(--aivs-gold);
-        color: var(--aivs-black);
+        background: var(--aivs-gold-dark);
+        color: var(--aivs-white);
+        transform: translateY(-1px);
     }
 
 .vi-empty {
     background: var(--aivs-white);
     border: 1px dashed var(--aivs-border);
     border-radius: var(--aivs-radius);
-    padding: 32px;
+    padding: 40px 24px;
     text-align: center;
     color: var(--aivs-text-muted);
     font-weight: 500;
 }
 
+    .vi-empty i {
+        display: block;
+        font-size: 28px;
+        color: var(--aivs-border);
+        margin-bottom: 10px;
+    }
+
 .vi-empty-inline {
     border: 0;
     border-radius: 0;
+    padding: 32px;
 }
+
+    .vi-empty-inline i {
+        display: none;
+    }
 
 .vi-muted {
     color: var(--aivs-text-muted);
@@ -288,40 +393,4 @@
     .vi-search {
         min-width: unset;
     }
-}
-
-.vi-badge-returned {
-    background: #fee2e2;
-    color: #991b1b;
-    border: 1px solid #fecaca;
-}
-
-.vi-badge-resubmitted {
-    background: #dbeafe;
-    color: #1e40af;
-    border: 1px solid #bfdbfe;
-}
-
-.vi-badge-completed {
-    background: #dcfce7;
-    color: #166534;
-    border: 1px solid #bbf7d0;
-}
-
-.vi-badge-qa {
-    background: #fff8db;
-    color: #7a4b00;
-    border: 1px solid #f3d36b;
-}
-
-.vi-badge-ready {
-    background: #dcfce7;
-    color: #166534;
-    border: 1px solid #bbf7d0;
-}
-
-.vi-badge-extracted {
-    background: #e0e7ff;
-    color: #3730a3;
-    border: 1px solid #c7d2fe;
 }
