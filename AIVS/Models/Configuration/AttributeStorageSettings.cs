@@ -1,4 +1,4 @@
-﻿namespace AIVS.Models.Configuration
+namespace AIVS.Models.Configuration
 {
     public class AttributeStorageSettings
     {
@@ -9,5 +9,11 @@
         public string EvidenceFolderName { get; set; } = "Attribute Lodged Evidence";
 
         public string RepresentativeFolderName { get; set; } = "Representative Documentations";
+
+        public string ProcessorFolderName { get; set; } = "Processor";
+
+        public string ProcessorEvidenceFolderName { get; set; } = "Evidence";
+
+        public string ProcessorEmailFolderName { get; set; } = "Client Emails";
     }
 }

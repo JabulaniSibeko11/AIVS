@@ -1,4 +1,5 @@
-﻿@model AIVS.Models.ViewModels.SectorInbox.SectorInboxPageVm
+@model AIVS.Models.ViewModels.SectorInbox.SectorInboxPageVm
+@using AIVS.Workflow
 @using System.Globalization
 
 @{
@@ -21,7 +22,14 @@
             "INSPECTIONDETAILSSENT" => "aivs-badge-info",
             "INSPECTIONEXPIRED" => "aivs-badge-danger",
             "RETURNEDTOCLIENT" => "aivs-badge-warning",
+            "RESUBMITTED" => "aivs-badge-info",
+            "RETURNEDTOVALUER" => "aivs-badge-danger",
+            "SECTORMANAGERQA" => "aivs-badge-warning",
+            "SENIORMANAGERQA" => "aivs-badge-warning",
+            "APPROVED" => "aivs-badge-success",
             "READYFOROVVIOEXTRACT" => "aivs-badge-success",
+            "OVVIOINSERTED" => "aivs-badge-success",
+            "OVVIOEXTRACTED" => "aivs-badge-success",
             "REJECTED" => "aivs-badge-danger",
             _ => "aivs-badge"
         };
@@ -70,17 +78,11 @@
                    asp-controller="SectorInbox"
                    asp-action="Index"
                    asp-route-sector="@tile.Sector">
-                <div class="si-tile-icon">
-                    <i class="fa-solid fa-building-columns"></i>
-                </div>
                 <div class="si-tile-name">@tile.Sector</div>
                 <div class="si-tile-count">@N(tile.Total)</div>
                 <div class="si-tile-label">records in sector inbox</div>
                 <div class="si-tile-bar">
                     <div class="si-tile-bar-fill" style="width:@(barPct.ToString("0.###", CultureInfo.InvariantCulture))%;"></div>
-                </div>
-                <div class="si-tile-hint">
-                    View Records <i class="fa-solid fa-arrow-right"></i>
                 </div>
             </a>
         }
@@ -161,7 +163,7 @@
                                     @foreach (var valuer in Model.Valuers)
                                     {
                                         <option value="@valuer.UserId">
-                                            @valuer.FullName (@valuer.Username)
+                                            @valuer.FullName
                                         </option>
                                     }
                                 </select>
@@ -240,18 +242,18 @@
 
                                         <td>
                                             <span class="aivs-badge @StatusBadgeClass(item.Status)">
-                                                @item.Status
+                                                @AttributeWorkflowStatus.Display(item.Status)
                                             </span>
                                         </td>
 
-                                       @*  <td style="white-space:nowrap;">
+                                        <td style="white-space:nowrap;">
                                             <a class="si-btn-view"
                                                    asp-controller="SectorInbox"
                                                    asp-action="Details"
                                                    asp-route-id="@item.AttrId">
                                                 View
                                             </a>
-                                        </td> *@
+                                        </td>
                                     </tr>
                                 }
                             </tbody>

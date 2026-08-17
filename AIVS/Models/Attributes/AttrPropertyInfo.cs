@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace AIVS.Models.Attributes
@@ -47,6 +47,11 @@ namespace AIVS.Models.Attributes
 
         [StringLength(100)]
         public string? SubmittedByUserId { get; set; }
+
+        // SAP number of the Genesis administrator who captured the submission
+        // on behalf of the client. Null means the client submitted directly.
+        [StringLength(100)]
+        public string? Capturer { get; set; }
 
         [StringLength(255)]
         public string? SubmittedByName { get; set; }

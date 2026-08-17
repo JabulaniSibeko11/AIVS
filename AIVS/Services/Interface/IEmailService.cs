@@ -23,7 +23,8 @@
             string attrNo,
             string? propertyDescription,
             List<DateTime> proposedDates,
-            string? requestComment);
+            string? requestComment,
+            string? secureGenesisLink = null);
 
         Task SendInspectionDetailsEmailAsync(
             string toEmail,
@@ -38,7 +39,8 @@
             string? vehicleRegistration,
             string? vehicleMake,
             string? vehicleColour,
-            string? photoFileName);
+            string? photoFileName,
+            string? secureGenesisLink = null);
 
         Task SendReturnedToClientEmailAsync(
             string toEmail,
@@ -60,5 +62,14 @@
             string attrNo,
             string? propertyDescription,
             string comment);
+
+        Task SendAttributeApprovalEmailAsync(
+            string toEmail,
+            string? clientName,
+            string attrNo,
+            string? propertyDescription,
+            string comment,
+            byte[] approvalNoticeBytes,
+            string approvalNoticeFileName);
     }
 }

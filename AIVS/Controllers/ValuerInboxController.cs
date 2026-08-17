@@ -1,4 +1,4 @@
-﻿using AIVS.Data;
+using AIVS.Data;
 using AIVS.Models.ViewModels.ValuerInbox;
 using AIVS.Services.Interface;
 using Microsoft.AspNetCore.Authorization;
@@ -15,15 +15,18 @@ namespace AIVS.Controllers
         private readonly IValuerInboxService _valuerInboxService;
         private readonly IUserManagementService _userManagementService;
         private readonly AttributesDbContext _context;
+        private readonly IProcessorFileService _processorFiles;
         public ValuerInboxController(
             IValuerInboxService valuerInboxService,
             IUserManagementService userManagementService,
-            AttributesDbContext context)
+            AttributesDbContext context,
+            IProcessorFileService processorFiles)
 
         {
             _valuerInboxService = valuerInboxService;
             _userManagementService = userManagementService;
             _context = context;
+            _processorFiles = processorFiles;
         }
 
         [HttpGet]
@@ -154,14 +157,77 @@ namespace AIVS.Controllers
             catch (Exception ex) { return BadRequest(new { success = false, message = ex.Message }); }
         }
 
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UploadProcessorEvidence(long attrId, List<IFormFile> files, string? evidenceComment)
+        {
+            var currentUser = await _userManagementService.GetCurrentUserAsync(User);
+            var isAjax = string.Equals(Request.Headers["X-Requested-With"].ToString(), "XMLHttpRequest", StringComparison.OrdinalIgnoreCase)
+                         || Request.Headers.Accept.Any(x => x != null && x.Contains("application/json", StringComparison.OrdinalIgnoreCase));
+
+            try
+            {
+                // OpenReviewAsync performs the current processor assignment/access check.
+                await _valuerInboxService.OpenReviewAsync(attrId, currentUser);
+
+                if (files == null || files.Count == 0)
+                    throw new InvalidOperationException("Select at least one Internal Processor Evidence file.");
+
+                await _processorFiles.UploadEvidenceAsync(attrId, files, evidenceComment, "Processor Review", currentUser);
+
+                if (isAjax)
+                    return Json(new { success = true, count = files.Count });
+
+                TempData["Success"] = "Processor evidence uploaded successfully.";
+            }
+            catch (Exception ex)
+            {
+                if (isAjax)
+                    return BadRequest(new { success = false, message = ex.Message });
+
+                TempData["Error"] = ex.Message;
+            }
+
+            return RedirectToAction(nameof(Review), new { id = attrId });
+        }
+
         [HttpGet]
-        public async Task<IActionResult> ClientEvidenceFile(long attrId, long attrFileId, string fileName)
+        public async Task<IActionResult> ProcessorEvidenceFile(long attrId, long evidenceId, bool download = false)
+        {
+            var currentUser = await _userManagementService.GetCurrentUserAsync(User);
+            try
+            {
+                await _valuerInboxService.OpenReviewAsync(attrId, currentUser);
+                var file = await _processorFiles.GetEvidenceFileAsync(evidenceId);
+                if (file == null) return NotFound("Processor evidence file was not found.");
+                return download
+                    ? PhysicalFile(file.Value.Path, file.Value.ContentType, file.Value.FileName, enableRangeProcessing: true)
+                    : PhysicalFile(file.Value.Path, file.Value.ContentType, enableRangeProcessing: true);
+            }
+            catch
+            {
+                return Forbid();
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ClientEvidenceFile(long attrId, string evidenceKey, bool download = false)
         {
             var model = await LoadAuthorisedReviewAsync(attrId);
             if (model == null) return Forbid();
-            var file = model.EvidenceFiles.FirstOrDefault(x => x.AttrFileId == attrFileId &&
-                string.Equals(x.FileName, fileName, StringComparison.OrdinalIgnoreCase));
-            return SendEvidenceFile(file?.FilePath, file?.FileName, file?.FileType);
+
+            if (string.IsNullOrWhiteSpace(evidenceKey))
+                return BadRequest("Evidence reference is missing.");
+
+            var file = model.EvidenceFiles.FirstOrDefault(x =>
+                !string.IsNullOrWhiteSpace(x.EvidenceKey) &&
+                string.Equals(x.EvidenceKey, evidenceKey, StringComparison.OrdinalIgnoreCase));
+
+            if (file == null)
+                return NotFound("The requested evidence file is no longer available for this attribute submission.");
+
+            return SendEvidenceFile(file.FilePath, file.FileName, file.FileType, download);
         }
 
         [HttpGet]
@@ -194,11 +260,26 @@ namespace AIVS.Controllers
             catch { return null; }
         }
 
-        private IActionResult SendEvidenceFile(string? path, string? fileName, string? contentType)
+        private IActionResult SendEvidenceFile(string? path, string? fileName, string? contentType, bool download = false)
         {
-            if (string.IsNullOrWhiteSpace(path) || !System.IO.File.Exists(path)) return NotFound("Evidence file was not found.");
-            return PhysicalFile(path, string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType,
-                string.IsNullOrWhiteSpace(fileName) ? Path.GetFileName(path) : fileName, enableRangeProcessing: true);
+            if (string.IsNullOrWhiteSpace(path) || !System.IO.File.Exists(path))
+                return NotFound("Evidence file was not found on the Attributes evidence folder.");
+
+            var resolvedContentType = string.IsNullOrWhiteSpace(contentType)
+                ? "application/octet-stream"
+                : contentType;
+
+            if (download)
+            {
+                return PhysicalFile(
+                    path,
+                    resolvedContentType,
+                    string.IsNullOrWhiteSpace(fileName) ? Path.GetFileName(path) : fileName,
+                    enableRangeProcessing: true);
+            }
+
+            // No download file-name means supported files (PDF/images/text) open inline in the browser.
+            return PhysicalFile(path, resolvedContentType, enableRangeProcessing: true);
         }
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -253,8 +334,34 @@ namespace AIVS.Controllers
 
             return RedirectToAction(nameof(Review), new { id = attrId });
         }
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CompleteInspection(long inspectionRequestId, long attrId)
+        {
+            var currentUser = await _userManagementService.GetCurrentUserAsync(User);
+
+            if (!currentUser.HasAccess)
+            {
+                TempData["Error"] = currentUser.AccessMessage ?? "Your AIVS access could not be verified.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            try
+            {
+                await _valuerInboxService.CompleteInspectionAsync(inspectionRequestId, currentUser);
+                TempData["Success"] =
+                    "Physical inspection completed. The inspection evidence is now part of the review and the task can continue to OVVIO submission / QA.";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
+
+            return RedirectToAction(nameof(Review), new { id = attrId });
+        }
+
         [HttpGet]
-        public async Task<IActionResult> PhysicalInspectionEvidenceFile(long id)
+        public async Task<IActionResult> PhysicalInspectionEvidenceFile(long id, bool download = false)
         {
             var currentUser = await _userManagementService.GetCurrentUserAsync(User);
 
@@ -300,7 +407,11 @@ namespace AIVS.Controllers
 
             var bytes = await System.IO.File.ReadAllBytesAsync(evidence.FilePath);
 
-            return File(bytes, contentType, fileName);
+            if (download)
+                return File(bytes, contentType, fileName);
+
+            Response.Headers.ContentDisposition = $"inline; filename=\"{fileName.Replace("\"", string.Empty)}\"";
+            return File(bytes, contentType);
         }
 
         private static string GetContentType(string fileName)

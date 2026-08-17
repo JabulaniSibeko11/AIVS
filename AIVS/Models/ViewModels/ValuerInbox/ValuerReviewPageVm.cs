@@ -1,4 +1,4 @@
-﻿namespace AIVS.Models.ViewModels.ValuerInbox
+namespace AIVS.Models.ViewModels.ValuerInbox
 {
     public class ValuerReviewPageVm
     {
@@ -49,7 +49,11 @@
         public List<ValuerReviewSectionVm> Sections { get; set; } = new();
         public InspectionRequestVm? ActiveInspectionRequest { get; set; }
         public List<ValuerPhysicalInspectionEvidenceVm> PhysicalInspectionEvidenceFiles { get; set; } = new();
+        public List<ProcessorEvidenceFileVm> ProcessorEvidenceFiles { get; set; } = new();
         public int PhysicalInspectionEvidenceCount => PhysicalInspectionEvidenceFiles?.Count ?? 0;
+        public bool CanCompleteInspection { get; set; }
+        public bool InspectionCompleted { get; set; }
+        public string? InspectionCompletionBlockReason { get; set; }
         public List<AttributeComparisonSectionVm> ComparisonSections { get; set; } = new();
         public bool HasCityData { get; set; }
         public int DifferenceCount => ComparisonSections.Sum(x => x.Fields.Count(f => f.HasCityValue && f.HasDifference));

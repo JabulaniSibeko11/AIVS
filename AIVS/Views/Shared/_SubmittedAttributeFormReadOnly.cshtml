@@ -19,13 +19,10 @@
     };
 }
 
-<link href="~/css/submitted-form.css" rel="stylesheet" asp-append-version="true"/>
+<link href="~/css/submitted-form.css" rel="stylesheet" asp-append-version="true" />
 
 <div class="sub-card">
-    <div class="sub-head">
-        Submitted Form: <span>@formLabel</span>
-    </div>
-
+    <div class="sub-head">Submitted Form: <span>@formLabel</span></div>
     <div class="sub-body">
         <div class="def-grid">
             <div class="def-item">
@@ -36,43 +33,13 @@
                 <div class="def-label">Form Type</div>
                 <div class="def-value">@Display(formLabel)</div>
             </div>
-            <div class="def-item span-2">
-                <div class="def-label">Property Description</div>
-                <div class="def-value">@Display(form.PropertyDetails?.PropertyDesc)</div>
-            </div>
         </div>
     </div>
 </div>
 
 <div class="sub-card">
-    <div class="sub-head">Section 1: <span>Property Details</span></div>
-
+    <div class="sub-head">Valuation <span>Details</span></div>
     <div class="sub-body">
-        <div class="aivs-section-block" id="sec-PROPERTY_DETAILS">
-            <div class="def-grid">
-                <div class="def-item"><div class="def-label">H Area</div><div class="def-value">@Display(form.PropertyDetails?.HArea)</div></div>
-                <div class="def-item"><div class="def-label">Data Controller</div><div class="def-value">@Display(form.PropertyDetails?.DataController)</div></div>
-                <div class="def-item"><div class="def-label">Collection Block</div><div class="def-value">@Display(form.PropertyDetails?.CollectionBlock)</div></div>
-                <div class="def-item"><div class="def-label">Data Collector</div><div class="def-value">@Display(form.PropertyDetails?.DataCollector)</div></div>
-                <div class="def-item"><div class="def-label">SG Number</div><div class="def-value">@Display(form.PropertyDetails?.SGNumber)</div></div>
-                <div class="def-item"><div class="def-label">Centroid</div><div class="def-value">@Display(form.PropertyDetails?.Centroid)</div></div>
-                <div class="def-item"><div class="def-label">Erf</div><div class="def-value">@Display(form.PropertyDetails?.Erf)</div></div>
-                <div class="def-item"><div class="def-label">Extent</div><div class="def-value">@Display(form.PropertyDetails?.Extent)</div></div>
-                <div class="def-item"><div class="def-label">Sectional Title</div><div class="def-value">@Display(form.PropertyDetails?.SectionalTitle)</div></div>
-                <div class="def-item"><div class="def-label">Land Use Financials</div><div class="def-value">@Display(form.PropertyDetails?.LandUseFinancials)</div></div>
-                <div class="def-item"><div class="def-label">Municipality</div><div class="def-value">@Display(form.PropertyDetails?.Municipality)</div></div>
-                <div class="def-item"><div class="def-label">Ward</div><div class="def-value">@Display(form.PropertyDetails?.Ward)</div></div>
-                <div class="def-item"><div class="def-label">Township</div><div class="def-value">@Display(form.PropertyDetails?.Township)</div></div>
-                <div class="def-item"><div class="def-label">Zoning</div><div class="def-value">@Display(form.PropertyDetails?.Zoning)</div></div>
-                <div class="def-item"><div class="def-label">Sources</div><div class="def-value">@Display(form.PropertyDetails?.Sources)</div></div>
-                <div class="def-item span-2"><div class="def-label">Address</div><div class="def-value">@Display(form.PropertyDetails?.Address)</div></div>
-            </div>
-
-            @await RenderReviewPanel("PROPERTY_DETAILS")
-        </div>
-
-        <div class="sub-section-title">Valuation Details</div>
-
         <div class="aivs-section-block" id="sec-VALUATION_DETAILS">
             <div class="def-grid">
                 <div class="def-item"><div class="def-label">Valuation Category on Roll</div><div class="def-value">@Display(form.ValuationDetails?.ValuationCategoryOnRoll)</div></div>
@@ -80,47 +47,7 @@
                 <div class="def-item"><div class="def-label">Mixed Use</div><div class="def-value">@Display(form.ValuationDetails?.IsMixedUse == true ? "Yes" : "No")</div></div>
                 <div class="def-item"><div class="def-label">Alternate Usages</div><div class="def-value">@Display(form.ValuationDetails?.AlternateUsages)</div></div>
             </div>
-
             @await RenderReviewPanel("VALUATION_DETAILS")
-        </div>
-    </div>
-</div>
-
-<div class="sub-card">
-    <div class="sub-head">Section 2: <span>Contact Information</span></div>
-
-    <div class="sub-body">
-        <div class="aivs-section-block" id="sec-CONTACT_INFORMATION">
-            @if (form.ContactInfos == null || !form.ContactInfos.Any())
-            {
-                <div class="sub-empty">No contact information submitted.</div>
-            }
-            else
-            {
-                @for (int i = 0; i < form.ContactInfos.Count; i++)
-                {
-                    var c = form.ContactInfos[i];
-
-                    <div class="sub-section-title">Contact @(i + 1)</div>
-
-                    <div class="def-grid" style="margin-bottom:14px;">
-                        <div class="def-item"><div class="def-label">Contact Type</div><div class="def-value">@Display(c.ContactType)</div></div>
-                        <div class="def-item"><div class="def-label">Is Company</div><div class="def-value">@Display(c.IsCompany ? "Yes" : "No")</div></div>
-                        <div class="def-item"><div class="def-label">First Names</div><div class="def-value">@Display(c.FirstNames)</div></div>
-                        <div class="def-item"><div class="def-label">Last Name</div><div class="def-value">@Display(c.LastName)</div></div>
-                        <div class="def-item"><div class="def-label">Company Name</div><div class="def-value">@Display(c.CompanyName)</div></div>
-                        <div class="def-item"><div class="def-label">Registration No.</div><div class="def-value">@Display(c.CompanyRegistrationNumber)</div></div>
-                        <div class="def-item span-2"><div class="def-label">Physical Address</div><div class="def-value">@Display(c.PhysicalAddress)</div></div>
-                        <div class="def-item span-2"><div class="def-label">Postal Address</div><div class="def-value">@Display(c.PostalAddress)</div></div>
-                        <div class="def-item"><div class="def-label">Email</div><div class="def-value">@Display(c.Email)</div></div>
-                        <div class="def-item"><div class="def-label">Cell No</div><div class="def-value">@Display(c.CellNo)</div></div>
-                        <div class="def-item"><div class="def-label">Home Phone</div><div class="def-value">@Display(c.HomePhoneNo)</div></div>
-                        <div class="def-item"><div class="def-label">Work Phone</div><div class="def-value">@Display(c.WorkPhoneNo)</div></div>
-                    </div>
-                }
-            }
-
-            @await RenderReviewPanel("CONTACT_INFORMATION")
         </div>
     </div>
 </div>

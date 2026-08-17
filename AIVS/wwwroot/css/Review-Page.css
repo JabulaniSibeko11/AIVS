@@ -1148,3 +1148,445 @@
         width: 100%;
     }
 }
+
+
+/* ---------- Evidence attention ---------- */
+.rv-box-evidence {
+    border-color: #e6bf55;
+    background: #fff8df;
+}
+
+.rv-evidence-attention {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 0 0 18px;
+    padding: 14px 16px;
+    border: 1px solid #e7bd43;
+    border-left: 5px solid var(--aivs-gold);
+    border-radius: var(--aivs-radius);
+    background: #fff8df;
+    color: var(--aivs-black);
+    text-decoration: none;
+    box-shadow: var(--aivs-shadow-sm);
+}
+
+    .rv-evidence-attention:hover {
+        color: var(--aivs-black);
+        background: #fff3c5;
+    }
+
+.rv-evidence-attention-icon {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--aivs-black);
+    color: var(--aivs-gold);
+    font-size: 17px;
+}
+
+.rv-evidence-attention-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    flex: 1;
+}
+
+    .rv-evidence-attention-copy strong {
+        font-size: 14px;
+    }
+
+    .rv-evidence-attention-copy span {
+        color: var(--aivs-text-muted);
+        font-size: 12.5px;
+    }
+
+.rv-evidence-attention-action {
+    white-space: nowrap;
+    font-weight: 700;
+    font-size: 12.5px;
+}
+
+.rv-evidence-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.rv-evidence-download {
+    background: var(--aivs-black);
+    color: var(--aivs-white) !important;
+}
+
+@media (max-width: 720px) {
+    .rv-evidence-attention {
+        align-items: flex-start;
+    }
+
+    .rv-evidence-attention-action {
+        display: none;
+    }
+}
+
+ /* ---------- Client evidence: full-width review panel ---------- */ #uploaded-evidence {
+    scroll-margin-top: 140px;
+}
+
+.rv-evidence-panel {
+     margin: 16px 0 20px;
+     background: #fff;
+     border: 2px solid var(--aivs-gold);
+     border-radius: var(--aivs-radius);
+     overflow: hidden;
+     box-shadow: var(--aivs-shadow-sm);
+    
+}
+
+.rv-evidence-panel-head {
+     display: flex;
+     align-items: center;
+     justify-content: space-between;
+     gap: 16px;
+     padding: 15px 18px;
+     background: #fff6d8;
+     border-bottom: 1px solid #efd16c;
+    
+}
+
+.rv-evidence-panel-title {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--aivs-black);
+}
+
+    .rv-evidence-panel-title i {
+        margin-right: 8px;
+    }
+
+.rv-evidence-panel-subtitle {
+    margin-top: 3px;
+    font-size: 13px;
+    color: #5a5547;
+}
+
+.rv-evidence-zip {
+     display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    white-space: nowrap;
+     background: var(--aivs-black);
+    color: #fff;
+    text-decoration: none;
+     border-radius: 7px;
+    padding: 10px 14px;
+    font-weight: 800;
+    
+}
+
+.rv-evidence-grid {
+     display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+     gap: 12px;
+    padding: 14px;
+    
+}
+
+.rv-evidence-file-card {
+     display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+     align-items: center;
+    gap: 12px;
+    border: 1px solid #dedbd2;
+     border-radius: 9px;
+    padding: 12px;
+    background: #fff;
+    
+}
+
+.rv-evidence-file-icon {
+     width: 42px;
+    height: 42px;
+    display: grid;
+    place-items: center;
+     border-radius: 8px;
+    background: #111;
+    color: var(--aivs-gold);
+    font-size: 19px;
+    
+}
+
+.rv-evidence-file-info {
+    min-width: 0;
+}
+
+.rv-evidence-file-name {
+    font-weight: 800;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.rv-evidence-file-meta {
+    margin-top: 4px;
+    color: #6a675f;
+    font-size: 12px;
+}
+
+.rv-evidence-file-actions {
+    display: flex;
+    gap: 7px;
+}
+
+.rv-evidence-view, .rv-evidence-download {
+     display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    text-decoration: none;
+     border-radius: 6px;
+    padding: 8px 10px;
+    font-weight: 800;
+    font-size: 12px;
+    
+}
+
+.rv-evidence-view {
+    background: var(--aivs-gold);
+    color: #111;
+}
+
+.rv-evidence-download {
+    background: #111;
+    color: #fff;
+}
+
+.rv-evidence-empty {
+    padding: 18px;
+    color: #6b675c;
+}
+
+@media (max-width: 760px) {
+     .rv-evidence-panel-head {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+     .rv-evidence-grid {
+        grid-template-columns: 1fr;
+    }
+
+     .rv-evidence-file-card {
+        grid-template-columns: 42px minmax(0, 1fr);
+    }
+
+   .rv-evidence-file-actions {
+        grid-column: 1 / -1;
+    }
+
+  
+}
+
+
+ /* ---------- Client evidence: full-width review panel ---------- */ #uploaded-evidence {
+    scroll-margin-top: 140px;
+}
+
+.rv-evidence-panel {
+     margin: 16px 0 20px;
+     background: #fff;
+     border: 2px solid var(--aivs-gold);
+     border-radius: var(--aivs-radius);
+     overflow: hidden;
+     box-shadow: var(--aivs-shadow-sm);
+    
+}
+
+.rv-evidence-panel-head {
+     display: flex;
+     align-items: center;
+     justify-content: space-between;
+     gap: 16px;
+     padding: 15px 18px;
+     background: #fff6d8;
+     border-bottom: 1px solid #efd16c;
+    
+}
+
+.rv-evidence-panel-title {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--aivs-black);
+}
+
+    .rv-evidence-panel-title i {
+        margin-right: 8px;
+    }
+
+.rv-evidence-panel-subtitle {
+    margin-top: 3px;
+    font-size: 13px;
+    color: #5a5547;
+}
+
+.rv-evidence-zip {
+     display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    white-space: nowrap;
+     background: var(--aivs-black);
+    color: #fff;
+    text-decoration: none;
+     border-radius: 7px;
+    padding: 10px 14px;
+    font-weight: 800;
+    
+}
+
+.rv-evidence-grid {
+     display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+     gap: 12px;
+    padding: 14px;
+    
+}
+
+.rv-evidence-file-card {
+     display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+     align-items: center;
+    gap: 12px;
+    border: 1px solid #dedbd2;
+     border-radius: 9px;
+    padding: 12px;
+    background: #fff;
+    
+}
+
+.rv-evidence-file-icon {
+     width: 42px;
+    height: 42px;
+    display: grid;
+    place-items: center;
+     border-radius: 8px;
+    background: #111;
+    color: var(--aivs-gold);
+    font-size: 19px;
+    
+}
+
+.rv-evidence-file-info {
+    min-width: 0;
+}
+
+.rv-evidence-file-name {
+    font-weight: 800;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.rv-evidence-file-meta {
+    margin-top: 4px;
+    color: #6a675f;
+    font-size: 12px;
+}
+
+.rv-evidence-file-actions {
+    display: flex;
+    gap: 7px;
+}
+
+.rv-evidence-view, .rv-evidence-download {
+     display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    text-decoration: none;
+     border-radius: 6px;
+    padding: 8px 10px;
+    font-weight: 800;
+    font-size: 12px;
+    
+}
+
+.rv-evidence-view {
+    background: var(--aivs-gold);
+    color: #111;
+}
+
+.rv-evidence-download {
+    background: #111;
+    color: #fff;
+}
+
+.rv-evidence-empty {
+    padding: 18px;
+    color: #6b675c;
+}
+
+@media (max-width: 760px) {
+     .rv-evidence-panel-head {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+     .rv-evidence-grid {
+        grid-template-columns: 1fr;
+    }
+
+     .rv-evidence-file-card {
+        grid-template-columns: 42px minmax(0, 1fr);
+    }
+
+     .rv-evidence-file-actions {
+        grid-column: 1 / -1;
+    }
+
+    
+}
+
+
+/* Internal Processor Evidence - placed before final processor comment */
+.rv-internal-evidence {
+    border: 1px solid #d8c27a;
+    border-radius: 10px;
+    background: #fffdf5;
+    padding: 14px;
+    margin: 4px 0 18px;
+}
+
+.rv-internal-evidence-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+    .rv-internal-evidence-head strong {
+        font-size: 14px;
+    }
+
+    .rv-internal-evidence-head span {
+        font-size: 12px;
+        font-weight: 700;
+        color: #8a6500;
+    }
+
+.rv-internal-evidence-location {
+    margin-top: 8px;
+    font-size: 11px;
+    color: #666;
+}
+
+@media (max-width: 768px) {
+    .rv-internal-evidence-head {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}
+
+

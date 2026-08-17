@@ -1,4 +1,6 @@
 using AIVS.Models.ViewModels.UserManagement;
+using AIVS.Models.Configuration;
+using Microsoft.Extensions.Options;
 using AIVS.Security;
 using AIVS.Services.Interface;
 
@@ -6,6 +8,12 @@ namespace AIVS.Services.Implementations;
 
 public sealed class AivsRoleAccessService : IAivsRoleAccessService
 {
+    private readonly DemoQaSettings _demoQa;
+
+    public AivsRoleAccessService(IOptions<DemoQaSettings> demoQa)
+    {
+        _demoQa = demoQa.Value;
+    }
     private static readonly HashSet<string> ValuerRoles = new(StringComparer.OrdinalIgnoreCase) { "VALUER" };
     private static readonly HashSet<string> SectorManagerRoles = new(StringComparer.OrdinalIgnoreCase) { "SECTOR MANAGER", "AREA MANAGER", "OPERATIONAL MANAGER" };
     private static readonly HashSet<string> SeniorManagerRoles = new(StringComparer.OrdinalIgnoreCase) { "SENIOR MANAGER" };
@@ -32,6 +40,20 @@ public sealed class AivsRoleAccessService : IAivsRoleAccessService
     public bool HasPermission(AivsCurrentUserVm? user, AivsPermission permission)
     {
         if (user?.HasAccess != true || user.UserId == null) return false;
+
+        if (IsDemoQaUser(user) && _demoQa.AllowTestUserAllQaRoles)
+        {
+            if (permission is AivsPermission.AccessAivs
+                or AivsPermission.ViewSectorInbox
+                or AivsPermission.SelfAssign
+                or AivsPermission.AssignWork
+                or AivsPermission.ReviewSubmission
+                or AivsPermission.PerformSectorManagerQa
+                or AivsPermission.PerformSeniorManagerQa
+                or AivsPermission.ViewSectorStatistics)
+                return true;
+        }
+
         if (IsAdministrator(user)) return true;
 
         var valuer = IsValuer(user);
@@ -55,6 +77,17 @@ public sealed class AivsRoleAccessService : IAivsRoleAccessService
             AivsPermission.AdministerAivs => false,
             _ => false
         };
+    }
+
+    private bool IsDemoQaUser(AivsCurrentUserVm? user)
+    {
+        if (!_demoQa.Enabled || user == null) return false;
+        var expected = (_demoQa.TestUserWindowsUsername ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(expected)) return false;
+
+        return string.Equals(user.WindowsUsername?.Trim(), expected, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(user.Username?.Trim(), expected, StringComparison.OrdinalIgnoreCase)
+            || (!string.IsNullOrWhiteSpace(user.SapNumber) && expected.EndsWith("\\" + user.SapNumber.Trim(), StringComparison.OrdinalIgnoreCase));
     }
 
     private bool IsIn(AivsCurrentUserVm? user, HashSet<string> roles) => roles.Contains(NormalizeRole(user?.Role));

@@ -1,4 +1,5 @@
-﻿@model AIVS.Models.ViewModels.ValuerInbox.ValuerReviewPageVm
+@model AIVS.Models.ViewModels.ValuerInbox.ValuerReviewPageVm
+@using AIVS.Workflow
 @using System.Globalization
 
 @{
@@ -49,7 +50,7 @@
 
         <div class="rv-top-badges">
             <span class="rv-badge">
-                Review Status: @(string.IsNullOrWhiteSpace(Model.ReviewStatus) ? "In Progress" : Model.ReviewStatus)
+                Review Status: @AttributeWorkflowStatus.Display(Model.ReviewStatus)
             </span>
 
             <span class="rv-badge rv-badge-dark">
@@ -101,16 +102,6 @@
 
         <div class="rv-grid">
             <div class="rv-box">
-                <div class="rv-label">Property Description</div>
-                <div class="rv-value">@Display(Model.PropertyDescription)</div>
-            </div>
-
-            <div class="rv-box">
-                <div class="rv-label">Township</div>
-                <div class="rv-value">@Display(Model.Township)</div>
-            </div>
-
-            <div class="rv-box">
                 <div class="rv-label">Sector</div>
                 <div class="rv-value">@Display(Model.Sector)</div>
             </div>
@@ -125,22 +116,148 @@
                 <div class="rv-value">@Display(Model.FormType)</div>
             </div>
 
-            <div class="rv-box">
-                <div class="rv-label">Evidence Count</div>
-                <div class="rv-value">@Model.EvidenceCount</div>
+            <div class="rv-box rv-box-evidence">
+                <div class="rv-label">Client Evidence</div>
+                <div class="rv-value">@Model.EvidenceCount file(s)</div>
             </div>
 
             <div class="rv-box">
                 <div class="rv-label">Review Started</div>
                 <div class="rv-value">@Model.StartedAt.ToString("yyyy-MM-dd HH:mm")</div>
             </div>
-
-            <div class="rv-box">
-                <div class="rv-label">Review ID</div>
-                <div class="rv-value">@Model.ReviewId</div>
-            </div>
         </div>
     </div>
+
+    @if (Model.EvidenceFiles != null && Model.EvidenceFiles.Any())
+    {
+        <a class="rv-evidence-attention" href="#uploaded-evidence">
+            <span class="rv-evidence-attention-icon"><i class="fa-solid fa-paperclip"></i></span>
+            <span class="rv-evidence-attention-copy">
+                <strong>Client evidence requires your attention</strong>
+                <span>@Model.EvidenceFiles.Count file(s) were submitted with this attribute request. Review the evidence before completing the assessment.</span>
+            </span>
+            <span class="rv-evidence-attention-action">Review evidence <i class="fa-solid fa-arrow-right"></i></span>
+        </a>
+    }
+
+    <section class="rv-evidence-panel" id="uploaded-evidence">
+        <div class="rv-evidence-panel-head">
+            <div>
+                <div class="rv-evidence-panel-title"><i class="fa-solid fa-paperclip"></i> Client Uploaded Evidence</div>
+                <div class="rv-evidence-panel-subtitle">Open each supporting document before completing the attribute assessment.</div>
+            </div>
+            @if (Model.EvidenceFiles != null && Model.EvidenceFiles.Any())
+            {
+                <a class="rv-evidence-zip" asp-controller="ValuerInbox" asp-action="DownloadEvidenceZip" asp-route-attrId="@Model.AttrId" asp-route-kind="client">
+                    <i class="fa-solid fa-file-zipper"></i> Download All
+                </a>
+            }
+        </div>
+
+        @if (Model.EvidenceFiles == null || !Model.EvidenceFiles.Any())
+        {
+            <div class="rv-evidence-empty">No client evidence files were found for this submission.</div>
+        }
+        else
+        {
+            <div class="rv-evidence-grid">
+                @foreach (var file in Model.EvidenceFiles)
+                {
+                    <article class="rv-evidence-file-card">
+                        <div class="rv-evidence-file-icon">
+                            <i class="@(string.Equals(file.FileType, "application/pdf", StringComparison.OrdinalIgnoreCase) ? "fa-solid fa-file-pdf" : "fa-solid fa-file-image")"></i>
+                        </div>
+                        <div class="rv-evidence-file-info">
+                            <div class="rv-evidence-file-name" title="@file.FileName">@Display(file.FileName)</div>
+                            <div class="rv-evidence-file-meta">
+                                @(file.UploadedDateTime?.ToString("dd MMM yyyy HH:mm") ?? "Date unavailable")
+                                @if (file.FileSize.HasValue)
+                                {
+                                    <span> · @((file.FileSize.Value / 1024.0).ToString("N0")) KB</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="rv-evidence-file-actions">
+                            <a class="rv-evidence-view"
+                                   asp-controller="ValuerInbox"
+                                   asp-action="ClientEvidenceFile"
+                                   asp-route-attrId="@Model.AttrId"
+                                   asp-route-evidenceKey="@file.EvidenceKey"
+                                   asp-route-download="false"
+                                   target="_blank" rel="noopener">
+                                <i class="fa-solid fa-eye"></i> View
+                            </a>
+                            <a class="rv-evidence-download"
+                                   asp-controller="ValuerInbox"
+                                   asp-action="ClientEvidenceFile"
+                                   asp-route-attrId="@Model.AttrId"
+                                   asp-route-evidenceKey="@file.EvidenceKey"
+                                   asp-route-download="true">
+                                <i class="fa-solid fa-download"></i> Download
+                            </a>
+                        </div>
+                    </article>
+                }
+            </div>
+        }
+    </section>
+
+    <section class="rv-evidence-panel" id="inspection-evidence">
+        <div class="rv-evidence-panel-head">
+            <div>
+                <div class="rv-evidence-panel-title"><i class="fa-solid fa-camera"></i> Inspection Evidence</div>
+                <div class="rv-evidence-panel-subtitle">Evidence uploaded by the Valuer or Sector Manager during the physical inspection is shown here and forms part of the review record.</div>
+            </div>
+        </div>
+
+        @if (Model.PhysicalInspectionEvidenceFiles == null || !Model.PhysicalInspectionEvidenceFiles.Any())
+        {
+            <div class="rv-evidence-empty">No inspection evidence has been uploaded from Genesis yet.</div>
+        }
+        else
+        {
+            <div class="rv-evidence-grid">
+                @foreach (var file in Model.PhysicalInspectionEvidenceFiles)
+                {
+                    <article class="rv-evidence-file-card">
+                        <div class="rv-evidence-file-icon">
+                            <i class="@(file.IsImage ? "fa-solid fa-file-image" : "fa-solid fa-file")"></i>
+                        </div>
+                        <div class="rv-evidence-file-info">
+                            <div class="rv-evidence-file-name" title="@file.FileName">@Display(file.FileName)</div>
+                            <div class="rv-evidence-file-meta">
+                                @file.UploadedAt.ToString("dd MMM yyyy HH:mm")
+                                <span> · @(file.UploadedByName ?? file.UploadedBySapNumber ?? "Valuer / Sector Manager")</span>
+                                <span> · @file.FileSizeDisplay</span>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(file.EvidenceComment))
+                            {
+                                <div class="rv-block-note" style="margin-top:8px;">
+                                    <strong>Inspection note:</strong> @Display(file.EvidenceComment)
+                                </div>
+                            }
+                        </div>
+                        <div class="rv-evidence-file-actions">
+                            <a class="rv-evidence-view"
+                                   asp-controller="ValuerInbox"
+                                   asp-action="PhysicalInspectionEvidenceFile"
+                                   asp-route-id="@file.Id"
+                                   target="_blank" rel="noopener">
+                                <i class="fa-solid fa-eye"></i> View
+                            </a>
+                            <a class="rv-evidence-download"
+                                   asp-controller="ValuerInbox"
+                                   asp-action="PhysicalInspectionEvidenceFile"
+                                   asp-route-id="@file.Id"
+                                   asp-route-download="true">
+                                <i class="fa-solid fa-download"></i> Download
+                            </a>
+                        </div>
+                    </article>
+                }
+            </div>
+        }
+    </section>
 
     <div class="rv-section-title">
         City Record Compared with Client Submission
@@ -219,110 +336,6 @@
                 </div>
             </div>
 
-            <div class="rv-side-card">
-                <div class="rv-side-head">
-                    Uploaded <span>Evidence</span>
-                </div>
-
-                <div class="rv-side-body">
-                    @if (Model.EvidenceFiles == null || !Model.EvidenceFiles.Any())
-                    {
-                        <div class="rv-block-note">
-                            No evidence files uploaded.
-                        </div>
-                    }
-                    else
-                    {
-                        @foreach (var file in Model.EvidenceFiles)
-                        {
-                            <div class="rv-evidence-item">
-                                <div class="rv-evidence-name">@Display(file.FileName)</div>
-
-                                <div class="rv-evidence-meta">
-                                    @Display(file.FileType)
-                                    &middot;
-                                    @(file.UploadedDateTime?.ToString("yyyy-MM-dd HH:mm") ?? "-")
-                                </div>
-
-                                <a class="rv-evidence-link"
-                                       asp-controller="ValuerInbox"
-                                       asp-action="ClientEvidenceFile"
-                                       asp-route-attrId="@Model.AttrId"
-                                       asp-route-attrFileId="@file.AttrFileId"
-                                       asp-route-fileName="@file.FileName"
-                                       target="_blank">
-                                    View / Download
-                                </a>
-                            </div>
-                        }
-                    }
-                </div>
-            </div>
-
-            <div class="rv-side-card">
-                <div class="rv-side-head">
-                    Physical <span>Evidence</span>
-                </div>
-
-                <div class="rv-side-body">
-                    @if (Model.PhysicalInspectionEvidenceFiles == null || !Model.PhysicalInspectionEvidenceFiles.Any())
-                    {
-                        <div class="rv-block-note">
-                            No physical inspection evidence uploaded yet.
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="rv-ok-note">
-                            @Model.PhysicalInspectionEvidenceCount physical inspection file(s) uploaded.
-                        </div>
-
-                        @foreach (var file in Model.PhysicalInspectionEvidenceFiles)
-                        {
-                            <div class="rv-evidence-item physical-evidence-item">
-                                <div class="rv-evidence-name">
-                                    <i class="fa-solid fa-camera"></i>
-                                    @Display(file.FileName)
-                                </div>
-
-                                <div class="rv-evidence-meta">
-                                    @(file.UploadedAt.ToString("yyyy-MM-dd HH:mm"))
-                                    &middot;
-                                    @(file.UploadedByName ?? file.UploadedBySapNumber ?? "Valuer")
-                                    &middot;
-                                    @file.FileSizeDisplay
-                                </div>
-
-                                @if (!string.IsNullOrWhiteSpace(file.EvidenceComment))
-                                {
-                                    <div class="rv-block-note" style="margin-top:8px;">
-                                        <strong>Comment:</strong><br />
-                                        @Display(file.EvidenceComment)
-                                    </div>
-                                }
-
-                                @if (file.IsImage)
-                                {
-                                    <div class="physical-evidence-preview">
-                                        <img src="@Url.Action("PhysicalInspectionEvidenceFile", "ValuerInbox", new { id = file.Id })"
-                                             alt="@file.FileName"
-                                             loading="lazy" />
-                                    </div>
-                                }
-
-                                <div class="physical-evidence-actions">
-                                    <a class="rv-evidence-link"
-                                           href="@Url.Action("PhysicalInspectionEvidenceFile", "ValuerInbox", new { id = file.Id })"
-                                           target="_blank">
-                                        View / Download
-                                    </a>
-                                </div>
-                            </div>
-                        }
-                    }
-                </div>
-            </div>
-
             <div class="rv-side-card rv-legacy-final-decision">
                 <div class="rv-side-head">
                     Final <span>Decision</span>
@@ -347,6 +360,7 @@
                             Submit to OVVIO is blocked: @Display(Model.SubmitBlockReason)
                         </div>
                     }
+
 
                     <form asp-controller="ValuerInbox"
                           asp-action="SubmitFinalReview"
@@ -423,7 +437,7 @@
                     @if (Model.ActiveInspectionRequest != null)
                     {
                         <div class="rv-block-note">
-                            Inspection request status: @Model.ActiveInspectionRequest.Status
+                            Inspection request status: @AttributeWorkflowStatus.Display(Model.ActiveInspectionRequest.Status)
                         </div>
 
                         @foreach (var slot in Model.ActiveInspectionRequest.Slots)
@@ -436,7 +450,7 @@
                                 <div class="rv-evidence-meta">
                                     @slot.ProposedDateTime.ToString("yyyy-MM-dd HH:mm")
                                     &middot;
-                                    @slot.SlotStatus
+                                    @AttributeWorkflowStatus.Display(slot.SlotStatus)
                                 </div>
                             </div>
                         }
@@ -495,9 +509,43 @@
                                 Confirmed: @Model.ActiveInspectionRequest.ConfirmedDateTime.Value.ToString("yyyy-MM-dd HH:mm")
                             </div>
                         }
+
+                        @if (Model.InspectionCompleted || string.Equals(Model.ActiveInspectionRequest.Status, "Completed", StringComparison.OrdinalIgnoreCase))
+                        {
+                            <div class="rv-ok-note" style="margin-top:10px;">
+                                <strong>Physical inspection completed.</strong><br />
+                                @Model.PhysicalInspectionEvidenceCount inspection evidence file(s) are attached to this review.
+                                The Processor can now complete the review and submit it to the QA / OVVIO workflow.
+                            </div>
+                        }
+                        else if (Model.CanCompleteInspection)
+                        {
+                            <form asp-controller="ValuerInbox"
+                                  asp-action="CompleteInspection"
+                                  method="post"
+                                  style="margin-top:10px;">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="inspectionRequestId" value="@Model.ActiveInspectionRequest.Id" />
+                                <input type="hidden" name="attrId" value="@Model.AttrId" />
+                                <button type="submit"
+                                        class="rv-final-btn rv-final-btn-ovvio"
+                                        onclick="return confirm('Close this physical inspection? The evidence already received from Genesis will remain attached to the review.');">
+                                    Close Physical Inspection
+                                </button>
+                            </form>
+                        }
+                        else if (!string.IsNullOrWhiteSpace(Model.InspectionCompletionBlockReason))
+                        {
+                            <div class="rv-block-note" style="margin-top:10px;">
+                                @Model.InspectionCompletionBlockReason
+                            </div>
+                        }
                     }
                     else
                     {
+                        <div class="rv-small-text mb-2">
+                            Internal Processor Evidence must be uploaded before a physical inspection can be requested.
+                        </div>
                         <button type="button"
                                 class="rv-final-btn rv-final-btn-inspection"
                                 onclick="openInspectionModal();">
@@ -645,18 +693,6 @@
     }
     private string FriendlyStatus(string? status)
     {
-        return status?.Trim() switch
-        {
-            "ReadyForOvvioExtract" => "Accepted / Ready for OVVIO Extract",
-            "ReturnedToClient" => "Returned to Client for Update",
-            "Resubmitted" => "Client Resubmitted",
-            "ValuerReview" => "Under Review",
-            "InspectionRequired" => "Physical Inspection Required",
-            "InspectionConfirmed" => "Inspection Date Confirmed",
-            "InspectionDetailsSent" => "Inspection Details Sent",
-            "InspectionExpired" => "Inspection Expired",
-            "Claimed" => "Assigned for Review",
-            _ => string.IsNullOrWhiteSpace(status) ? "-" : status
-        };
+        return AttributeWorkflowStatus.Display(status);
     }
 }

@@ -1,4 +1,4 @@
-﻿using AIVS.Models.Attributes;
+using AIVS.Models.Attributes;
 using AIVS.Models.ViewModels.ValuerInbox;
 using Microsoft.EntityFrameworkCore;
 
@@ -54,8 +54,10 @@ namespace AIVS.Data
         public DbSet<AivsNotification> AivsNotifications { get; set; } = null!;
 
         public DbSet<AttrInspectionEvidence> AttrInspectionEvidence { get; set; }
+        public DbSet<AttrProcessorEvidence> AttrProcessorEvidence { get; set; } = null!;
         public DbSet<AttrSectorManagerQaReview> AttrSectorManagerQaReviews { get; set; }
         public DbSet<AttrCityAttributeValue> AttrCityAttributeValues { get; set; } = null!;
+        public DbSet<AttrOvvioApprovedAttribute> AttrOvvioApprovedAttributes { get; set; } = null!;
         public DbSet<AttrValuerReviewDraft> AttrValuerReviewDrafts { get; set; } = null!;
         public DbSet<AttrValuerReviewFieldCorrection> AttrValuerReviewFieldCorrections { get; set; } = null!;
         public DbSet<AttrValuerReviewLock> AttrValuerReviewLocks { get; set; } = null!;
@@ -76,6 +78,19 @@ namespace AIVS.Data
                     .HasColumnName("SECTOR");
             });
 
+            modelBuilder.Entity<AttrProcessorEvidence>(entity =>
+            {
+                entity.ToTable("AttrProcessorEvidence", "dbo");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.FileName).HasMaxLength(260).IsRequired();
+                entity.Property(x => x.FilePath).HasMaxLength(1000).IsRequired();
+                entity.Property(x => x.ContentType).HasMaxLength(150);
+                entity.Property(x => x.EvidenceComment).HasMaxLength(2000);
+                entity.Property(x => x.EvidenceStage).HasMaxLength(100);
+                entity.Property(x => x.UploadedByName).HasMaxLength(255);
+                entity.Property(x => x.UploadedByRole).HasMaxLength(100);
+                entity.HasIndex(x => new { x.Attr_ID, x.IsActive });
+            });
             modelBuilder.Entity<AttrCityAttributeValue>(entity =>
             {
                 entity.ToTable("Attr_CityAttributeValues", "dbo");

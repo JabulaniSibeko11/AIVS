@@ -1,5 +1,6 @@
-﻿@model AIVS.Models.ViewModels.Home.AivsHomeDashboardVm
+@model AIVS.Models.ViewModels.Home.AivsHomeDashboardVm
 @using System.Globalization
+@using AIVS.Workflow
 
 @{
     ViewData["Title"] = "AIVS Dashboard";
@@ -8,19 +9,28 @@
     string N(int n) => n.ToString("N0", CultureInfo.InvariantCulture);
 
     // ---- Status donut ------------------------------------------------
-    var statusColorMap = new Dictionary<string, (string Label, string Color)>(StringComparer.OrdinalIgnoreCase)
+    var statusColorMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
-        ["SectorInbox"]           = ("Sector Inbox",        "var(--aivs-evening)"),
-        ["Claimed"]               = ("Claimed",             "var(--aivs-turquoise)"),
-        ["ValuerReview"]          = ("Under Review",        "var(--aivs-orange)"),
-        ["InspectionRequired"]    = ("Inspection Required",  "var(--aivs-gold-dark)"),
-        ["InspectionConfirmed"]   = ("Inspection Confirmed", "var(--aivs-success)"),
-        ["InspectionDetailsSent"] = ("Details Sent",         "var(--aivs-info)"),
-        ["InspectionExpired"]     = ("Inspection Expired",   "var(--aivs-grey-light)"),
-        ["ReturnedToClient"]      = ("Returned",             "#8a7355"),
-        ["ReadyForOvvioExtract"]  = ("Ready for OVVIO",      "var(--aivs-gold)"),
-        ["Rejected"]              = ("Rejected",             "var(--aivs-danger)"),
-        ["Unknown"]               = ("Unknown",              "var(--aivs-border)")
+        [AttributeWorkflowStatus.Attribute.Submitted] = "var(--aivs-grey)",
+        [AttributeWorkflowStatus.Attribute.SectorInbox] = "var(--aivs-evening)",
+        [AttributeWorkflowStatus.Attribute.Claimed] = "var(--aivs-turquoise)",
+        [AttributeWorkflowStatus.Attribute.ValuerReview] = "var(--aivs-orange)",
+        [AttributeWorkflowStatus.Attribute.InspectionRequired] = "var(--aivs-gold-dark)",
+        [AttributeWorkflowStatus.Attribute.InspectionConfirmed] = "var(--aivs-success)",
+        [AttributeWorkflowStatus.Attribute.InspectionDetailsSent] = "var(--aivs-info)",
+        [AttributeWorkflowStatus.Attribute.InspectionCompleted] = "var(--aivs-success)",
+        [AttributeWorkflowStatus.Attribute.InspectionExpired] = "var(--aivs-grey-light)",
+        [AttributeWorkflowStatus.Attribute.ReturnedToClient] = "#8a7355",
+        [AttributeWorkflowStatus.Attribute.Resubmitted] = "var(--aivs-info)",
+        [AttributeWorkflowStatus.Attribute.ReturnedToValuer] = "var(--aivs-danger)",
+        [AttributeWorkflowStatus.Attribute.SectorManagerQa] = "var(--aivs-gold-dark)",
+        [AttributeWorkflowStatus.Attribute.SeniorManagerQa] = "var(--aivs-orange)",
+        [AttributeWorkflowStatus.Attribute.Approved] = "var(--aivs-success)",
+        [AttributeWorkflowStatus.Attribute.ReadyForOvvioExtract] = "var(--aivs-gold)",
+        [AttributeWorkflowStatus.Attribute.OvvioInserted] = "var(--aivs-success)",
+        [AttributeWorkflowStatus.Attribute.OvvioExtracted] = "var(--aivs-success)",
+        [AttributeWorkflowStatus.Attribute.Rejected] = "var(--aivs-danger)",
+        ["Unknown"] = "var(--aivs-border)"
     };
 
     var fallbackPalette = new[]
@@ -41,14 +51,9 @@
     foreach (var s in Model.StatusCounts)
     {
         string label; string color;
-        if (statusColorMap.TryGetValue(s.Status, out var mapped))
+        label = AttributeWorkflowStatus.Display(s.Status);
+        if (!statusColorMap.TryGetValue(s.Status, out color))
         {
-            label = mapped.Label;
-            color = mapped.Color;
-        }
-        else
-        {
-            label = s.Status;
             color = fallbackPalette[fallbackIdx % fallbackPalette.Length];
             fallbackIdx++;
         }
@@ -461,7 +466,7 @@
                             <td>@item.PropertyDescription</td>
                             <td>@item.Sector</td>
                             <td>@item.ValuerName</td>
-                            <td><span class="dash-badge">@item.Status</span></td>
+                            <td><span class="dash-badge">@AttributeWorkflowStatus.Display(item.Status)</span></td>
                             <td>@item.LastUpdated?.ToString("yyyy-MM-dd HH:mm")</td>
                         </tr>
                     }

@@ -1,4 +1,5 @@
-﻿@model AIVS.Models.ViewModels.SectorManager.SectorManagerQaDetailsVm
+@model AIVS.Models.ViewModels.SectorManager.SectorManagerQaDetailsVm
+@using AIVS.Workflow
 
 @{
     ViewData["Title"] = "QA Review " + Model.AttrNo;
@@ -52,7 +53,7 @@
         </div>
 
         <div class="smqa-header-count">
-            <strong>@Model.QaStatus</strong>
+            <strong>@AttributeWorkflowStatus.QaDisplay(Model.QaStatus)</strong>
             QA status
         </div>
     </div>
@@ -192,6 +193,40 @@
                                 {
                                     <a href="@file.FilePath" target="_blank">Open</a>
                                 }
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+
+            <div class="smqa-side-card">
+                <div class="smqa-side-head">Processor Evidence / Working Papers</div>
+                <div class="smqa-side-body">
+                    <div class="smqa-note">Evidence used by the Valuer/Processor or Sector Manager to verify the client's attributes.</div>
+
+                    <form asp-controller="SectorManagerQa" asp-action="UploadProcessorEvidence" method="post" enctype="multipart/form-data" class="mb-3">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="qaId" value="@Model.QaId" />
+                        <input type="hidden" name="attrId" value="@Model.AttrId" />
+                        <input type="file" name="files" multiple required accept=".pdf,.xlsx,.xls,.csv,.png,.jpg,.jpeg" class="form-control mb-2" />
+                        <textarea name="evidenceComment" class="form-control mb-2" rows="2" maxlength="2000" placeholder="What did you verify with this evidence?"></textarea>
+                        <button type="submit" class="smqa-btn-full">Upload Supporting Evidence</button>
+                    </form>
+
+                    @if (Model.ProcessorEvidenceFiles == null || !Model.ProcessorEvidenceFiles.Any())
+                    {
+                        <div class="smqa-note">No processor evidence uploaded.</div>
+                    }
+                    else
+                    {
+                        @foreach (var file in Model.ProcessorEvidenceFiles)
+                        {
+                            <div class="smqa-file">
+                                <strong>@Display(file.FileName)</strong>
+                                <span>@(file.UploadedByName ?? "Processor") · @file.UploadedAt.ToString("yyyy-MM-dd HH:mm") · @Display(file.EvidenceStage)</span>
+                                @if (!string.IsNullOrWhiteSpace(file.EvidenceComment)) { <small>@file.EvidenceComment</small> }
+                                <a asp-action="ProcessorEvidenceFile" asp-route-id="@Model.QaId" asp-route-evidenceId="@file.Id" target="_blank">View</a>
+                                <a asp-action="ProcessorEvidenceFile" asp-route-id="@Model.QaId" asp-route-evidenceId="@file.Id" asp-route-download="true">Download</a>
                             </div>
                         }
                     }

@@ -38,6 +38,9 @@ var allSectorAccessPolicy = policiesSection["AllSectorAccess"] ?? "AllSectorAcce
 
 builder.Services.Configure<AivsSettings>(builder.Configuration.GetSection("AivsSettings"));
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+
+builder.Services.Configure<GenesisPortalSettings>(
+    builder.Configuration.GetSection("GenesisPortalSettings"));
 builder.Services.Configure<AttributeStorageSettings>(builder.Configuration.GetSection("AttributeStorage"));
 builder.Services.Configure<ValuerPhotoStorageSettings>(builder.Configuration.GetSection("ValuerPhotoStorage"));
 
@@ -48,6 +51,8 @@ builder.Services.AddDbContext<AttributesDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("AttributesConnection")));
 builder.Services.Configure<SectorManagerQaSettings>(
     builder.Configuration.GetSection("SectorManagerQaSettings"));
+builder.Services.Configure<DemoQaSettings>(
+    builder.Configuration.GetSection("DemoQaSettings"));
 
 // ─────────────────────────────────────────────
 // Windows Authentication
@@ -71,6 +76,7 @@ builder.Services.AddScoped<IAuthorizationHandler, AivsPermissionHandler>();
 builder.Services.AddScoped<ISectorInboxService, SectorInboxService>();
 
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<IProcessorFileService, ProcessorFileService>();
 
 builder.Services.AddScoped<IValuerInboxService, ValuerInboxService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
@@ -78,6 +84,8 @@ builder.Services.AddScoped<IHomeDashboardService, HomeDashboardService>();
 builder.Services.AddScoped<IStatsExtractService, StatsExtractService>();
 builder.Services.AddScoped<IValuerReviewPdfService, ValuerReviewPdfService>();
 builder.Services.AddScoped<ISectorManagerQaService, SectorManagerQaService>();
+builder.Services.AddScoped<IAttributeApprovalNoticeService, AttributeApprovalNoticeService>();
+builder.Services.AddScoped<IOvvioAttributeService, OvvioAttributeService>();
 // ─────────────────────────────────────────────
 // Authorisation policies
 // ─────────────────────────────────────────────

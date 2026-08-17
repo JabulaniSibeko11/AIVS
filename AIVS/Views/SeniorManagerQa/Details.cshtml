@@ -1,4 +1,5 @@
-﻿@model AIVS.Models.ViewModels.SectorManager.SectorManagerQaDetailsVm
+@model AIVS.Models.ViewModels.SectorManager.SectorManagerQaDetailsVm
+@using AIVS.Workflow
 @{
     ViewData["Title"] = "Senior Manager QA " + Model.AttrNo;
     string D(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value;
@@ -13,8 +14,8 @@
     }
 
     <div class="smqa-header">
-        <div><h1>Senior Manager QA: @Model.AttrNo</h1><p>Verify the Sector Manager’s QA outcome before final OVVIO approval.</p></div>
-        <div class="smqa-header-count"><strong>@D(Model.SeniorQaStatus)</strong> QA status</div>
+        <div><h1>Senior Manager QA: @Model.AttrNo</h1><p>Perform the final QA review. Approval inserts the attributes into OVVIO staging and generates the client approval notice/email.</p></div>
+        <div class="smqa-header-count"><strong>@AttributeWorkflowStatus.QaDisplay(Model.SeniorQaStatus, senior: true)</strong> QA status</div>
     </div>
 
     <div class="smqa-summary-grid">
@@ -51,14 +52,34 @@
         </div>
     </div>
     <div class="smqa-side-card">
+        <div class="smqa-side-head">Processor Evidence / Working Papers</div>
+        <div class="smqa-side-body">
+            @foreach (var file in Model.ProcessorEvidenceFiles)
+            {
+                <div class="smqa-file">
+                    <strong>@D(file.FileName)</strong>
+                    <span>@(file.UploadedByName ?? "Processor") · @file.UploadedAt.ToString("yyyy-MM-dd HH:mm") · @D(file.EvidenceStage)</span>
+                    @if (!string.IsNullOrWhiteSpace(file.EvidenceComment)) { <small>@file.EvidenceComment</small> }
+                    <a asp-action="ProcessorEvidenceFile" asp-route-id="@Model.QaId" asp-route-evidenceId="@file.Id" target="_blank">View</a>
+                    <a asp-action="ProcessorEvidenceFile" asp-route-id="@Model.QaId" asp-route-evidenceId="@file.Id" asp-route-download="true">Download</a>
+                </div>
+            }
+            @if (!Model.ProcessorEvidenceFiles.Any())
+            {
+                <div class="smqa-note">No processor evidence available.</div>
+            }
+        </div>
+    </div>
+
+    <div class="smqa-side-card">
         <div class="smqa-side-head">Final Senior Manager Decision</div><div class="smqa-side-body">
         <form method="post" id="seniorQaForm">
             @Html.AntiForgeryToken()
             <input type="hidden" name="QaId" value="@Model.QaId" />
             <input type="hidden" name="AttrId" value="@Model.AttrId" />
             <textarea name="Comment" class="form-control" rows="5" maxlength="2000" required placeholder="Enter the mandatory QA comment"></textarea>
-            <button class="smqa-btn mt-3" type="submit" formaction="@Url.Action("Approve")" onclick="return confirm('Approve this submission for OVVIO extract?');">Approve for OVVIO</button>
-            <button class="smqa-btn mt-2" type="submit" formaction="@Url.Action("ReturnToSectorManager")" onclick="return confirm('Return this QA review to the Sector Manager?');">Return to Sector Manager</button>
+            <button class="smqa-btn mt-3" type="submit" formaction="@Url.Action("Approve")" onclick="return confirm('Final approve this submission, insert the attributes into OVVIO staging, and generate the client approval notice/email?');">Final Approve &amp; Insert to OVVIO</button>
+            <button class="smqa-btn mt-2" type="submit" formaction="@Url.Action("ReturnToSectorManager")" onclick="return confirm('Return this QA review to the Sector Manager?');">Return for Correction</button>
         </form>
     </div>
 </div>

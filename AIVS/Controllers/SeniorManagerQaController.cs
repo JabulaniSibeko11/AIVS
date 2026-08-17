@@ -1,4 +1,4 @@
-﻿using AIVS.Models.ViewModels.SectorManager;
+using AIVS.Models.ViewModels.SectorManager;
 using AIVS.Models.ViewModels.SeniorManager;
 using AIVS.Security;
 using AIVS.Services.Interface;
@@ -12,11 +12,13 @@ public class SeniorManagerQaController : Controller
 {
     private readonly ISectorManagerQaService _qaService;
     private readonly IUserManagementService _users;
+    private readonly IProcessorFileService _processorFiles;
 
-    public SeniorManagerQaController(ISectorManagerQaService qaService, IUserManagementService users)
+    public SeniorManagerQaController(ISectorManagerQaService qaService, IUserManagementService users, IProcessorFileService processorFiles)
     {
         _qaService = qaService;
         _users = users;
+        _processorFiles = processorFiles;
     }
 
     [HttpGet]
@@ -85,6 +87,23 @@ public class SeniorManagerQaController : Controller
         }
     }
 
+
+    [HttpGet]
+    public async Task<IActionResult> ProcessorEvidenceFile(long id, long evidenceId, bool download = false)
+    {
+        var user = await _users.GetCurrentUserAsync(User);
+        try
+        {
+            await _qaService.GetSeniorManagerDetailsAsync(id, user);
+            var file = await _processorFiles.GetEvidenceFileAsync(evidenceId);
+            if (file == null) return NotFound("Processor evidence file was not found.");
+            return download
+                ? PhysicalFile(file.Value.Path, file.Value.ContentType, file.Value.FileName, enableRangeProcessing: true)
+                : PhysicalFile(file.Value.Path, file.Value.ContentType, enableRangeProcessing: true);
+        }
+        catch { return Forbid(); }
+    }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Approve(SeniorManagerQaDecisionVm vm)
@@ -93,7 +112,7 @@ public class SeniorManagerQaController : Controller
         try
         {
             await _qaService.ApproveSeniorManagerQaAsync(vm, user);
-            TempData["Success"] = "Senior Manager QA approved. The submission is ready for OVVIO extract.";
+            TempData["Success"] = "Final approval completed. The attributes were inserted into OVVIO staging and the client approval notice/email was generated.";
             return RedirectToAction(nameof(Index));
         }
         catch (Exception ex)

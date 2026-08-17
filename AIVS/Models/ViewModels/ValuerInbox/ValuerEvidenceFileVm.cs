@@ -10,7 +10,12 @@
 
         public string? FileName { get; set; }
 
+        // Original client file name. For client evidence this is never renamed by AIVS.
+        public string? OriginalFileName { get; set; }
+
         public string? FilePath { get; set; }
+
+        public string? EvidenceKey { get; set; }
 
         public string? FileType { get; set; }
 

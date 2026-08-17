@@ -1,31 +1,11 @@
-﻿@model List<AIVS.Models.ViewModels.ValuerInbox.ValuerInboxItemVm>
+@model List<AIVS.Models.ViewModels.ValuerInbox.ValuerInboxItemVm>
 @using System.Globalization
+@using AIVS.Workflow
 
 @{
     ViewData["Title"] = "Review Inbox";
 
-    string StatusText(string? status) => (status?.Trim()) switch
-    {
-        "Claimed" => "Assigned for Review",
-        "ValuerReview" => "Under Review",
-
-        "ReturnedToClient" => "Returned to Client",
-        "Resubmitted" => "Client Resubmitted",
-        "ReturnedToValuer" => "Returned by Sector Manager",
-
-        "InspectionRequired" => "Waiting for Client Date",
-        "InspectionConfirmed" => "Client Confirmed Date",
-        "InspectionDetailsSent" => "Inspection Details Sent",
-        "InspectionCompleted" => "Inspection Completed",
-        "InspectionExpired" => "Inspection Request Expired",
-
-        "SectorManagerQa" => "Sector Manager QA",
-        "ReadyForOvvioExtract" => "Accepted / Ready for OVVIO",
-        "OvvioExtracted" => "OVVIO Extracted",
-
-        var s when string.IsNullOrWhiteSpace(s) => "-",
-        var s => s
-    };
+    string StatusText(string? status) => AttributeWorkflowStatus.Display(status);
 
     string StatusBadgeClass(string? status) => (status?.Trim()) switch
     {
@@ -71,22 +51,7 @@
         _ => "var(--aivs-border)"
     };
 
-    int StatusPriority(string? status) => (status?.Trim()) switch
-    {
-        "ReturnedToValuer" => 0,
-        "InspectionExpired" => 1,
-        "Resubmitted" => 2,
-        "InspectionRequired" => 3,
-        "ValuerReview" => 4,
-        "Claimed" => 5,
-        "InspectionDetailsSent" => 6,
-        "InspectionConfirmed" => 7,
-        "InspectionCompleted" => 8,
-        "SectorManagerQa" => 9,
-        "ReadyForOvvioExtract" => 10,
-        "OvvioExtracted" => 11,
-        _ => 12
-    };
+    int StatusPriority(string? status) => AttributeWorkflowStatus.Priority(status);
 
     string ButtonText(AIVS.Models.ViewModels.ValuerInbox.ValuerInboxItemVm item) => (item.Status?.Trim()) switch
     {
@@ -108,28 +73,6 @@
 
         _ => item.ReviewStarted ? "Continue Review" : "Open Review"
     };
-    string StatusIcon(string? status) => (status?.Trim()) switch
-    {
-        "Claimed" => "fa-inbox",
-        "ValuerReview" => "fa-magnifying-glass",
-
-        "ReturnedToClient" => "fa-rotate-left",
-        "Resubmitted" => "fa-arrow-rotate-right",
-        "ReturnedToValuer" => "fa-triangle-exclamation",
-
-        "InspectionRequired" => "fa-clock",
-        "InspectionConfirmed" => "fa-calendar-check",
-        "InspectionDetailsSent" => "fa-paper-plane",
-        "InspectionCompleted" => "fa-circle-check",
-        "InspectionExpired" => "fa-clock-rotate-left",
-
-        "SectorManagerQa" => "fa-user-shield",
-        "ReadyForOvvioExtract" => "fa-circle-check",
-        "OvvioExtracted" => "fa-box-archive",
-
-        _ => "fa-circle"
-    };
-
     var allItems = Model ?? new List<AIVS.Models.ViewModels.ValuerInbox.ValuerInboxItemVm>();
 
     var orderedItems = allItems
@@ -178,25 +121,16 @@
         </div>
         <div class="vi-header-stats">
             <div class="vi-header-stat"><strong>@orderedItems.Count</strong> assigned to you</div>
+            @if (expiredCount > 0)
+            {
+                <div class="vi-header-stat is-urgent"><strong>@expiredCount</strong> inspection request(s) expired</div>
+            }
         </div>
     </div>
-
-    @if (expiredCount > 0)
-    {
-        <div class="vi-urgent-alert">
-            <i class="fa-solid fa-triangle-exclamation"></i>
-            <div>
-                <strong>@expiredCount inspection request@(expiredCount == 1 ? "" : "s")</strong>
-                expired without a client response.
-                Send new inspection dates to keep these reviews moving.
-            </div>
-        </div>
-    }
 
     @if (!orderedItems.Any())
     {
         <div class="vi-empty">
-            <i class="fa-solid fa-inbox"></i>
             No assigned attribute submissions found in your inbox.
         </div>
     }
@@ -294,10 +228,7 @@
                                 <td>@item.EvidenceCount</td>
 
                                 <td>
-                                    <span class="vi-badge @StatusBadgeClass(item.Status)">
-                                        <i class="fa-solid @StatusIcon(item.Status)"></i>
-                                        @StatusText(item.Status)
-                                    </span>
+                                    <span class="vi-badge @StatusBadgeClass(item.Status)">@StatusText(item.Status)</span>
                                 </td>
 
                                 <td>

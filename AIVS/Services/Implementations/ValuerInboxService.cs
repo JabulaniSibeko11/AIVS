@@ -1,4 +1,4 @@
-﻿using AIVS.Data;
+using AIVS.Data;
 using AIVS.Models.Attributes;
 using AIVS.Models.Configuration;
 using AIVS.Models.ViewModels.UserManagement;
@@ -14,25 +14,40 @@ namespace AIVS.Services.Implementations
         private readonly AttributesDbContext _context;
         private readonly ILogger<ValuerInboxService> _logger;
         private readonly IEmailService _emailService;
+        private readonly GenesisPortalSettings _genesisPortalSettings;
         private readonly AttributeStorageSettings _storageSettings;
         private readonly INotificationService _notificationService;
         private readonly IValuerReviewPdfService _valuerReviewPdfService;
         private readonly IOptions<SectorManagerQaSettings> _sectorManagerQaSettings;
+        private readonly IAivsRoleAccessService _roleAccess;
+        private readonly IUserManagementService _userManagementService;
+        private readonly DemoQaSettings _demoQa;
+        private readonly IProcessorFileService _processorFiles;
         public ValuerInboxService(
             AttributesDbContext context,
             ILogger<ValuerInboxService> logger, IEmailService emailService,
             IOptions<AttributeStorageSettings> storageSettings
             , INotificationService notificationService
             , IValuerReviewPdfService valuerReviewPdfService,
-      IOptions<SectorManagerQaSettings> sectorManagerQaSettings)
+      IOptions<SectorManagerQaSettings> sectorManagerQaSettings,
+      IAivsRoleAccessService roleAccess,
+      IUserManagementService userManagementService,
+      IOptions<DemoQaSettings> demoQa,
+      IOptions<GenesisPortalSettings> genesisPortalSettings,
+      IProcessorFileService processorFiles)
         {
             _context = context;
             _logger = logger;
             _emailService = emailService;
+            _genesisPortalSettings = genesisPortalSettings.Value;
             _storageSettings = storageSettings.Value;
             _notificationService = notificationService;
             _valuerReviewPdfService = valuerReviewPdfService;
             _sectorManagerQaSettings = sectorManagerQaSettings;
+            _roleAccess = roleAccess;
+            _userManagementService = userManagementService;
+            _demoQa = demoQa.Value;
+            _processorFiles = processorFiles;
         }
 
         public async Task<List<ValuerInboxItemVm>> GetMyInboxAsync(AivsCurrentUserVm currentUser)
@@ -330,6 +345,7 @@ namespace AIVS.Services.Implementations
 
             var evidenceFiles = await BuildEvidenceFilesAsync(item.Attr_ID);
             var physicalInspectionEvidenceFiles = await BuildPhysicalInspectionEvidenceFilesAsync(item.Attr_ID);
+            var processorEvidenceFiles = await _processorFiles.GetEvidenceAsync(item.Attr_ID);
             var comparisonSections = await BuildComparisonSectionsAsync(review.Id, submittedForm);
 
             var draft = currentUser.UserId == null ? null : await _context.AttrValuerReviewDrafts
@@ -361,6 +377,7 @@ namespace AIVS.Services.Implementations
                         x.Status == "PendingClientResponse" ||
                         x.Status == "Confirmed" ||
                         x.Status == "InspectionDetailsSent" ||
+                        x.Status == "Completed" ||
                         x.Status == "Expired"
                     ))
                 .OrderByDescending(x => x.CreatedDate)
@@ -387,6 +404,35 @@ namespace AIVS.Services.Implementations
                 })
                 .FirstOrDefaultAsync();
 
+            var inspectionCompleted =
+                string.Equals(item.Physical_Inspection_Status, "InspectionCompleted", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(activeInspectionRequest?.Status, "Completed", StringComparison.OrdinalIgnoreCase);
+
+            var canCompleteInspection =
+                activeInspectionRequest != null &&
+                !inspectionCompleted &&
+                (string.Equals(activeInspectionRequest.Status, "Confirmed", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(activeInspectionRequest.Status, "InspectionDetailsSent", StringComparison.OrdinalIgnoreCase)) &&
+                physicalInspectionEvidenceFiles.Count > 0;
+
+            string? inspectionCompletionBlockReason = null;
+            if (activeInspectionRequest != null && !inspectionCompleted && !canCompleteInspection)
+            {
+                if (physicalInspectionEvidenceFiles.Count == 0 &&
+                    (string.Equals(activeInspectionRequest.Status, "Confirmed", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(activeInspectionRequest.Status, "InspectionDetailsSent", StringComparison.OrdinalIgnoreCase)))
+                {
+                    inspectionCompletionBlockReason =
+                        "Physical inspection evidence has not yet been received from Genesis. Upload the inspection evidence in Genesis, then refresh this review.";
+                }
+                else if (!string.Equals(activeInspectionRequest.Status, "Confirmed", StringComparison.OrdinalIgnoreCase) &&
+                         !string.Equals(activeInspectionRequest.Status, "InspectionDetailsSent", StringComparison.OrdinalIgnoreCase))
+                {
+                    inspectionCompletionBlockReason =
+                        "The inspection can only be closed after the client has confirmed the appointment.";
+                }
+            }
+
             return new ValuerReviewPageVm
             {
                 AttrId = item.Attr_ID,
@@ -399,7 +445,7 @@ namespace AIVS.Services.Implementations
 
                 Status = item.Attr_Status,
                 FormType = item.Property_Type,
-                EvidenceCount = item.Evidence_Count,
+                EvidenceCount = evidenceFiles.Count,
 
                 ReviewStatus = review.ReviewStatus,
                 StartedAt = review.StartedAt,
@@ -410,6 +456,10 @@ namespace AIVS.Services.Implementations
                 EvidenceFiles = evidenceFiles,
 
                 PhysicalInspectionEvidenceFiles = physicalInspectionEvidenceFiles,
+                CanCompleteInspection = canCompleteInspection,
+                InspectionCompleted = inspectionCompleted,
+                InspectionCompletionBlockReason = inspectionCompletionBlockReason,
+                ProcessorEvidenceFiles = processorEvidenceFiles,
                 ComparisonSections = comparisonSections,
                 HasCityData = comparisonSections.Any(x => x.Fields.Any(f => f.HasCityValue)),
                 ActiveTab = draft?.ActiveTab ?? "1",
@@ -1060,75 +1110,232 @@ namespace AIVS.Services.Implementations
                 .OrderByDescending(x => x.UploadedDateTime)
                 .ToListAsync();
 
-            var files = new List<ValuerEvidenceFileVm>();
+            var attrNo = rows.Select(x => x.Attr_No)
+                .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
 
-            foreach (var row in rows)
+            if (string.IsNullOrWhiteSpace(attrNo))
             {
-                AddEvidenceFile(files, row, row.Files1, "Evidence 1");
-                AddEvidenceFile(files, row, row.Files2, "Evidence 2");
-                AddEvidenceFile(files, row, row.Files3, "Evidence 3");
-                AddEvidenceFile(files, row, row.Files4, "Evidence 4");
-                AddEvidenceFile(files, row, row.Files5, "Evidence 5");
-                AddEvidenceFile(files, row, row.Files6, "Evidence 6");
-                AddEvidenceFile(files, row, row.Files7, "Evidence 7");
-                AddEvidenceFile(files, row, row.Files8, "Evidence 8");
-                AddEvidenceFile(files, row, row.Files9, "Evidence 9");
-                AddEvidenceFile(files, row, row.Files10, "Evidence 10");
-
-                AddEvidenceFile(files, row, row.Rep_Letter, "Representative Letter");
-                AddEvidenceFile(files, row, row.Acknowledgement_FileName, "Acknowledgement");
-                AddEvidenceFile(files, row, row.Bulk_File_Name, "Bulk File");
+                attrNo = await _context.AttrPropertyInfo
+                    .AsNoTracking()
+                    .Where(x => x.Attr_ID == attrId)
+                    .Select(x => x.Attr_No)
+                    .FirstOrDefaultAsync();
             }
 
-            return files;
+            var files = new List<ValuerEvidenceFileVm>();
+
+            // The physical evidence folder is the source of truth for review/download.
+            // This avoids stale Attr_Files names producing links to files that do not exist.
+            // The name shown to the user is ALWAYS the actual file name on disk.
+            if (!string.IsNullOrWhiteSpace(attrNo))
+            {
+                foreach (var directory in GetEvidenceDirectories(attrNo, rows))
+                {
+                    if (!Directory.Exists(directory))
+                        continue;
+
+                    foreach (var diskPath in Directory.EnumerateFiles(directory, "*", SearchOption.TopDirectoryOnly))
+                    {
+                        AddPhysicalEvidenceFile(files, diskPath, rows);
+                    }
+                }
+            }
+
+            // Compatibility fallback for older records whose files live outside the standard
+            // evidence directory. Only add a DB record when its resolved path ACTUALLY exists.
+            // Broken/stale DB paths are not shown as clickable evidence anymore.
+            foreach (var row in rows)
+            {
+                AddEvidenceFileIfExists(files, row, row.Files1, "Evidence 1");
+                AddEvidenceFileIfExists(files, row, row.Files2, "Evidence 2");
+                AddEvidenceFileIfExists(files, row, row.Files3, "Evidence 3");
+                AddEvidenceFileIfExists(files, row, row.Files4, "Evidence 4");
+                AddEvidenceFileIfExists(files, row, row.Files5, "Evidence 5");
+                AddEvidenceFileIfExists(files, row, row.Files6, "Evidence 6");
+                AddEvidenceFileIfExists(files, row, row.Files7, "Evidence 7");
+                AddEvidenceFileIfExists(files, row, row.Files8, "Evidence 8");
+                AddEvidenceFileIfExists(files, row, row.Files9, "Evidence 9");
+                AddEvidenceFileIfExists(files, row, row.Files10, "Evidence 10");
+            }
+
+            return files
+                .GroupBy(x => Path.GetFullPath(x.FilePath ?? string.Empty), StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.First())
+                .OrderByDescending(x => x.UploadedDateTime)
+                .ThenBy(x => x.FileName)
+                .ToList();
         }
-        private void AddEvidenceFile(
-    List<ValuerEvidenceFileVm> files,
-    AttrFiles row,
-    string? fileName,
-    string label)
+
+        private IEnumerable<string> GetEvidenceDirectories(string attrNo, List<AttrFiles> rows)
+        {
+            var directories = new List<string>
+            {
+                Path.Combine(_storageSettings.PhysicalRootPath, attrNo, _storageSettings.EvidenceFolderName)
+            };
+
+            if (!string.IsNullOrWhiteSpace(_storageSettings.RootFolderName))
+            {
+                directories.Add(Path.Combine(
+                    _storageSettings.PhysicalRootPath,
+                    _storageSettings.RootFolderName,
+                    attrNo,
+                    _storageSettings.EvidenceFolderName));
+            }
+
+            foreach (var rootFolder in rows.Select(x => x.RootFolder).Where(x => !string.IsNullOrWhiteSpace(x)))
+            {
+                var root = rootFolder!;
+                if (Path.GetFileName(root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+                    .Equals(_storageSettings.EvidenceFolderName, StringComparison.OrdinalIgnoreCase))
+                {
+                    directories.Add(root);
+                }
+                else
+                {
+                    directories.Add(Path.Combine(root, _storageSettings.EvidenceFolderName));
+                }
+            }
+
+            return directories.Distinct(StringComparer.OrdinalIgnoreCase);
+        }
+
+        private void AddPhysicalEvidenceFile(
+            List<ValuerEvidenceFileVm> files,
+            string diskPath,
+            List<AttrFiles> rows)
+        {
+            var fullPath = Path.GetFullPath(diskPath);
+            if (files.Any(x => !string.IsNullOrWhiteSpace(x.FilePath) &&
+                               string.Equals(Path.GetFullPath(x.FilePath), fullPath, StringComparison.OrdinalIgnoreCase)))
+                return;
+
+            var actualFileName = Path.GetFileName(fullPath);
+            var info = new FileInfo(fullPath);
+
+            // Try to retain upload metadata from Attr_Files, but never replace the physical name.
+            var row = rows.FirstOrDefault(r => GetStoredFileNames(r)
+                .Any(n => string.Equals(Path.GetFileName(n), actualFileName, StringComparison.OrdinalIgnoreCase)));
+
+            files.Add(new ValuerEvidenceFileVm
+            {
+                Id = row?.ID ?? 0,
+                AttrFileId = row?.ID ?? 0,
+                FileName = actualFileName,
+                OriginalFileName = actualFileName,
+                DisplayName = actualFileName,
+                FilePath = fullPath,
+                EvidenceKey = BuildEvidenceKey(fullPath),
+                FileType = GetContentType(actualFileName),
+                FileSize = info.Length,
+                UploadedDateTime = row?.UploadedDateTime ?? info.LastWriteTime,
+                UploadedBy = row?.UploadedByName ?? row?.CreatedBy ?? "Client"
+            });
+        }
+
+        private static IEnumerable<string> GetStoredFileNames(AttrFiles row)
+        {
+            var names = new[]
+            {
+                row.Files1, row.Files2, row.Files3, row.Files4, row.Files5,
+                row.Files6, row.Files7, row.Files8, row.Files9, row.Files10
+            };
+
+            return names.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!);
+        }
+
+        private void AddEvidenceFileIfExists(
+            List<ValuerEvidenceFileVm> files,
+            AttrFiles row,
+            string? fileName,
+            string label)
         {
             if (string.IsNullOrWhiteSpace(fileName))
                 return;
 
             var fullPath = ResolveEvidenceFilePath(row, fileName);
+            if (string.IsNullOrWhiteSpace(fullPath) || !System.IO.File.Exists(fullPath))
+                return;
+
+            fullPath = Path.GetFullPath(fullPath);
+            if (files.Any(x => !string.IsNullOrWhiteSpace(x.FilePath) &&
+                               string.Equals(Path.GetFullPath(x.FilePath), fullPath, StringComparison.OrdinalIgnoreCase)))
+                return;
+
+            // Use the ACTUAL physical file name. Never manufacture or relabel client evidence.
+            var actualFileName = Path.GetFileName(fullPath);
+            var info = new FileInfo(fullPath);
 
             files.Add(new ValuerEvidenceFileVm
             {
                 Id = row.ID,
                 AttrFileId = row.ID,
-                FileName = fileName,
-                DisplayName = label,
+                FileName = actualFileName,
+                OriginalFileName = actualFileName,
+                DisplayName = actualFileName,
                 FilePath = fullPath,
-                FileType = GetContentType(fileName),
+                EvidenceKey = BuildEvidenceKey(fullPath),
+                FileType = GetContentType(actualFileName),
+                FileSize = info.Length,
                 UploadedDateTime = row.UploadedDateTime,
                 UploadedBy = row.UploadedByName ?? row.CreatedBy
             });
         }
+
         private string ResolveEvidenceFilePath(AttrFiles row, string fileName)
         {
-            if (Path.IsPathRooted(fileName))
-                return fileName;
+            if (Path.IsPathRooted(fileName) && System.IO.File.Exists(fileName))
+                return Path.GetFullPath(fileName);
+
+            var attrNo = !string.IsNullOrWhiteSpace(row.Attr_No)
+                ? row.Attr_No
+                : row.Attr_Ref_Files;
+
+            var actualName = Path.GetFileName(fileName);
+            var candidates = new List<string>();
 
             if (!string.IsNullOrWhiteSpace(row.RootFolder))
             {
-                return Path.Combine(row.RootFolder, fileName);
+                var root = row.RootFolder;
+                candidates.Add(Path.Combine(root, actualName));
+
+                if (!Path.GetFileName(root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+                    .Equals(_storageSettings.EvidenceFolderName, StringComparison.OrdinalIgnoreCase))
+                {
+                    candidates.Add(Path.Combine(root, _storageSettings.EvidenceFolderName, actualName));
+                }
             }
 
-            var attrNo = row.Attr_No;
+            if (!string.IsNullOrWhiteSpace(attrNo))
+            {
+                candidates.Add(Path.Combine(
+                    _storageSettings.PhysicalRootPath,
+                    attrNo,
+                    _storageSettings.EvidenceFolderName,
+                    actualName));
 
-            if (string.IsNullOrWhiteSpace(attrNo))
-                attrNo = row.Attr_Ref_Files;
+                if (!string.IsNullOrWhiteSpace(_storageSettings.RootFolderName))
+                {
+                    candidates.Add(Path.Combine(
+                        _storageSettings.PhysicalRootPath,
+                        _storageSettings.RootFolderName,
+                        attrNo,
+                        _storageSettings.EvidenceFolderName,
+                        actualName));
+                }
+            }
 
-            if (string.IsNullOrWhiteSpace(attrNo))
-                attrNo = "Unknown";
-
-            return Path.Combine(
-                _storageSettings.PhysicalRootPath,
-                attrNo,
-                _storageSettings.EvidenceFolderName,
-                fileName);
+            return candidates.FirstOrDefault(System.IO.File.Exists) ?? string.Empty;
         }
+        private static string BuildEvidenceKey(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                return string.Empty;
+
+            var normalized = Path.GetFullPath(path).Trim().ToUpperInvariant();
+            var bytes = System.Text.Encoding.UTF8.GetBytes(normalized);
+            return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes));
+        }
+
         private static string GetContentType(string fileName)
         {
             var ext = Path.GetExtension(fileName).ToLowerInvariant();
@@ -1668,24 +1875,23 @@ namespace AIVS.Services.Implementations
                         .AsNoTracking()
                         .Where(x =>
                             x.Attr_ID == item.Attr_ID &&
-                            x.QaStatus == "ReturnedToValuer")
-                        .OrderByDescending(x => x.QaCompletedAt)
+                            (x.QaStatus == "ReturnedToValuer" || x.SeniorQaStatus == "ReturnedToSectorManager"))
+                        .OrderByDescending(x => x.UpdatedDate ?? x.CreatedDate)
                         .ThenByDescending(x => x.Id)
                         .FirstOrDefaultAsync();
 
-                    var selectedForSectorQa = returnedQa != null || ShouldSelectForSectorManagerQa();
+                    // Business rule:
+                    // - A Valuer is QA'd by a Sector Manager, then a Senior Manager.
+                    // - When the processor is already a Sector Manager, their own valuation work
+                    //   skips Sector Manager QA and goes directly to Senior Manager QA.
+                    var processorIsSectorManager = _roleAccess.IsSectorManager(currentUser);
+                    var mustGoThroughQa = returnedQa != null || processorIsSectorManager || ShouldSelectForSectorManagerQa();
 
-                    review.ReviewStatus = selectedForSectorQa
-                        ? "SubmittedForSectorManagerQa"
-                        : "Completed";
+                    var demoQaUser = await GetDemoQaUserAsync();
+                    var autoAssignDemo = demoQaUser != null && _demoQa.AutoAssignQaToTestUser;
 
-                    review.ReadyForOvvioExtract = !selectedForSectorQa;
                     review.ReturnToClient = false;
                     review.RequiresInspection = false;
-
-                    item.Attr_Status = selectedForSectorQa
-                        ? "SectorManagerQa"
-                        : "ReadyForOvvioExtract";
 
                     item.Valuer = currentUser.FullName;
                     item.ValuerUserId = currentUserId;
@@ -1693,20 +1899,34 @@ namespace AIVS.Services.Implementations
                     item.ValuerDecision = "Accepted";
                     item.RejectionReason = null;
                     item.ValuerDecisionDateTime = now;
+                    item.Physical_Inspection_Required = false;
 
-                    item.ReadyForOvvioExtract = !selectedForSectorQa;
-                    item.OvvioExtractStatus = selectedForSectorQa ? null : "Pending";
                     item.OvvioExtractBatchNo = null;
                     item.OvvioExtractDateTime = null;
                     item.OvvioExtractedBy = null;
                     item.OvvioExtractError = null;
 
-                    item.Physical_Inspection_Required = false;
-
-                    if (selectedForSectorQa)
+                    if (!mustGoThroughQa)
                     {
-                        var weekStart = StartOfWeek(now);
-                        var weekEnd = weekStart.AddDays(6);
+                        // Kept for production configurability. DemoQa.ForceAllQa makes this path unreachable in demo.
+                        review.ReviewStatus = "Completed";
+                        review.ReadyForOvvioExtract = true;
+                        item.Attr_Status = "ReadyForOvvioExtract";
+                        item.ReadyForOvvioExtract = true;
+                        item.OvvioExtractStatus = "Pending";
+                        break;
+                    }
+
+                    var weekStart = StartOfWeek(now);
+                    var weekEnd = weekStart.AddDays(6);
+
+                    if (processorIsSectorManager)
+                    {
+                        review.ReviewStatus = "SubmittedForSeniorManagerQa";
+                        review.ReadyForOvvioExtract = false;
+                        item.Attr_Status = "SeniorManagerQa";
+                        item.ReadyForOvvioExtract = false;
+                        item.OvvioExtractStatus = null;
 
                         _context.AttrSectorManagerQaReviews.Add(new AttrSectorManagerQaReview
                         {
@@ -1716,19 +1936,68 @@ namespace AIVS.Services.Implementations
                             Sector = item.RoutedSector,
                             QaWeekStartDate = weekStart.Date,
                             QaWeekEndDate = weekEnd.Date,
-                            IsRandomlySelected = true,
-                            SelectionReason = returnedQa == null
-                                ? $"{Math.Clamp(_sectorManagerQaSettings.Value.WeeklySamplePercent, 0, 100)}% weekly random Sector Manager QA sample"
-                                : "Resubmitted after Sector Manager QA return",
+                            IsRandomlySelected = false,
+                            SelectionReason = "Processor is a Sector Manager - direct Senior Manager QA required",
                             ValuerUserId = currentUser.UserId.Value,
                             ValuerName = currentUser.FullName,
                             ValuerSubmittedAt = now,
-                            QaStatus = returnedQa?.SectorManagerUserId == null ? "Pending" : "InProgress",
-                            SectorManagerUserId = returnedQa?.SectorManagerUserId,
-                            SectorManagerUsername = returnedQa?.SectorManagerUsername,
-                            SectorManagerName = returnedQa?.SectorManagerName,
-                            SectorManagerEmail = returnedQa?.SectorManagerEmail,
-                            QaStartedAt = returnedQa?.SectorManagerUserId == null ? null : now,
+
+                            // The Sector Manager performed the valuation work themselves, so this
+                            // level is recorded as completed and Senior Manager becomes the QA reviewer.
+                            QaStatus = "Approved",
+                            QaDecision = "SectorManagerPerformedValuation",
+                            QaComment = "Sector Manager performed the valuation review; routed directly to Senior Manager QA.",
+                            QaStartedAt = now,
+                            QaCompletedAt = now,
+                            SectorManagerUserId = currentUser.UserId.Value,
+                            SectorManagerUsername = currentUser.Username ?? currentUser.WindowsUsername,
+                            SectorManagerName = currentUser.FullName,
+                            SectorManagerEmail = currentUser.Email,
+
+                            SeniorQaStatus = autoAssignDemo ? "InProgress" : "Pending",
+                            SeniorManagerUserId = autoAssignDemo ? demoQaUser!.UserID : null,
+                            SeniorManagerUsername = autoAssignDemo ? (demoQaUser!.Username?.Trim() ?? _demoQa.TestUserWindowsUsername) : null,
+                            SeniorManagerName = autoAssignDemo ? (string.IsNullOrWhiteSpace(demoQaUser!.FullName) ? _demoQa.TestUserDisplayName : demoQaUser.FullName) : null,
+                            SeniorManagerEmail = autoAssignDemo ? (demoQaUser!.EmailAddress?.Trim() ?? _demoQa.TestUserEmail) : null,
+                            SeniorQaStartedAt = autoAssignDemo ? now : null,
+
+                            ReviewedPdfPathBeforeQa = item.ValuerEvidencePath,
+                            CreatedBy = currentUserName,
+                            CreatedDate = now
+                        });
+                    }
+                    else
+                    {
+                        review.ReviewStatus = "SubmittedForSectorManagerQa";
+                        review.ReadyForOvvioExtract = false;
+                        item.Attr_Status = "SectorManagerQa";
+                        item.ReadyForOvvioExtract = false;
+                        item.OvvioExtractStatus = null;
+
+                        _context.AttrSectorManagerQaReviews.Add(new AttrSectorManagerQaReview
+                        {
+                            Attr_ID = item.Attr_ID,
+                            Attr_No = item.Attr_No,
+                            ValuerReviewId = review.Id,
+                            Sector = item.RoutedSector,
+                            QaWeekStartDate = weekStart.Date,
+                            QaWeekEndDate = weekEnd.Date,
+                            IsRandomlySelected = returnedQa == null,
+                            SelectionReason = returnedQa != null
+                                ? "Resubmitted after QA return"
+                                : (_demoQa.Enabled && _demoQa.ForceAllQa
+                                    ? "Demo mode - all submissions require Sector Manager QA"
+                                    : $"{Math.Clamp(_sectorManagerQaSettings.Value.WeeklySamplePercent, 0, 100)}% Sector Manager QA sample"),
+                            ValuerUserId = currentUser.UserId.Value,
+                            ValuerName = currentUser.FullName,
+                            ValuerSubmittedAt = now,
+                            QaStatus = autoAssignDemo ? "InProgress" : "Pending",
+                            SectorManagerUserId = autoAssignDemo ? demoQaUser!.UserID : returnedQa?.SectorManagerUserId,
+                            SectorManagerUsername = autoAssignDemo ? (demoQaUser!.Username?.Trim() ?? _demoQa.TestUserWindowsUsername) : returnedQa?.SectorManagerUsername,
+                            SectorManagerName = autoAssignDemo ? (string.IsNullOrWhiteSpace(demoQaUser!.FullName) ? _demoQa.TestUserDisplayName : demoQaUser.FullName) : returnedQa?.SectorManagerName,
+                            SectorManagerEmail = autoAssignDemo ? (demoQaUser!.EmailAddress?.Trim() ?? _demoQa.TestUserEmail) : returnedQa?.SectorManagerEmail,
+                            QaStartedAt = autoAssignDemo || returnedQa?.SectorManagerUserId != null ? now : null,
+                            SeniorQaStatus = null,
                             ReviewedPdfPathBeforeQa = item.ValuerEvidencePath,
                             CreatedBy = currentUserName,
                             CreatedDate = now
@@ -1776,6 +2045,9 @@ namespace AIVS.Services.Implementations
                 "SubmitToOvvio" when item.Attr_Status == "SectorManagerQa"
                     => "Submitted for Sector Manager QA",
 
+                "SubmitToOvvio" when item.Attr_Status == "SeniorManagerQa"
+                    => "Sector Manager valuation submitted directly for Senior Manager QA",
+
                 "SubmitToOvvio" when item.Attr_Status == "ReadyForOvvioExtract"
                     => "Submitted to OVVIO Extract",
 
@@ -1822,7 +2094,8 @@ namespace AIVS.Services.Implementations
                 .FirstOrDefaultAsync(x =>
                     x.Attr_ID == item.Attr_ID &&
                     x.ValuerReviewId == review.Id &&
-                    (x.QaStatus == "Pending" || x.QaStatus == "InProgress"));
+                    (x.QaStatus == "Pending" || x.QaStatus == "InProgress" ||
+                     (x.QaStatus == "Approved" && (x.SeniorQaStatus == "Pending" || x.SeniorQaStatus == "InProgress"))));
 
             if (pendingQa != null)
             {
@@ -1994,6 +2267,17 @@ namespace AIVS.Services.Implementations
 
             await EnsureCurrentAssignmentAsync(vm.AttrId, currentUser);
 
+            // Processor working evidence is mandatory before a physical inspection is requested.
+            // This creates an audit record of the information used by the Valuer/Sector Manager
+            // to justify the inspection before any site visit takes place.
+            var hasProcessorEvidence = await _context.AttrProcessorEvidence
+                .AsNoTracking()
+                .AnyAsync(x => x.Attr_ID == vm.AttrId && x.IsActive);
+
+            if (!hasProcessorEvidence)
+                throw new InvalidOperationException(
+                    "Upload at least one Internal Processor Evidence file before requesting a physical inspection.");
+
             var existingOpenRequest = await _context.AttrInspectionRequests
       .FirstOrDefaultAsync(x =>
           x.Attr_ID == vm.AttrId &&
@@ -2101,7 +2385,8 @@ namespace AIVS.Services.Implementations
     item.Attr_No ?? "-",
     item.Property_Desc,
     options.OrderBy(x => x).ToList(),
-    vm.RequestComment);
+    vm.RequestComment,
+    BuildGenesisInspectionLink(item, request.EmailToken));
 
             await _notificationService.CreateNotificationAsync(
                 currentUser.UserId,
@@ -2218,6 +2503,12 @@ namespace AIVS.Services.Implementations
 
             request.ValuerDetailsSent = true;
             request.ValuerDetailsSentAt = now;
+
+            // Keep the GUID email link alive through the confirmed appointment
+            // so an Administration-captured client can view the released valuer details.
+            var minimumLinkExpiry = request.ConfirmedDateTime.Value.AddDays(1);
+            if (!request.EmailTokenExpiresAt.HasValue || request.EmailTokenExpiresAt.Value < minimumLinkExpiry)
+                request.EmailTokenExpiresAt = minimumLinkExpiry;
             request.ValuerDetailsSentByUserId = currentUser.UserId.Value;
             request.ValuerDetailsSentByName = currentUser.FullName;
             request.ValuerSapNumber = sapNumber;
@@ -2268,7 +2559,8 @@ namespace AIVS.Services.Implementations
                     valuerDetails.VehicleRegistration,
                     valuerDetails.VehicleMake,
                     valuerDetails.VehicleColour,
-                    valuerDetails.PhotoFileName);
+                    valuerDetails.PhotoFileName,
+                    BuildGenesisInspectionLink(property, request.EmailToken, "valuer"));
 
                 await _notificationService.CreateNotificationAsync(
                     currentUser.UserId,
@@ -2290,6 +2582,145 @@ namespace AIVS.Services.Implementations
                     property.Attr_No,
                     request.Id);
             }
+        }
+
+        public async Task CompleteInspectionAsync(
+            long inspectionRequestId,
+            AivsCurrentUserVm currentUser)
+        {
+            if (currentUser.UserId == null)
+                throw new InvalidOperationException("Your AIVS user could not be verified.");
+
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+
+            var request = await _context.AttrInspectionRequests
+                .FirstOrDefaultAsync(x => x.Id == inspectionRequestId);
+
+            if (request == null)
+                throw new InvalidOperationException("Physical inspection request could not be found.");
+
+            var property = await _context.AttrPropertyInfo
+                .FirstOrDefaultAsync(x => x.Attr_ID == request.Attr_ID && x.IsActive == true);
+
+            if (property == null)
+                throw new InvalidOperationException("Attribute property could not be found.");
+
+            await EnsureCurrentAssignmentAsync(property.Attr_ID, currentUser);
+
+            if (string.Equals(request.Status, "Completed", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(property.Physical_Inspection_Status, "InspectionCompleted", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            if (!string.Equals(request.Status, "Confirmed", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(request.Status, "InspectionDetailsSent", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "The physical inspection can only be closed after the client has confirmed the appointment.");
+            }
+
+            var physicalEvidence = await _context.AttrInspectionEvidence
+                .AsNoTracking()
+                .Where(x => x.Attr_ID == property.Attr_ID && x.IsActive == true)
+                .ToListAsync();
+
+            if (physicalEvidence.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    "Physical inspection evidence has not yet been received from Genesis. Upload the inspection evidence in Genesis, then refresh this review before closing the inspection.");
+            }
+
+            var now = DateTime.Now;
+            var oldStatus = property.Attr_Status;
+            var actor = currentUser.Username
+                ?? currentUser.WindowsUsername
+                ?? currentUser.FullName
+                ?? "AIVS";
+
+            request.Status = "Completed";
+            request.UpdatedBy = actor;
+            request.UpdatedDate = now;
+
+            property.Attr_Status = "InspectionCompleted";
+            property.Physical_Inspection_Required = false;
+            property.Physical_Inspection_Status = "InspectionCompleted";
+            property.UpdatedBy = actor;
+            property.UpdatedDate = now;
+
+            var review = await _context.AttrValuerReviews
+                .FirstOrDefaultAsync(x =>
+                    x.Attr_ID == property.Attr_ID &&
+                    (!request.ReviewId.HasValue || x.Id == request.ReviewId.Value));
+
+            if (review != null)
+            {
+                review.RequiresInspection = false;
+                review.ReviewStatus = "InspectionCompleted";
+                review.UpdatedBy = actor;
+                review.UpdatedDate = now;
+
+                var sections = await _context.AttrValuerReviewSections
+                    .Where(x => x.ReviewId == review.Id &&
+                        (x.RequiresInspection || x.SectionDecision == "Requires inspection"))
+                    .ToListAsync();
+
+                foreach (var section in sections)
+                {
+                    section.RequiresInspection = false;
+                    if (string.Equals(section.SectionDecision, "Requires inspection", StringComparison.OrdinalIgnoreCase))
+                        section.SectionDecision = "Inspection completed";
+                    section.UpdatedBy = actor;
+                    section.UpdatedDate = now;
+                }
+            }
+
+            _context.AttrPropertyInfoAuditTrail.Add(new AttrPropertyInfoAuditTrail
+            {
+                Attr_ID = property.Attr_ID,
+                Attr_No = property.Attr_No,
+                Action = "Physical Inspection Completed",
+                OldStatus = oldStatus,
+                NewStatus = "InspectionCompleted",
+                ActionByUserId = currentUser.UserId.Value.ToString(),
+                ActionByName = currentUser.FullName,
+                ActionRole = currentUser.Role,
+                Comment = $"Physical inspection closed in AIVS after {physicalEvidence.Count} inspection evidence file(s) were received from Genesis.",
+                ActionDateTime = now
+            });
+
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+
+        private string? BuildGenesisInspectionLink(
+            AttrPropertyInfo property,
+            Guid token,
+            string? view = null)
+        {
+            // Inspection emails use a GUID magic link so the client can respond
+            // from the email without first signing in to Genesis. This also covers
+            // legacy Admin-captured rows where Capturer was not populated.
+            var baseUrl = (_genesisPortalSettings.PublicBaseUrl ?? string.Empty)
+                .Trim()
+                .TrimEnd('/');
+
+            if (string.IsNullOrWhiteSpace(baseUrl))
+            {
+                _logger.LogWarning(
+                    "GenesisPortalSettings:PublicBaseUrl is empty. Secure inspection button cannot be created for {AttrNo}.",
+                    property.Attr_No);
+                return null;
+            }
+
+            var configuredPath = _genesisPortalSettings.InspectionAppointmentPath;
+            var path = string.IsNullOrWhiteSpace(configuredPath)
+                ? "/attributes/inspection"
+                : "/" + configuredPath.Trim().Trim('/');
+
+            var url = $"{baseUrl}{path}/{token:D}";
+
+            return string.IsNullOrWhiteSpace(view)
+                ? url
+                : $"{url}?view={Uri.EscapeDataString(view)}";
         }
 
         private static string GenerateInspectionPin()
@@ -2360,6 +2791,8 @@ namespace AIVS.Services.Implementations
                 "InspectionCompleted" => "Inspection Completed",
                 "InspectionExpired" => "Inspection Expired",
                 "ReadyForOvvioExtract" => "Accepted / Ready for OVVIO",
+                "Approved" => "Final QA Approved",
+                "OvvioInserted" => "Approved / Inserted to OVVIO",
                 "OvvioExtracted" => "OVVIO Extracted",
                 _ => string.IsNullOrWhiteSpace(status) ? "Unknown" : status
             };
@@ -2367,6 +2800,9 @@ namespace AIVS.Services.Implementations
 
         private bool ShouldSelectForSectorManagerQa()
         {
+            if (_demoQa.Enabled && _demoQa.ForceAllQa)
+                return true;
+
             var settings = _sectorManagerQaSettings.Value;
 
             if (!settings.Enabled)
@@ -2381,6 +2817,23 @@ namespace AIVS.Services.Implementations
                 return false;
 
             return Random.Shared.Next(1, 101) <= samplePercent;
+        }
+
+
+        private async Task<AIVS.Models.UserManagement.UserManagementResult?> GetDemoQaUserAsync()
+        {
+            if (!_demoQa.Enabled || !_demoQa.AutoAssignQaToTestUser || string.IsNullOrWhiteSpace(_demoQa.TestUserWindowsUsername))
+                return null;
+
+            try
+            {
+                return await _userManagementService.ValidateByWindowsIdentityAsync(_demoQa.TestUserWindowsUsername);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not resolve demo QA user {Username}.", _demoQa.TestUserWindowsUsername);
+                return null;
+            }
         }
 
         private static DateTime StartOfWeek(DateTime date)

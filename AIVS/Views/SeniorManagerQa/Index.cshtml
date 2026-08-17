@@ -1,4 +1,5 @@
-﻿@model List<AIVS.Models.ViewModels.SeniorManager.SeniorManagerQaInboxItemVm>
+@model List<AIVS.Models.ViewModels.SeniorManager.SeniorManagerQaInboxItemVm>
+@using AIVS.Workflow
 @{
     ViewData["Title"] = "Senior Manager QA";
     string D(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value;
@@ -43,7 +44,7 @@
                                 <td>@D(item.ValuerName)</td>
                                 <td>@D(item.SectorManagerName)</td>
                                 <td>@(item.SectorManagerCompletedAt?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
-                                <td><span class="smqa-badge">@D(item.SeniorQaStatus)</span></td>
+                                <td><span class="smqa-badge">@AttributeWorkflowStatus.QaDisplay(item.SeniorQaStatus, senior: true)</span></td>
                                 <td>
                                     @if (item.CanClaim)
                                     {

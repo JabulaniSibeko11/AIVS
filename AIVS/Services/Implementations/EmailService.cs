@@ -1,4 +1,4 @@
-﻿using AIVS.Data;
+using AIVS.Data;
 using AIVS.Models.Attributes;
 using AIVS.Models.Configuration;
 using AIVS.Services.Interface;
@@ -16,14 +16,17 @@ namespace AIVS.Services.Implementations
         private readonly EmailSettings _settings;
         private readonly ILogger<EmailService> _logger;
         private readonly AttributesDbContext _context;
+        private readonly IProcessorFileService _processorFiles;
         public EmailService(
             IOptions<EmailSettings> settings,
             ILogger<EmailService> logger,
-            AttributesDbContext context )
+            AttributesDbContext context,
+            IProcessorFileService processorFiles)
         {
             _settings = settings.Value;
             _logger = logger;
             _context = context;
+            _processorFiles = processorFiles;
         }
 
         public async Task SendSelfAssignmentEmailAsync(
@@ -78,7 +81,8 @@ namespace AIVS.Services.Implementations
             string attrNo,
             string? propertyDescription,
             List<DateTime> proposedDates,
-            string? requestComment)
+            string? requestComment,
+            string? secureGenesisLink = null)
         {
             var subject = ApplySubjectTemplate(
                 _settings.Templates.InspectionDateOptionsSubject,
@@ -90,7 +94,8 @@ namespace AIVS.Services.Implementations
                 attrNo,
                 propertyDescription,
                 proposedDates,
-                requestComment);
+                requestComment,
+                secureGenesisLink);
 
             await SendHtmlEmailAsync(
                 toEmail,
@@ -112,7 +117,8 @@ namespace AIVS.Services.Implementations
             string? vehicleRegistration,
             string? vehicleMake,
             string? vehicleColour,
-            string? photoFileName)
+            string? photoFileName,
+            string? secureGenesisLink = null)
         {
             var subject = ApplySubjectTemplate(
                 _settings.Templates.InspectionConfirmedSubject,
@@ -131,7 +137,8 @@ namespace AIVS.Services.Implementations
                 vehicleRegistration,
                 vehicleMake,
                 vehicleColour,
-                photoFileName);
+                photoFileName,
+                secureGenesisLink);
 
             var calendarInviteBytes = BuildInspectionCalendarInvite(
     toEmail,
@@ -325,6 +332,51 @@ END:VCALENDAR";
                 attrNo);
         }
 
+
+        public async Task SendAttributeApprovalEmailAsync(
+            string toEmail,
+            string? clientName,
+            string attrNo,
+            string? propertyDescription,
+            string comment,
+            byte[] approvalNoticeBytes,
+            string approvalNoticeFileName)
+        {
+            var subject = ApplySubjectTemplate(
+                _settings.Templates.AttributeApprovalSubject,
+                "Property Attribute Submission Approved - {AttrNo}",
+                attrNo);
+
+            var safeName = string.IsNullOrWhiteSpace(clientName) ? "Client" : WebUtility.HtmlEncode(clientName);
+            var safeAttr = WebUtility.HtmlEncode(attrNo);
+            var safeProperty = WebUtility.HtmlEncode(propertyDescription ?? "-");
+            var safeComment = WebUtility.HtmlEncode(comment ?? string.Empty);
+
+            var body = $@"
+<div style='font-family:Arial,sans-serif;font-size:14px;color:#222;'>
+  <p>Dear {safeName},</p>
+  <p>Your City of Johannesburg property attribute submission <strong>{safeAttr}</strong> has completed the Valuer, Sector Manager QA and Senior Manager QA process and has been <strong>approved</strong>.</p>
+  <p><strong>Property:</strong> {safeProperty}</p>
+  <p><strong>Final approval comment:</strong> {safeComment}</p>
+  <p>The approved information has been inserted into the OVVIO integration staging data for downstream processing.</p>
+  <p>Your official Attribute Approval Notice is attached to this email.</p>
+  <p>Regards,<br/><strong>City of Johannesburg Valuation Services</strong></p>
+</div>";
+
+            await SendHtmlEmailAsync(
+                toEmail,
+                subject,
+                body,
+                "attribute-approval",
+                attrNo,
+                null,
+                null,
+                null,
+                approvalNoticeBytes,
+                approvalNoticeFileName,
+                "application/pdf");
+        }
+
         private async Task SendHtmlEmailAsync(
         string toEmail,
         string subject,
@@ -333,7 +385,10 @@ END:VCALENDAR";
         string? attrNo = null,
         long? attrId = null,
         byte[]? calendarInviteBytes = null,
-        string? calendarInviteFileName = null)
+        string? calendarInviteFileName = null,
+        byte[]? attachmentBytes = null,
+        string? attachmentFileName = null,
+        string? attachmentContentType = null)
         {
             var originalToEmail = toEmail?.Trim();
             var actualToEmail = originalToEmail;
@@ -508,6 +563,14 @@ END:VCALENDAR";
 
                 message.Attachments.Add(calendarAttachment);
             }
+            if (attachmentBytes != null && attachmentBytes.Length > 0)
+            {
+                var fileName = string.IsNullOrWhiteSpace(attachmentFileName) ? "attachment.pdf" : attachmentFileName;
+                var contentType = string.IsNullOrWhiteSpace(attachmentContentType) ? "application/octet-stream" : attachmentContentType;
+                var attachmentStream = new MemoryStream(attachmentBytes);
+                message.Attachments.Add(new Attachment(attachmentStream, fileName, contentType));
+            }
+
             if (!_settings.TestMode)
             {
                 foreach (var cc in _settings.DefaultCc.Where(x => !string.IsNullOrWhiteSpace(x)))
@@ -555,6 +618,34 @@ END:VCALENDAR";
                     CreatedBy = "AIVS",
                     SentDate = DateTime.Now
                 });
+
+                if (!string.IsNullOrWhiteSpace(attrNo))
+                {
+                    try
+                    {
+                        await _processorFiles.SaveClientEmailCopyAsync(
+                            attrNo,
+                            emailType,
+                            _settings.FromEmail,
+                            _settings.FromName,
+                            originalToEmail ?? string.Empty,
+                            actualToEmail ?? string.Empty,
+                            ccEmails,
+                            bccEmails,
+                            subject,
+                            body,
+                            _settings.TestMode,
+                            calendarInviteBytes,
+                            calendarInviteFileName,
+                            attachmentBytes,
+                            attachmentFileName,
+                            attachmentContentType);
+                    }
+                    catch (Exception copyEx)
+                    {
+                        _logger.LogError(copyEx, "Email sent but the Processor client-email copy could not be saved for {AttrNo}.", attrNo);
+                    }
+                }
 
                 _logger.LogInformation(
                     "Sent {EmailType} email. Actual recipient: {ActualEmail}. Original recipient: {OriginalEmail}. TestMode: {TestMode}.",
@@ -708,7 +799,8 @@ END:VCALENDAR";
             string attrNo,
             string? propertyDescription,
             List<DateTime> proposedDates,
-            string? requestComment)
+            string? requestComment,
+            string? secureGenesisLink)
         {
             var options = new StringBuilder();
 
@@ -720,6 +812,16 @@ END:VCALENDAR";
     <td style='padding:8px;border:1px solid #ddd;'>{proposedDates[i]:yyyy-MM-dd HH:mm}</td>
 </tr>");
             }
+
+            var secureActionHtml = string.IsNullOrWhiteSpace(secureGenesisLink)
+                ? @"<p>Please respond from the City Of Johannesburg Valuation Portal under <strong>My Appointments with Valuer</strong>.</p>"
+                : $@"
+<div style='text-align:center;margin:22px 0;'>
+  <a href='{H(secureGenesisLink)}' style='display:inline-block;background:#e6b000;color:#111;text-decoration:none;font-weight:800;padding:13px 22px;border-radius:6px;'>
+    Select Inspection Date
+  </a>
+</div>
+<p style='font-size:12px;color:#666;'>Secure City of Johannesburg Valuation Administration link (AdministrationEnquiries@joburg.org.za). No portal login is required. Do not forward this link.</p>";
 
             var commentHtml = string.IsNullOrWhiteSpace(requestComment)
                 ? ""
@@ -734,7 +836,7 @@ END:VCALENDAR";
 
 <p>
     A physical inspection is required for your property attribute submission.
-    Please log in to City Of Johannesburg Valuation Portal and select one of the proposed inspection dates.
+    Please select one of the proposed inspection dates using the secure option provided below.
 </p>
 
 <table style='border-collapse:collapse;width:100%;margin:12px 0;'>
@@ -756,10 +858,7 @@ END:VCALENDAR";
 
 {commentHtml}
 
-<p>
-    Please respond from the City Of Johannesburg Valuation Portal under
-    <strong>My Appointments with Valuer</strong>.
-</p>");
+{secureActionHtml}");
         }
 
         private static string BuildInspectionDetailsBody(
@@ -774,8 +873,19 @@ END:VCALENDAR";
     string? vehicleRegistration,
     string? vehicleMake,
     string? vehicleColour,
-    string? photoFileName)
+    string? photoFileName,
+    string? secureGenesisLink)
         {
+            var secureActionHtml = string.IsNullOrWhiteSpace(secureGenesisLink)
+                ? @"<p>Please log in to City Of Johannesburg Valuation Portal and open <strong>My Appointments with Valuer</strong>. Enter the inspection PIN to view the valuer and vehicle details.</p>"
+                : $@"
+<div style='text-align:center;margin:22px 0;'>
+  <a href='{H(secureGenesisLink)}' style='display:inline-block;background:#e6b000;color:#111;text-decoration:none;font-weight:800;padding:13px 22px;border-radius:6px;'>
+    View Valuer Details
+  </a>
+</div>
+<p style='font-size:12px;color:#666;'>Secure City of Johannesburg Valuation Administration link (AdministrationEnquiries@joburg.org.za). Click the button and enter the inspection PIN shown in this email. No portal login is required. Do not forward this link.</p>";
+
             return WrapBody($@"
 <p>Dear {H(NameOrClient(clientName))},</p>
 
@@ -810,10 +920,7 @@ END:VCALENDAR";
     </span>
 </p>
 
-<p>
-    Please log in to City Of Johannesburg Valuation Portal and open <strong>My Appointments with Valuer</strong>.
-    Enter the inspection PIN to view the valuer and vehicle details.
-</p>
+{secureActionHtml}
 
 <p>
     Only allow the inspection to proceed if the person who arrives matches the details displayed in City Of Johannesburg Valuation Portal

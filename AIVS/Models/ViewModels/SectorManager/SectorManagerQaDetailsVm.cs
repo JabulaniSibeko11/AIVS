@@ -1,4 +1,4 @@
-﻿using AIVS.Models.ViewModels.ValuerInbox;
+using AIVS.Models.ViewModels.ValuerInbox;
 
 namespace AIVS.Models.ViewModels.SectorManager
 {
@@ -55,6 +55,8 @@ namespace AIVS.Models.ViewModels.SectorManager
         public List<ValuerEvidenceFileVm> EvidenceFiles { get; set; } = new();
 
         public List<ValuerPhysicalInspectionEvidenceVm> PhysicalInspectionEvidenceFiles { get; set; } = new();
+
+        public List<ProcessorEvidenceFileVm> ProcessorEvidenceFiles { get; set; } = new();
 
         public int TotalSections => Sections?.Count ?? 0;
 

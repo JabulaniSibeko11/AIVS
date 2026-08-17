@@ -1,4 +1,8 @@
-﻿namespace AIVS.Models.ViewModels.SectorManager
+﻿
+
+using AIVS.Workflow;
+
+namespace AIVS.Models.ViewModels.SectorManager
 {
     public class SectorManagerQaInboxItemVm
     {
@@ -36,13 +40,6 @@
 
         public bool IsAssignedToMe { get; set; }
 
-        public string StatusDisplay => QaStatus?.Trim() switch
-        {
-            "Pending" => "Pending QA",
-            "InProgress" => "QA In Progress",
-            "Approved" => "Approved to OVVIO",
-            "ReturnedToValuer" => "Returned to Valuer",
-            _ => string.IsNullOrWhiteSpace(QaStatus) ? "Unknown" : QaStatus
-        };
+        public string StatusDisplay => AttributeWorkflowStatus.QaDisplay(QaStatus);
     }
 }

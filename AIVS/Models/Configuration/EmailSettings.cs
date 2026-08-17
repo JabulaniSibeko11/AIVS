@@ -33,5 +33,6 @@
         public string ReturnedToClientSubject { get; set; } = string.Empty;
         public string AcceptedSubject { get; set; } = string.Empty;
         public string RejectedSubject { get; set; } = string.Empty;
+        public string AttributeApprovalSubject { get; set; } = string.Empty;
     }
 }

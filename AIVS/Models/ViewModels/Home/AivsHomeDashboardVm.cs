@@ -38,7 +38,11 @@
 
         public int ReadyForOvvioExtract { get; set; }
 
+        public int SectorManagerQa { get; set; }
+
         public int SeniorManagerQa { get; set; }
+
+        public int OvvioInserted { get; set; }
 
         public int Rejected { get; set; }
 
