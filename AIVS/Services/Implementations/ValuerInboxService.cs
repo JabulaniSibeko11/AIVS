@@ -1885,10 +1885,31 @@ namespace AIVS.Services.Implementations
                     // - When the processor is already a Sector Manager, their own valuation work
                     //   skips Sector Manager QA and goes directly to Senior Manager QA.
                     var processorIsSectorManager = _roleAccess.IsSectorManager(currentUser);
-                    var mustGoThroughQa = returnedQa != null || processorIsSectorManager || ShouldSelectForSectorManagerQa();
+                    var mustGoThroughQa =
+                        (_demoQa.Enabled && _demoQa.ForceAllQa) ||
+                        returnedQa != null ||
+                        processorIsSectorManager ||
+                        ShouldSelectForSectorManagerQa();
 
+                    // Demo rule: every Submit for OVVIO action must create a QA task and
+                    // assign it to the configured test user. If UserManagement lookup is
+                    // temporarily unavailable, fall back to the current test user's AIVS id.
                     var demoQaUser = await GetDemoQaUserAsync();
-                    var autoAssignDemo = demoQaUser != null && _demoQa.AutoAssignQaToTestUser;
+                    var currentIsDemoUser = IsCurrentDemoQaUser(currentUser);
+                    var autoAssignDemo =
+                        _demoQa.Enabled &&
+                        _demoQa.AutoAssignQaToTestUser &&
+                        (demoQaUser != null || currentIsDemoUser);
+
+                    var demoAssignedUserId = demoQaUser?.UserID
+                        ?? (currentIsDemoUser ? currentUser.UserId : null);
+                    var demoAssignedUsername = demoQaUser?.Username?.Trim()
+                        ?? (currentIsDemoUser ? (currentUser.Username ?? currentUser.WindowsUsername) : _demoQa.TestUserWindowsUsername);
+                    var demoAssignedName = !string.IsNullOrWhiteSpace(demoQaUser?.FullName)
+                        ? demoQaUser!.FullName
+                        : (currentIsDemoUser ? currentUser.FullName : _demoQa.TestUserDisplayName);
+                    var demoAssignedEmail = demoQaUser?.EmailAddress?.Trim()
+                        ?? (currentIsDemoUser ? currentUser.Email : _demoQa.TestUserEmail);
 
                     review.ReturnToClient = false;
                     review.RequiresInspection = false;
@@ -1955,10 +1976,10 @@ namespace AIVS.Services.Implementations
                             SectorManagerEmail = currentUser.Email,
 
                             SeniorQaStatus = autoAssignDemo ? "InProgress" : "Pending",
-                            SeniorManagerUserId = autoAssignDemo ? demoQaUser!.UserID : null,
-                            SeniorManagerUsername = autoAssignDemo ? (demoQaUser!.Username?.Trim() ?? _demoQa.TestUserWindowsUsername) : null,
-                            SeniorManagerName = autoAssignDemo ? (string.IsNullOrWhiteSpace(demoQaUser!.FullName) ? _demoQa.TestUserDisplayName : demoQaUser.FullName) : null,
-                            SeniorManagerEmail = autoAssignDemo ? (demoQaUser!.EmailAddress?.Trim() ?? _demoQa.TestUserEmail) : null,
+                            SeniorManagerUserId = autoAssignDemo ? demoAssignedUserId : null,
+                            SeniorManagerUsername = autoAssignDemo ? demoAssignedUsername : null,
+                            SeniorManagerName = autoAssignDemo ? demoAssignedName : null,
+                            SeniorManagerEmail = autoAssignDemo ? demoAssignedEmail : null,
                             SeniorQaStartedAt = autoAssignDemo ? now : null,
 
                             ReviewedPdfPathBeforeQa = item.ValuerEvidencePath,
@@ -1992,10 +2013,10 @@ namespace AIVS.Services.Implementations
                             ValuerName = currentUser.FullName,
                             ValuerSubmittedAt = now,
                             QaStatus = autoAssignDemo ? "InProgress" : "Pending",
-                            SectorManagerUserId = autoAssignDemo ? demoQaUser!.UserID : returnedQa?.SectorManagerUserId,
-                            SectorManagerUsername = autoAssignDemo ? (demoQaUser!.Username?.Trim() ?? _demoQa.TestUserWindowsUsername) : returnedQa?.SectorManagerUsername,
-                            SectorManagerName = autoAssignDemo ? (string.IsNullOrWhiteSpace(demoQaUser!.FullName) ? _demoQa.TestUserDisplayName : demoQaUser.FullName) : returnedQa?.SectorManagerName,
-                            SectorManagerEmail = autoAssignDemo ? (demoQaUser!.EmailAddress?.Trim() ?? _demoQa.TestUserEmail) : returnedQa?.SectorManagerEmail,
+                            SectorManagerUserId = autoAssignDemo ? demoAssignedUserId : returnedQa?.SectorManagerUserId,
+                            SectorManagerUsername = autoAssignDemo ? demoAssignedUsername : returnedQa?.SectorManagerUsername,
+                            SectorManagerName = autoAssignDemo ? demoAssignedName : returnedQa?.SectorManagerName,
+                            SectorManagerEmail = autoAssignDemo ? demoAssignedEmail : returnedQa?.SectorManagerEmail,
                             QaStartedAt = autoAssignDemo || returnedQa?.SectorManagerUserId != null ? now : null,
                             SeniorQaStatus = null,
                             ReviewedPdfPathBeforeQa = item.ValuerEvidencePath,
@@ -2819,6 +2840,18 @@ namespace AIVS.Services.Implementations
             return Random.Shared.Next(1, 101) <= samplePercent;
         }
 
+
+        private bool IsCurrentDemoQaUser(AivsCurrentUserVm currentUser)
+        {
+            if (!_demoQa.Enabled || string.IsNullOrWhiteSpace(_demoQa.TestUserWindowsUsername))
+                return false;
+
+            var expected = _demoQa.TestUserWindowsUsername.Trim();
+            return string.Equals(currentUser.WindowsUsername?.Trim(), expected, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(currentUser.Username?.Trim(), expected, StringComparison.OrdinalIgnoreCase)
+                || (!string.IsNullOrWhiteSpace(currentUser.SapNumber)
+                    && expected.EndsWith("\\" + currentUser.SapNumber.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
 
         private async Task<AIVS.Models.UserManagement.UserManagementResult?> GetDemoQaUserAsync()
         {

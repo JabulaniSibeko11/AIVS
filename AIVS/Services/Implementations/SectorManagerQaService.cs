@@ -285,12 +285,20 @@ namespace AIVS.Services.Implementations
             qa.SeniorQaCompletedAt = null;
 
             var demoSenior = await GetDemoQaUserAsync();
-            if (demoSenior != null && _demoQa.AutoAssignQaToTestUser)
+            var currentIsDemoUser = IsCurrentDemoQaUser(currentUser);
+            if (_demoQa.Enabled && _demoQa.AutoAssignQaToTestUser && (demoSenior != null || currentIsDemoUser))
             {
-                qa.SeniorManagerUserId = demoSenior.UserID;
-                qa.SeniorManagerUsername = demoSenior.Username?.Trim() ?? _demoQa.TestUserWindowsUsername;
-                qa.SeniorManagerName = string.IsNullOrWhiteSpace(demoSenior.FullName) ? _demoQa.TestUserDisplayName : demoSenior.FullName;
-                qa.SeniorManagerEmail = demoSenior.EmailAddress?.Trim() ?? _demoQa.TestUserEmail;
+                qa.SeniorManagerUserId = demoSenior?.UserID ?? currentUser.UserId;
+                qa.SeniorManagerUsername = demoSenior?.Username?.Trim()
+                    ?? currentUser.Username
+                    ?? currentUser.WindowsUsername
+                    ?? _demoQa.TestUserWindowsUsername;
+                qa.SeniorManagerName = !string.IsNullOrWhiteSpace(demoSenior?.FullName)
+                    ? demoSenior!.FullName
+                    : (currentUser.FullName ?? _demoQa.TestUserDisplayName);
+                qa.SeniorManagerEmail = demoSenior?.EmailAddress?.Trim()
+                    ?? currentUser.Email
+                    ?? _demoQa.TestUserEmail;
                 qa.SeniorQaStatus = "InProgress";
                 qa.SeniorQaStartedAt = now;
             }
@@ -890,6 +898,18 @@ namespace AIVS.Services.Implementations
             }
         }
 
+
+        private bool IsCurrentDemoQaUser(AivsCurrentUserVm currentUser)
+        {
+            if (!_demoQa.Enabled || string.IsNullOrWhiteSpace(_demoQa.TestUserWindowsUsername))
+                return false;
+
+            var expected = _demoQa.TestUserWindowsUsername.Trim();
+            return string.Equals(currentUser.WindowsUsername?.Trim(), expected, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(currentUser.Username?.Trim(), expected, StringComparison.OrdinalIgnoreCase)
+                || (!string.IsNullOrWhiteSpace(currentUser.SapNumber)
+                    && expected.EndsWith("\\" + currentUser.SapNumber.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
 
         private async Task<AIVS.Models.UserManagement.UserManagementResult?> GetDemoQaUserAsync()
         {
