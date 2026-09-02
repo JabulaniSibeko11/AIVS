@@ -64,6 +64,8 @@ namespace AIVS.Data
         public DbSet<AttrValuerReviewLock> AttrValuerReviewLocks { get; set; } = null!;
         public DbSet<AttrInspectionCalendarBlock> AttrInspectionCalendarBlocks { get; set; } = null!;
 
+        public DbSet<AttrInspectionCalendarBlockArchive>AttrInspectionCalendarBlockArchives{ get; set; } = null!;
+
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -520,6 +522,19 @@ namespace AIVS.Data
                 entity.HasIndex(x => new { x.UserId, x.BlockedFrom, x.BlockedTo, x.IsActive })
                       .HasDatabaseName("IX_AttrInspectionCalendarBlock_User_Period");
             });
+            modelBuilder.Entity<AttrInspectionCalendarBlockArchive>(entity =>
+            {
+                entity.ToTable("AttrInspectionCalendarBlockArchive", "dbo");
+                entity.HasKey(x => x.Id);
+
+                entity.Property(x => x.Reason).HasMaxLength(250);
+                entity.Property(x => x.OriginalCreatedBy).HasMaxLength(150);
+                entity.Property(x => x.OriginalUpdatedBy).HasMaxLength(150);
+
+                entity.HasIndex(x => x.OriginalBlockId).IsUnique();
+                entity.HasIndex(x => new { x.UserId, x.BlockedFrom, x.BlockedTo });
+            });
+
 
         }
     }

@@ -1,9 +1,9 @@
 using AIVS.Data;
-
 using AIVS.Models.Configuration;
+using AIVS.Security;
+using AIVS.Services.Hosted;
 using AIVS.Services.Implementations;
 using AIVS.Services.Interface;
-using AIVS.Security;
 using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -54,6 +54,8 @@ builder.Services.Configure<SectorManagerQaSettings>(
 builder.Services.Configure<DemoQaSettings>(
     builder.Configuration.GetSection("DemoQaSettings"));
 
+builder.Services.Configure<InspectionPinWorkerSettings>(
+    builder.Configuration.GetSection("InspectionPinWorker"));
 // ─────────────────────────────────────────────
 // Windows Authentication
 // ─────────────────────────────────────────────
@@ -86,6 +88,8 @@ builder.Services.AddScoped<IValuerReviewPdfService, ValuerReviewPdfService>();
 builder.Services.AddScoped<ISectorManagerQaService, SectorManagerQaService>();
 builder.Services.AddScoped<IAttributeApprovalNoticeService, AttributeApprovalNoticeService>();
 builder.Services.AddScoped<IOvvioAttributeService, OvvioAttributeService>();
+builder.Services.AddHostedService<InspectionPinGenerationWorker>();
+builder.Services.AddHostedService<InspectionCalendarArchiveWorker>();
 // ─────────────────────────────────────────────
 // Authorisation policies
 // ─────────────────────────────────────────────

@@ -2549,17 +2549,30 @@ namespace AIVS.Services.Implementations
                 throw new InvalidOperationException("Your valuer inspection profile could not be found. Please create your valuer profile first.");
 
             var now = DateTime.Now;
-            var pin = GenerateInspectionPin();
 
-            var pinValidFrom = request.ConfirmedDateTime.Value.AddMinutes(-30);
-            var pinValidUntil = request.ConfirmedDateTime.Value.AddHours(2);
+            if(string.IsNullOrWhiteSpace(request.InspectionPin))
+{
+                throw new InvalidOperationException(
+                    "The inspection PIN has not been generated yet. " +
+                    "The system automatically generates it shortly before the confirmed appointment.");
+            }
+
+            if (!request.InspectionPinGeneratedAt.HasValue)
+            {
+                throw new InvalidOperationException(
+                    "The inspection PIN generation record is incomplete.");
+            }
+
+            var pin = request.InspectionPin;
 
             request.Status = "InspectionDetailsSent";
-            request.InspectionPin = pin;
-            request.InspectionPinGeneratedAt = now;
+            request.ValuerDetailsSent = true;
+            request.ValuerDetailsSentAt = DateTime.Now;
 
-            request.PinValidFrom = pinValidFrom;
-            request.PinValidUntil = pinValidUntil;
+
+
+            request.Status = "InspectionDetailsSent";
+          
             request.PinUsedAt = null;
             request.PinUsedByEmail = null;
             request.PinUsedIpAddress = null;
@@ -2589,7 +2602,7 @@ namespace AIVS.Services.Implementations
             property.Physical_Inspection_Status = "InspectionDetailsSent";
             property.Inspection_Valuer = valuerDetails.ValuerName;
             property.Inspection_ValuerUserId = currentUser.UserId.Value.ToString();
-            property.Digital_Valuer_ID = pin;
+            
             property.Digital_Valuer_ID_GeneratedDateTime = now;
             property.UpdatedBy = currentUser.Username ?? currentUser.WindowsUsername ?? currentUser.FullName;
             property.UpdatedDate = now;
@@ -2619,7 +2632,7 @@ namespace AIVS.Services.Implementations
                     request.Attr_No ?? property.Attr_No ?? "-",
                     property.Property_Desc,
                     request.ConfirmedDateTime.Value,
-                    pin,
+                   
                     valuerDetails.ValuerName,
                     valuerDetails.EmailAddress,
                     valuerDetails.CellNumber,
