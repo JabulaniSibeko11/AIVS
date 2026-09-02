@@ -474,15 +474,14 @@
             const selectedFiles = processorEvidenceFiles?.files;
             const hasSelectedFiles = selectedFiles && selectedFiles.length > 0;
 
-            if (!hasSelectedFiles) {
-                if (requireEvidence && !hasProcessorEvidence) {
-                    openProcessorEvidencePanel();
-                    alert('Select at least one Internal Processor Evidence file before requesting a physical inspection. The evidence will be saved automatically with the inspection request.');
-                    processorEvidenceFiles?.focus();
-                    return false;
-                }
-                return true;
-            }
+              if (!hasSelectedFiles) {
+        // Internal Processor Evidence is OPTIONAL for all review actions,
+        // including Require Physical Inspection.
+        // If evidence was already saved, leave it attached to the review.
+        // If no evidence was supplied, continue with the selected action.
+        return await action();
+    }
+
 
             const formData = new FormData();
             formData.append('attrId', '@Model.AttrId');

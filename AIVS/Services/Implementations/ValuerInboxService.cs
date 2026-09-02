@@ -65,6 +65,7 @@ namespace AIVS.Services.Implementations
     "InspectionConfirmed",
     "InspectionDetailsSent",
     "InspectionExpired",
+    "InspectionCompleted",
     "Resubmitted",
     "ReturnedToValuer"
 };
@@ -95,7 +96,8 @@ namespace AIVS.Services.Implementations
     x.Attr_Status == "InspectionRequired" ||
     x.Attr_Status == "InspectionConfirmed" ||
     x.Attr_Status == "InspectionDetailsSent" ||
-    x.Attr_Status == "InspectionExpired",
+    x.Attr_Status == "InspectionExpired" ||
+    x.Attr_Status == "InspectionCompleted",
 
                     ReviewId = _context.AttrValuerReviews
                         .Where(r =>
@@ -103,7 +105,8 @@ namespace AIVS.Services.Implementations
                             (
                                 r.ReviewStatus == "InProgress" ||
                                 r.ReviewStatus == "InspectionRequired" ||
-                                r.ReviewStatus == "InspectionConfirmed"
+                                r.ReviewStatus == "InspectionConfirmed" ||
+                                r.ReviewStatus == "InspectionCompleted"
                             ))
                         .OrderByDescending(r => r.StartedAt)
                         .Select(r => (long?)r.Id)
@@ -128,6 +131,7 @@ namespace AIVS.Services.Implementations
     "InspectionConfirmed",
     "InspectionDetailsSent",
     "InspectionExpired",
+    "InspectionCompleted",
     "Resubmitted",
     "ReturnedToValuer"
 };
@@ -161,7 +165,8 @@ namespace AIVS.Services.Implementations
         (
             x.ReviewStatus == "InProgress" ||
             x.ReviewStatus == "InspectionRequired" ||
-            x.ReviewStatus == "InspectionConfirmed"
+            x.ReviewStatus == "InspectionConfirmed" ||
+            x.ReviewStatus == "InspectionCompleted"
         ))
     .OrderByDescending(x => x.StartedAt)
     .FirstOrDefaultAsync();
@@ -2408,16 +2413,10 @@ namespace AIVS.Services.Implementations
 
             await EnsureCurrentAssignmentAsync(vm.AttrId, currentUser);
 
-            // Processor working evidence is mandatory before a physical inspection is requested.
-            // This creates an audit record of the information used by the Valuer/Sector Manager
-            // to justify the inspection before any site visit takes place.
-            var hasProcessorEvidence = await _context.AttrProcessorEvidence
-                .AsNoTracking()
-                .AnyAsync(x => x.Attr_ID == vm.AttrId && x.IsActive);
-
-            if (!hasProcessorEvidence)
-                throw new InvalidOperationException(
-                    "Upload at least one Internal Processor Evidence file before requesting a physical inspection.");
+            // Internal Processor Evidence is optional.
+            // A Valuer / Sector Manager may request a physical inspection without
+            // uploading internal evidence. Any evidence that is uploaded remains
+            // part of the review/audit record.
 
             var existingOpenRequest = await _context.AttrInspectionRequests
       .FirstOrDefaultAsync(x =>
@@ -2440,11 +2439,8 @@ namespace AIVS.Services.Implementations
                 .FirstOrDefaultAsync();
 
             if (contact == null || string.IsNullOrWhiteSpace(contact.Email))
-                throw new InvalidOperationException("Client email could not be found. The physical inspection request cannot be sent.");
-
-
-            if (string.IsNullOrWhiteSpace(contact.Email))
-                throw new InvalidOperationException("Client email address could not be found.");
+                throw new InvalidOperationException(
+                    "Client email could not be found. The physical inspection request cannot be sent.");
 
             var now = DateTime.Now;
             var oldStatus = item.Attr_Status;
