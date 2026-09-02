@@ -74,36 +74,6 @@ namespace AIVS.Services.Implementations
                 body,
                 "manager-assignment");
         }
-
-        public async Task SendInspectionDateOptionsEmailAsync(
-            string toEmail,
-            string? clientName,
-            string attrNo,
-            string? propertyDescription,
-            List<DateTime> proposedDates,
-            string? requestComment,
-            string? secureGenesisLink = null)
-        {
-            var subject = ApplySubjectTemplate(
-                _settings.Templates.InspectionDateOptionsSubject,
-                "Property Attribute Inspection Date Selection - {AttrNo}",
-                attrNo);
-
-            var body = BuildInspectionDateOptionsBody(
-                clientName,
-                attrNo,
-                propertyDescription,
-                proposedDates,
-                requestComment,
-                secureGenesisLink);
-
-            await SendHtmlEmailAsync(
-                toEmail,
-                subject,
-                body,
-                "inspection-date-options", attrNo);
-        }
-
         public async Task SendInspectionDetailsEmailAsync(
             string toEmail,
             string? clientName,
@@ -156,6 +126,102 @@ namespace AIVS.Services.Implementations
                 null,
                 calendarInviteBytes,
                 $"COJ-Inspection-{SafeFileName(attrNo)}.ics");
+        }
+
+        public async Task SendInspectionCalendarEmailAsync(
+            string toEmail,
+            string? clientName,
+            string attrNo,
+            string? propertyDescription,
+            string? requestComment,
+            string? secureGenesisLink = null)
+        {
+            var subject = ApplySubjectTemplate(
+                _settings.Templates.InspectionDateOptionsSubject,
+                "Property Attribute Physical Inspection - Select Date & Time - {AttrNo}",
+                attrNo);
+
+            var secureActionHtml = string.IsNullOrWhiteSpace(secureGenesisLink)
+                ? @"
+<p>
+    Please log in to the City of Johannesburg Valuation Portal and open
+    <strong>My Appointments with Valuer</strong> to select an available
+    inspection date and time.
+</p>"
+                : $@"
+<div style='text-align:center;margin:24px 0;'>
+    <a href='{H(secureGenesisLink)}'
+       style='display:inline-block;
+              background:#e6b000;
+              color:#111;
+              text-decoration:none;
+              font-weight:800;
+              padding:13px 22px;
+              border-radius:6px;'>
+        Select Inspection Date &amp; Time
+    </a>
+</div>
+<p style='font-size:12px;color:#666;'>
+    Secure City of Johannesburg Valuation Administration link.
+    Do not forward this link.
+</p>";
+
+            var commentHtml = string.IsNullOrWhiteSpace(requestComment)
+                ? string.Empty
+                : $@"
+<p>
+    <strong>Inspection request comment:</strong><br/>
+    {H(requestComment)}
+</p>";
+
+            var body = WrapBody($@"
+<p>Dear {H(NameOrClient(clientName))},</p>
+
+<p>
+    A physical inspection is required for your property attribute submission.
+</p>
+
+<table style='border-collapse:collapse;width:100%;margin:12px 0;'>
+    <tr>
+        <td style='padding:8px;border:1px solid #ddd;font-weight:700;background:#f7f7f7;'>
+            Reference Number
+        </td>
+        <td style='padding:8px;border:1px solid #ddd;'>
+            {H(attrNo)}
+        </td>
+    </tr>
+    <tr>
+        <td style='padding:8px;border:1px solid #ddd;font-weight:700;background:#f7f7f7;'>
+            Property
+        </td>
+        <td style='padding:8px;border:1px solid #ddd;'>
+            {H(propertyDescription)}
+        </td>
+    </tr>
+</table>
+
+<p>
+    Please use the calendar to choose a suitable date and time from the
+    inspection slots currently available for the Valuer / Sector Manager
+    handling your submission.
+</p>
+
+<div style='background:#fff6d6;border:1px solid #ead17a;border-left:5px solid #e6b000;padding:12px;margin:14px 0;'>
+    For security, the assigned Valuer / Sector Manager's personal details are
+    not displayed at this stage. The authorised inspector details and
+    inspection PIN will be made available later in the inspection process.
+</div>
+
+{commentHtml}
+
+{secureActionHtml}");
+
+            await SendHtmlEmailAsync(
+                toEmail,
+                subject,
+                body,
+                "inspection-calendar",
+                attrNo);
         }
 
         private byte[] BuildInspectionCalendarInvite(
@@ -792,73 +858,6 @@ END:VCALENDAR";
 </ul>
 
 <p>Please continue with the review from your Valuer Inbox.</p>");
-        }
-
-        private static string BuildInspectionDateOptionsBody(
-            string? clientName,
-            string attrNo,
-            string? propertyDescription,
-            List<DateTime> proposedDates,
-            string? requestComment,
-            string? secureGenesisLink)
-        {
-            var options = new StringBuilder();
-
-            for (var i = 0; i < proposedDates.Count; i++)
-            {
-                options.Append($@"
-<tr>
-    <td style='padding:8px;border:1px solid #ddd;font-weight:700;'>Option {i + 1}</td>
-    <td style='padding:8px;border:1px solid #ddd;'>{proposedDates[i]:yyyy-MM-dd HH:mm}</td>
-</tr>");
-            }
-
-            var secureActionHtml = string.IsNullOrWhiteSpace(secureGenesisLink)
-                ? @"<p>Please respond from the City Of Johannesburg Valuation Portal under <strong>My Appointments with Valuer</strong>.</p>"
-                : $@"
-<div style='text-align:center;margin:22px 0;'>
-  <a href='{H(secureGenesisLink)}' style='display:inline-block;background:#e6b000;color:#111;text-decoration:none;font-weight:800;padding:13px 22px;border-radius:6px;'>
-    Select Inspection Date
-  </a>
-</div>
-<p style='font-size:12px;color:#666;'>Secure City of Johannesburg Valuation Administration link (AdministrationEnquiries@joburg.org.za). No portal login is required. Do not forward this link.</p>";
-
-            var commentHtml = string.IsNullOrWhiteSpace(requestComment)
-                ? ""
-                : $@"
-<p>
-    <strong>Valuer Comment:</strong><br/>
-    {H(requestComment)}
-</p>";
-
-            return WrapBody($@"
-<p>Dear {H(NameOrClient(clientName))},</p>
-
-<p>
-    A physical inspection is required for your property attribute submission.
-    Please select one of the proposed inspection dates using the secure option provided below.
-</p>
-
-<table style='border-collapse:collapse;width:100%;margin:12px 0;'>
-    <tr>
-        <td style='padding:8px;border:1px solid #ddd;font-weight:700;background:#f7f7f7;'>Reference Number</td>
-        <td style='padding:8px;border:1px solid #ddd;'>{H(attrNo)}</td>
-    </tr>
-    <tr>
-        <td style='padding:8px;border:1px solid #ddd;font-weight:700;background:#f7f7f7;'>Property</td>
-        <td style='padding:8px;border:1px solid #ddd;'>{H(propertyDescription)}</td>
-    </tr>
-</table>
-
-<p><strong>Proposed inspection dates:</strong></p>
-
-<table style='border-collapse:collapse;width:100%;margin:12px 0;'>
-    {options}
-</table>
-
-{commentHtml}
-
-{secureActionHtml}");
         }
 
         private static string BuildInspectionDetailsBody(

@@ -380,9 +380,7 @@
                         else
                         {
                             <div class="rv-small-text mb-2">
-                                Internal Processor Evidence is optional. If you used supporting evidence while reviewing
-                                this submission, you may upload it above for the audit trail. You can request a physical
-                                inspection without uploading internal evidence.
+                                Internal Processor Evidence must be uploaded before a physical inspection can be requested.
                             </div>
                             <button type="button"
                                     class="rv-final-btn rv-final-btn-inspection"
@@ -414,14 +412,15 @@
             <input type="hidden" name="ReviewId" value="@Model.ReviewId" />
 
             <div class="insp-modal-body">
-                <label>Option 1</label>
-                <input type="datetime-local" name="Option1" class="insp-input" required />
+                <div class="rv-ok-note" style="margin-bottom:12px;">
+                    <strong>The client will choose the inspection date and time from your AIVS Inspection Calendar.</strong><br />
+                    Make sure your monthly calendar is up to date before sending this request.
+                </div>
 
-                <label>Option 2</label>
-                <input type="datetime-local" name="Option2" class="insp-input" required />
-
-                <label>Option 3</label>
-                <input type="datetime-local" name="Option3" class="insp-input" required />
+                <a asp-controller="InspectionCalendar" asp-action="Index" target="_blank"
+                   class="rv-final-btn rv-final-btn-ovvio" style="display:inline-block;margin-bottom:14px;">
+                    <i class="fa-solid fa-calendar-days"></i> Open My Inspection Calendar
+                </a>
 
                 <label>Comment to Client</label>
                 <textarea name="RequestComment"
@@ -431,7 +430,7 @@
 
             <div class="insp-modal-footer">
                 <button type="button" class="insp-btn-cancel" onclick="closeInspectionModal()">Cancel</button>
-                <button type="submit" class="insp-btn-submit">Send Inspection Request</button>
+                <button type="submit" class="insp-btn-submit" onclick="return confirm('Send the client a link to select an available inspection date and time from your calendar?');">Send Calendar to Client</button>
             </div>
         </form>
     </div>

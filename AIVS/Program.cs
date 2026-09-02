@@ -67,7 +67,7 @@ builder.Services.AddAuthentication(NegotiateDefaults.AuthenticationScheme)
 builder.Services.AddScoped<IUserManagementService, UserManagementService>();
 builder.Services.AddScoped<IAivsRoleAccessService, AivsRoleAccessService>();
 builder.Services.AddScoped<IAuthorizationHandler, AivsPermissionHandler>();
-
+builder.Services.AddScoped<IInspectionCalendarService, InspectionCalendarService>();
 
 
 // ─────────────────────────────────────────────

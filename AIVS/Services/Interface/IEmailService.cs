@@ -17,14 +17,23 @@
             int assignedCount,
             List<string> references);
 
-        Task SendInspectionDateOptionsEmailAsync(
-            string toEmail,
-            string? clientName,
-            string attrNo,
-            string? propertyDescription,
-            List<DateTime> proposedDates,
-            string? requestComment,
-            string? secureGenesisLink = null);
+        //Task SendInspectionDateOptionsEmailAsync(
+        //    string toEmail,
+        //    string? clientName,
+        //    string attrNo,
+        //    string? propertyDescription,
+        //    List<DateTime> proposedDates,
+        //    string? requestComment,
+        //    string? secureGenesisLink = null);
+
+        Task SendInspectionCalendarEmailAsync(
+    string toEmail,
+    string? clientName,
+    string attrNo,
+    string? propertyDescription,
+    string? requestComment,
+    string? secureGenesisLink = null);
+
 
         Task SendInspectionDetailsEmailAsync(
             string toEmail,

@@ -315,7 +315,8 @@ namespace AIVS.Controllers
             {
                 await _valuerInboxService.ScheduleInspectionAsync(vm, currentUser);
 
-                TempData["Success"] = "Physical inspection request created successfully. The client can now select one of the three proposed dates.";
+                TempData["Success"] = "Physical inspection request created successfully. The client can now select an available date and time from your inspection calendar.";
+
             }
             catch (Exception ex)
             {

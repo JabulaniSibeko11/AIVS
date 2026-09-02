@@ -62,6 +62,9 @@ namespace AIVS.Data
         public DbSet<AttrValuerReviewFieldCorrection> AttrValuerReviewFieldCorrections { get; set; } = null!;
         public DbSet<AttrValuerReviewFieldResolution> AttrValuerReviewFieldResolutions { get; set; } = null!;
         public DbSet<AttrValuerReviewLock> AttrValuerReviewLocks { get; set; } = null!;
+        public DbSet<AttrInspectionCalendarBlock> AttrInspectionCalendarBlocks { get; set; } = null!;
+
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -507,6 +510,17 @@ namespace AIVS.Data
                 entity.Property(e => e.UpdatedBy).HasColumnName("UpdatedBy").HasMaxLength(255);
                 entity.Property(e => e.UpdatedDate).HasColumnName("UpdatedDate");
             });
+            modelBuilder.Entity<AttrInspectionCalendarBlock>(entity =>
+            {
+                entity.ToTable("AttrInspectionCalendarBlock", "dbo");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.Reason).HasMaxLength(250);
+                entity.Property(x => x.CreatedBy).HasMaxLength(150).IsRequired();
+                entity.Property(x => x.UpdatedBy).HasMaxLength(150);
+                entity.HasIndex(x => new { x.UserId, x.BlockedFrom, x.BlockedTo, x.IsActive })
+                      .HasDatabaseName("IX_AttrInspectionCalendarBlock_User_Period");
+            });
+
         }
     }
 }

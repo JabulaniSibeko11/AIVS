@@ -23,6 +23,7 @@ namespace AIVS.Services.Implementations
         private readonly IUserManagementService _userManagementService;
         private readonly DemoQaSettings _demoQa;
         private readonly IProcessorFileService _processorFiles;
+        private readonly IInspectionCalendarService _inspectionCalendarService;
         public ValuerInboxService(
             AttributesDbContext context,
             ILogger<ValuerInboxService> logger, IEmailService emailService,
@@ -34,12 +35,13 @@ namespace AIVS.Services.Implementations
       IUserManagementService userManagementService,
       IOptions<DemoQaSettings> demoQa,
       IOptions<GenesisPortalSettings> genesisPortalSettings,
-      IProcessorFileService processorFiles)
+      IProcessorFileService processorFiles, IInspectionCalendarService inspectionCalendarService)
         {
             _context = context;
             _logger = logger;
             _emailService = emailService;
             _genesisPortalSettings = genesisPortalSettings.Value;
+          
             _storageSettings = storageSettings.Value;
             _notificationService = notificationService;
             _valuerReviewPdfService = valuerReviewPdfService;
@@ -48,6 +50,7 @@ namespace AIVS.Services.Implementations
             _userManagementService = userManagementService;
             _demoQa = demoQa.Value;
             _processorFiles = processorFiles;
+            _inspectionCalendarService=inspectionCalendarService;
         }
 
         public async Task<List<ValuerInboxItemVm>> GetMyInboxAsync(AivsCurrentUserVm currentUser)
@@ -2375,127 +2378,61 @@ namespace AIVS.Services.Implementations
 
             return required;
         }
-        public async Task ScheduleInspectionAsync(
-    ScheduleInspectionVm vm,
-    AivsCurrentUserVm currentUser)
+        public async Task ScheduleInspectionAsync(ScheduleInspectionVm vm, AivsCurrentUserVm currentUser)
         {
             if (currentUser.UserId == null)
                 throw new InvalidOperationException("Your AIVS user could not be verified.");
 
-            if (vm.Option1 == default || vm.Option2 == default || vm.Option3 == default)
-                throw new InvalidOperationException("Please provide all three inspection date options.");
-
-            var options = new[] { vm.Option1, vm.Option2, vm.Option3 };
-
-            if (options.Any(x => x <= DateTime.Now))
-                throw new InvalidOperationException("Inspection options must be future dates.");
-
-            if (options.Distinct().Count() != 3)
-                throw new InvalidOperationException("The three inspection options must be different.");
-
             await using var transaction = await _context.Database.BeginTransactionAsync();
 
-            var review = await _context.AttrValuerReviews
-                .FirstOrDefaultAsync(x => x.Id == vm.ReviewId && x.Attr_ID == vm.AttrId);
+            var review = await _context.AttrValuerReviews.FirstOrDefaultAsync(x => x.Id == vm.ReviewId && x.Attr_ID == vm.AttrId);
+            if (review == null) throw new InvalidOperationException("Review could not be found.");
+            if (review.ReviewerUserId != currentUser.UserId.Value) throw new InvalidOperationException("This review is not assigned to you.");
 
-            if (review == null)
-                throw new InvalidOperationException("Review could not be found.");
-
-            if (review.ReviewerUserId != currentUser.UserId.Value)
-                throw new InvalidOperationException("This review is not assigned to you.");
-
-            var item = await _context.AttrPropertyInfo
-                .Include(x => x.PropertyDetails)
+            var item = await _context.AttrPropertyInfo.Include(x => x.PropertyDetails)
                 .FirstOrDefaultAsync(x => x.Attr_ID == vm.AttrId && x.IsActive == true);
-
-            if (item == null)
-                throw new InvalidOperationException("Attribute submission could not be found.");
+            if (item == null) throw new InvalidOperationException("Attribute submission could not be found.");
 
             await EnsureCurrentAssignmentAsync(vm.AttrId, currentUser);
 
-            // Internal Processor Evidence is optional.
-            // A Valuer / Sector Manager may request a physical inspection without
-            // uploading internal evidence. Any evidence that is uploaded remains
-            // part of the review/audit record.
+            var existingOpenRequest = await _context.AttrInspectionRequests.FirstOrDefaultAsync(x =>
+                x.Attr_ID == vm.AttrId && (x.Status == "PendingClientResponse" || x.Status == "Confirmed" || x.Status == "InspectionDetailsSent"));
+            if (existingOpenRequest != null) throw new InvalidOperationException("There is already an active physical inspection request for this submission.");
 
-            var existingOpenRequest = await _context.AttrInspectionRequests
-      .FirstOrDefaultAsync(x =>
-          x.Attr_ID == vm.AttrId &&
-          (
-              x.Status == "PendingClientResponse" ||
-              x.Status == "Confirmed" ||
-              x.Status == "InspectionDetailsSent"
-          ));
-
-            if (existingOpenRequest != null)
-                throw new InvalidOperationException("There is already an active physical inspection request for this submission.");
-
-
-
-            var contact = await _context.AttrContactInfo
-                .AsNoTracking()
-                .Where(x => x.PropertyDetailsId == item.PropertyDetails!.Id)
-                .OrderBy(x => x.Id)
-                .FirstOrDefaultAsync();
-
+            var contact = await _context.AttrContactInfo.AsNoTracking()
+                .Where(x => x.PropertyDetailsId == item.PropertyDetails!.Id).OrderBy(x => x.Id).FirstOrDefaultAsync();
             if (contact == null || string.IsNullOrWhiteSpace(contact.Email))
-                throw new InvalidOperationException(
-                    "Client email could not be found. The physical inspection request cannot be sent.");
+                throw new InvalidOperationException("Client email could not be found. The physical inspection request cannot be sent.");
+
+            if (!await _inspectionCalendarService.HasAnyAvailableSlotAsync(currentUser.UserId.Value, DateTime.Now, DateTime.Today.AddMonths(2)))
+                throw new InvalidOperationException("Your inspection calendar has no available slots for the next two months. Update My Inspection Calendar before sending the request.");
 
             var now = DateTime.Now;
             var oldStatus = item.Attr_Status;
-
             var request = new AttrInspectionRequest
             {
                 Attr_ID = item.Attr_ID,
                 Attr_No = item.Attr_No,
                 ReviewId = review.Id,
-
                 RequestedByUserId = currentUser.UserId.Value,
                 RequestedByUsername = currentUser.Username ?? currentUser.WindowsUsername,
                 RequestedByName = currentUser.FullName,
                 RequestedByEmail = currentUser.Email,
-
                 ClientName = BuildClientName(contact),
                 ClientEmail = contact.Email,
                 ClientCellNo = contact.CellNo,
-
                 Status = "PendingClientResponse",
                 RequestComment = vm.RequestComment?.Trim(),
-
                 EmailToken = Guid.NewGuid(),
                 EmailTokenExpiresAt = now.AddDays(14),
-
                 CreatedBy = currentUser.Username ?? currentUser.WindowsUsername,
                 CreatedDate = now
             };
-
             _context.AttrInspectionRequests.Add(request);
-            await _context.SaveChangesAsync();
 
-            for (var i = 0; i < options.Length; i++)
-            {
-                _context.AttrInspectionRequestSlots.Add(new AttrInspectionRequestSlot
-                {
-                    InspectionRequestId = request.Id,
-                    Attr_ID = item.Attr_ID,
-                    Attr_No = item.Attr_No,
-                    SlotNo = i + 1,
-                    ProposedDateTime = options[i],
-                    SlotStatus = "Offered",
-                    CreatedBy = currentUser.Username ?? currentUser.WindowsUsername,
-                    CreatedDate = now
-                });
-            }
-
-            review.RequiresInspection = true;
-            review.ReviewStatus = "InspectionRequired";
-            review.UpdatedBy = currentUser.Username ?? currentUser.WindowsUsername;
-            review.UpdatedDate = now;
-
-            item.Attr_Status = "InspectionRequired";
-            item.UpdatedBy = currentUser.Username ?? currentUser.WindowsUsername;
-            item.UpdatedDate = now;
+            review.RequiresInspection = true; review.ReviewStatus = "InspectionRequired";
+            review.UpdatedBy = currentUser.Username ?? currentUser.WindowsUsername; review.UpdatedDate = now;
+            item.Attr_Status = "InspectionRequired"; item.UpdatedBy = currentUser.Username ?? currentUser.WindowsUsername; item.UpdatedDate = now;
 
             _context.AttrPropertyInfoAuditTrail.Add(new AttrPropertyInfoAuditTrail
             {
@@ -2507,37 +2444,30 @@ namespace AIVS.Services.Implementations
                 ActionByUserId = currentUser.Username ?? currentUser.WindowsUsername,
                 ActionByName = currentUser.FullName,
                 ActionRole = currentUser.Role ?? "Valuer",
-                Comment = vm.RequestComment,
+                Comment = "Client sent to Genesis inspection calendar. " + (vm.RequestComment ?? string.Empty),
                 ActionDateTime = now
             });
 
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
 
-
-            // Email sending will be added after this works.
-            await _emailService.SendInspectionDateOptionsEmailAsync(
-    contact.Email,
-    BuildClientName(contact),
-    item.Attr_No ?? "-",
-    item.Property_Desc,
-    options.OrderBy(x => x).ToList(),
-    vm.RequestComment,
-    BuildGenesisInspectionLink(item, request.EmailToken));
+            await _emailService.SendInspectionCalendarEmailAsync(
+                contact.Email, BuildClientName(contact), item.Attr_No ?? "-", item.Property_Desc,
+                vm.RequestComment, BuildGenesisInspectionLink(item, request.EmailToken));
 
             await _notificationService.CreateNotificationAsync(
-                currentUser.UserId,
-                currentUser.Username ?? currentUser.WindowsUsername,
-                currentUser.Role,
-                "Inspection date options sent",
-                $"Three inspection date options were sent to the client for {item.Attr_No}.",
-                "InspectionDateOptionsSent",
-                item.Attr_ID,
-                item.Attr_No,
-                request.Id,
-                currentUser.FullName);
-
+      currentUser.UserId,
+      currentUser.Username ?? currentUser.WindowsUsername,
+      currentUser.Role,
+      "Inspection calendar sent",
+      $"The client was sent an inspection calendar link for {item.Attr_No}.",
+      "InspectionCalendarSent",
+      item.Attr_ID,
+      item.Attr_No,
+      request.Id,
+      null);
         }
+
         private static string BuildClientName(dynamic contact)
         {
             if (contact.IsCompany == true && !string.IsNullOrWhiteSpace(contact.CompanyName))
