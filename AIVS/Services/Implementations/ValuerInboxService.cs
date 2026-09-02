@@ -2627,20 +2627,21 @@ namespace AIVS.Services.Implementations
             try
             {
                 await _emailService.SendInspectionDetailsEmailAsync(
-                    contact.Email,
-                    BuildClientName(contact),
-                    request.Attr_No ?? property.Attr_No ?? "-",
-                    property.Property_Desc,
-                    request.ConfirmedDateTime.Value,
-                   
-                    valuerDetails.ValuerName,
-                    valuerDetails.EmailAddress,
-                    valuerDetails.CellNumber,
-                    valuerDetails.VehicleRegistration,
-                    valuerDetails.VehicleMake,
-                    valuerDetails.VehicleColour,
-                    valuerDetails.PhotoFileName,
-                    BuildGenesisInspectionLink(property, request.EmailToken, "valuer"));
+    request.ClientEmail!,
+    request.ClientName,
+    request.Attr_No ?? property.Attr_No ?? "-",
+    property.Property_Desc,
+    request.ConfirmedDateTime.Value,
+    pin,
+    valuerDetails.ValuerName,
+    valuerDetails.EmailAddress,
+    valuerDetails.CellNumber,
+    valuerDetails.VehicleRegistration,
+    valuerDetails.VehicleMake,
+    valuerDetails.VehicleColour,
+    valuerDetails.PhotoFileName,
+  
+                BuildGenesisInspectionLink(property, request.EmailToken, "valuer"));
 
                 await _notificationService.CreateNotificationAsync(
                     currentUser.UserId,
