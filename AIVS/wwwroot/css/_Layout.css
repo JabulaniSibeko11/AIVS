@@ -122,7 +122,16 @@ Colors and type come from wwwroot/css/site.css design tokens. */
 .aivs-main-container {
     padding-top: 24px;
     padding-bottom: 48px;
+    flex: 1 0 auto;
+    display: flex;
+    flex-direction: column;
 }
+
+    .aivs-main-container main {
+        flex: 1 0 auto;
+        display: flex;
+        flex-direction: column;
+    }
 
 /* --- Page loader --- */
 .aivs-loader {

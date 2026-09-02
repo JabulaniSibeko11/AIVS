@@ -64,10 +64,17 @@ public sealed class AivsRoleAccessService : IAivsRoleAccessService
         return permission switch
         {
             AivsPermission.AccessAivs => valuer || sectorManager || seniorManager || leadership,
-            AivsPermission.ViewSectorInbox => valuer || sectorManager || seniorManager,
-            AivsPermission.SelfAssign => valuer || sectorManager || seniorManager,
+            // Sector Inbox is visible to everyone who can assign or claim
+            // work from it — Senior Manager included, since they route
+            // work to Valuers/Sector Managers even though they don't work
+            // it themselves. This is deliberately broader than
+            // ReviewSubmission below.
+            AivsPermission.ViewSectorInbox => valuer || sectorManager || seniorManager || leadership,
+            AivsPermission.SelfAssign => valuer || sectorManager,
             AivsPermission.AssignWork => sectorManager || seniorManager,
-            AivsPermission.ReviewSubmission => valuer || sectorManager || seniorManager,
+            // Review Inbox (actually working a submission) stays limited
+            // to the people who do that work day to day.
+            AivsPermission.ReviewSubmission => valuer || sectorManager,
             AivsPermission.PerformSectorManagerQa => sectorManager,
             AivsPermission.PerformSeniorManagerQa => seniorManager,
             AivsPermission.ViewSectorStatistics => sectorManager || seniorManager,

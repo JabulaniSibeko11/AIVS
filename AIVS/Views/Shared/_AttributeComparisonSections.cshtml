@@ -5,39 +5,50 @@
         <div class="cmp-section-head">
             <h3>@sec.SectionName</h3>
         </div>
-        <div class="cmp-table-wrap">
-            <table class="cmp-table">
-                <thead><tr><th>Field</th><th>City data</th><th>Client submitted</th><th>Result</th></tr></thead>
-                <tbody>
-                    @foreach (var field in sec.Fields.OrderBy(x => x.DisplayOrder))
-                    {
-                        var rowClass = !field.HasCityValue
-                            ? "pending"
-                            : field.IsReadOnly
-                                ? "readonly"
-                                : field.IsResolved
-                                    ? "resolved"
-                                    : field.HasDifference ? "different" : "matching";
-                        var resultName = !field.HasCityValue
-                            ? "pending"
-                            : field.IsResolved || !field.HasDifference ? "matching" : "different";
-                        var fieldKey = $"{sec.SectionCode}:{field.FieldCode}";
 
-                        <tr class="cmp-row @rowClass"
-                            data-result="@resultName"
-                            data-difference="@(field.HasDifference ? "true" : "false")"
-                            data-field-key="@fieldKey">
-                            <th>
-                                @if (field.HasCityValue && field.HasDifference && !field.IsReadOnly && !field.CanResolveRatingDifference)
-                                {
-                                    <input type="checkbox" class="cmp-correction" value="@fieldKey"
-                                           checked="@field.IsSelectedForCorrection" aria-label="Return @field.FieldLabel to client" />
-                                }
-                                @field.FieldLabel
-                            </th>
-                            <td>@(string.IsNullOrWhiteSpace(field.CityValue) ? "—" : field.CityValue)</td>
-                            <td>@(string.IsNullOrWhiteSpace(field.ClientValue) ? "—" : field.ClientValue)</td>
-                            <td>
+        <div class="cmp-fields">
+            @foreach (var field in sec.Fields.OrderBy(x => x.DisplayOrder))
+            {
+                var cardClass = !field.HasCityValue
+                    ? "pending"
+                    : field.IsReadOnly
+                        ? "readonly"
+                        : field.IsResolved
+                            ? "resolved"
+                            : field.HasDifference ? "different" : "matching";
+                var resultName = !field.HasCityValue
+                    ? "pending"
+                    : field.IsResolved || !field.HasDifference ? "matching" : "different";
+                var fieldKey = $"{sec.SectionCode}:{field.FieldCode}";
+
+                <div class="cmp-field-card @cardClass"
+                     data-result="@resultName"
+                     data-difference="@(field.HasDifference ? "true" : "false")"
+                     data-field-key="@fieldKey">
+
+                    <div class="cmp-field-label">
+                        @if (field.HasCityValue && field.HasDifference && !field.IsReadOnly && !field.CanResolveRatingDifference)
+                        {
+                            <input type="checkbox" class="cmp-correction" value="@fieldKey"
+                                   checked="@field.IsSelectedForCorrection" aria-label="Return @field.FieldLabel to client" />
+                        }
+                        @field.FieldLabel
+                    </div>
+
+                    <div class="cmp-field-cols">
+                        <div class="cmp-field-col">
+                            <span class="cmp-col-label">City data</span>
+                            <div class="cmp-field-box">@(string.IsNullOrWhiteSpace(field.CityValue) ? "—" : field.CityValue)</div>
+                        </div>
+
+                        <div class="cmp-field-col">
+                            <span class="cmp-col-label">Client submitted</span>
+                            <div class="cmp-field-box">@(string.IsNullOrWhiteSpace(field.ClientValue) ? "—" : field.ClientValue)</div>
+                        </div>
+
+                        <div class="cmp-field-col cmp-field-col-result">
+                            <span class="cmp-col-label">Result</span>
+                            <div class="cmp-field-box cmp-field-box-result">
                                 @if (!field.HasCityValue)
                                 {
                                     <span class="cmp-badge pending">City pending</span>
@@ -82,11 +93,11 @@
                                 {
                                     <span class="cmp-badge matching">Matches</span>
                                 }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
         </div>
     </div>
 }

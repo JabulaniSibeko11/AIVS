@@ -36,6 +36,8 @@
     }
 }
 
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.dataTables.min.css" />
 <link href="~/css/sector-inbox.css" rel="stylesheet" asp-append-version="true" />
 
 <div class="si-page">
@@ -78,11 +80,17 @@
                    asp-controller="SectorInbox"
                    asp-action="Index"
                    asp-route-sector="@tile.Sector">
+                <div class="si-tile-icon">
+                    <i class="fa-solid fa-building-columns"></i>
+                </div>
                 <div class="si-tile-name">@tile.Sector</div>
                 <div class="si-tile-count">@N(tile.Total)</div>
                 <div class="si-tile-label">records in sector inbox</div>
                 <div class="si-tile-bar">
                     <div class="si-tile-bar-fill" style="width:@(barPct.ToString("0.###", CultureInfo.InvariantCulture))%;"></div>
+                </div>
+                <div class="si-tile-hint">
+                    View Records <i class="fa-solid fa-arrow-right"></i>
                 </div>
             </a>
         }
@@ -189,8 +197,8 @@
                         }
                     </div>
 
-                    <div class="si-table-scroll">
-                        <table class="si-table">
+                    <div class="table-responsive">
+                        <table class="si-table" id="siResultsTable">
                             <thead>
                                 <tr>
                                     <th class="si-check-cell">
@@ -247,12 +255,12 @@
                                         </td>
 
                                         <td style="white-space:nowrap;">
-                                            <a class="si-btn-view"
+                                           @*  <a class="si-btn-view"
                                                    asp-controller="SectorInbox"
                                                    asp-action="Details"
                                                    asp-route-id="@item.AttrId">
                                                 View
-                                            </a>
+                                            </a> *@
                                         </td>
                                     </tr>
                                 }
@@ -266,99 +274,147 @@
 </div>
 
 @section Scripts {
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
     <script>
+        // ── DataTable ────────────────────────────────────────────────
+        // The Options/checkbox columns must never collapse behind the
+        // responsive "+" expander on a phone — that defeats the whole
+        // point of bulk-selecting rows on a small screen.
+        var siTable = null;
+
+        $(function () {
+        if ($('#siResultsTable').length && !$.fn.DataTable.isDataTable('#siResultsTable')) {
+        siTable = $('#siResultsTable').DataTable({
+        responsive: {
+        breakpoints: [
+        { name: 'desktop', width: Infinity },
+        { name: 'phone', width: 640 }
+        ]
+        },
+        dom: '<"si-dt-top"lf>rt<"si-dt-bottom"ip>',
+        lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
+        pageLength: 25,
+        order: [],
+        columnDefs: [
+        { targets: 0, orderable: false, className: 'all' },
+        { targets: -1, orderable: false, className: 'all' }
+        ],
+        language: {
+        search: '_INPUT_',
+        searchPlaceholder: 'Search this sector…',
+        emptyTable: 'No routed attribute submissions found for this sector.'
+        }
+        });
+        }
+        });
+
         function getSelectedRows() {
-            return Array.from(document.querySelectorAll('.row-check:checked'));
+        return Array.from(document.querySelectorAll('.row-check:checked'));
         }
 
         function updateSelectionState() {
-            var selected = getSelectedRows();
-            var count = selected.length;
+        var selected = getSelectedRows();
+        var count = selected.length;
 
-            var countEl = document.getElementById('siSelectedCount');
-            if (countEl) {
-                countEl.textContent = count;
-            }
+        var countEl = document.getElementById('siSelectedCount');
+        if (countEl) {
+        countEl.textContent = count;
+        }
 
-            var assignToMeBtn = document.getElementById('siBulkAssignBtn');
-            if (assignToMeBtn) {
-                assignToMeBtn.disabled = count === 0;
-            }
+        var assignToMeBtn = document.getElementById('siBulkAssignBtn');
+        if (assignToMeBtn) {
+        assignToMeBtn.disabled = count === 0;
+        }
 
-            var assignToValuerBtn = document.getElementById('siManagerAssignBtn');
-            if (assignToValuerBtn) {
-                assignToValuerBtn.disabled = count === 0;
-            }
+        var assignToValuerBtn = document.getElementById('siManagerAssignBtn');
+        if (assignToValuerBtn) {
+        assignToValuerBtn.disabled = count === 0;
+        }
 
-            document.querySelectorAll('.row-check').forEach(function (checkbox) {
-                var row = checkbox.closest('tr');
+        document.querySelectorAll('.row-check').forEach(function (checkbox) {
+        var row = checkbox.closest('tr');
 
-                if (row) {
-                    row.classList.toggle('is-selected', checkbox.checked);
-                }
-            });
+        if (row) {
+        row.classList.toggle('is-selected', checkbox.checked);
+        }
+        });
 
-            var all = document.querySelectorAll('.row-check');
-            var selectAll = document.getElementById('selectAllRows');
+        // "Select all" reflects only the rows currently visible after
+        // search/filter — matches what DataTables itself considers
+        // the active result set, not every row that ever existed.
+        var visible = siTable
+        ? siTable.rows({ search: 'applied' }).nodes().to$().find('.row-check').toArray()
+        : document.querySelectorAll('.row-check');
+        var visibleChecked = visible.filter(function (cb) { return cb.checked; });
 
-            if (selectAll) {
-                selectAll.checked = all.length > 0 && count === all.length;
-                selectAll.indeterminate = count > 0 && count < all.length;
-            }
+        var selectAll = document.getElementById('selectAllRows');
+        if (selectAll) {
+        selectAll.checked = visible.length > 0 && visibleChecked.length === visible.length;
+        selectAll.indeterminate = visibleChecked.length > 0 && visibleChecked.length < visible.length;
+        }
         }
 
         function toggleAllRows(source) {
-            document.querySelectorAll('.row-check').forEach(function (checkbox) {
-                checkbox.checked = source.checked;
-            });
+        // Selects every row matching the current search/filter, not
+        // just the checkboxes on the currently-paginated page.
+        var scope = siTable
+        ? siTable.rows({ search: 'applied' }).nodes().to$().find('.row-check')
+        : $('.row-check');
 
-            updateSelectionState();
+        scope.prop('checked', source.checked);
+        updateSelectionState();
         }
 
         function confirmAssignToMe() {
-            var selected = getSelectedRows();
+        var selected = getSelectedRows();
 
-            if (selected.length === 0) {
-                alert('Please select at least one record before assigning.');
-                return false;
-            }
+        if (selected.length === 0) {
+        alert('Please select at least one record before assigning.');
+        return false;
+        }
 
-            return confirm(
-                'Assign ' + selected.length + ' selected record(s) to your own Valuer Inbox?'
-            );
+        return confirm(
+        'Assign ' + selected.length + ' selected record(s) to your own Valuer Inbox?'
+        );
         }
 
         function confirmAssignToValuer() {
-            var selected = getSelectedRows();
+        var selected = getSelectedRows();
 
-            if (selected.length === 0) {
-                alert('Please select at least one record before assigning.');
-                return false;
-            }
+        if (selected.length === 0) {
+        alert('Please select at least one record before assigning.');
+        return false;
+        }
 
-            var valuerSelect = document.getElementById('selectedValuerUserId');
+        var valuerSelect = document.getElementById('selectedValuerUserId');
 
-            if (!valuerSelect || !valuerSelect.value) {
-                alert('Please select a valuer before assigning.');
-                return false;
-            }
+        if (!valuerSelect || !valuerSelect.value) {
+        alert('Please select a valuer before assigning.');
+        return false;
+        }
 
-            var selectedOption = valuerSelect.options[valuerSelect.selectedIndex];
-            var valuerName = selectedOption ? selectedOption.text : 'the selected valuer';
+        var selectedOption = valuerSelect.options[valuerSelect.selectedIndex];
+        var valuerName = selectedOption ? selectedOption.text : 'the selected valuer';
 
-            return confirm(
-                'Assign ' + selected.length + ' selected record(s) to ' + valuerName + '?'
-            );
+        return confirm(
+        'Assign ' + selected.length + ' selected record(s) to ' + valuerName + '?'
+        );
         }
 
         document.addEventListener('change', function (e) {
-            if (e.target.classList && e.target.classList.contains('row-check')) {
-                updateSelectionState();
-            }
+        if (e.target.classList && e.target.classList.contains('row-check')) {
+        updateSelectionState();
+        }
         });
 
         document.addEventListener('DOMContentLoaded', function () {
-            updateSelectionState();
+        updateSelectionState();
         });
+
+        // Re-check selection state whenever DataTables redraws (page
+        // change, search, sort) so the header checkbox and Assign
+        // buttons always reflect what's actually selected right now.
+        $(document).on('draw.dt', '#siResultsTable', updateSelectionState);
     </script>
 }

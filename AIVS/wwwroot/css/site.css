@@ -9,8 +9,13 @@
 
 :root {
     /* --- Brand: primary --- */
-    --aivs-black: #0d0d0d;
-    --aivs-black-soft: #1a1a1a;
+    /* Primary dark — matches Genesis's actual brand dark exactly
+       (#1a2e35 / #0f2a30, used for every hero/header/primary-button
+       gradient across that app). Kept the same variable names so every
+       existing var(--aivs-black...) reference across this codebase
+       repaints automatically — this is a color retint, not a rename. */
+    --aivs-black: #0f2a30;
+    --aivs-black-soft: #1a2e35;
     --aivs-gold: #e6b000;
     --aivs-gold-dark: #b98900;
     --aivs-gold-light: #fdf3d7;
@@ -74,6 +79,17 @@ h1, h2, h3, h4, h5, h6,
 
 body {
     margin: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+/* header/footer are natural-height flex items; the wrapper around
+   <main> (.aivs-main-container, in _layout.css) is set to flex:1 so
+   it absorbs all remaining space and the footer never floats up on
+   short pages. */
+header, footer {
+    flex-shrink: 0;
 }
 
 a {

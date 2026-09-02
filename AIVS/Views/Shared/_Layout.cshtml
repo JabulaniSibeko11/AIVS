@@ -26,6 +26,11 @@
     var canReview = RoleAccess.HasPermission(currentUser, AivsPermission.ReviewSubmission);
     var canSeeSectorManagerQa = RoleAccess.HasPermission(currentUser, AivsPermission.PerformSectorManagerQa);
     var canSeeSeniorManagerQa = RoleAccess.HasPermission(currentUser, AivsPermission.PerformSeniorManagerQa);
+    // Executive / Deputy Director tier — the Excel export already exists
+    // on HomeController.ExportExecutiveStats, and per-valuer stats are
+    // already part of the dashboard model (ValuerStats); this just
+    // surfaces both in the nav instead of leaving them undiscoverable.
+    var canExportStats = RoleAccess.HasPermission(currentUser, AivsPermission.ExportStatistics);
 
     Func<string, string> navActive = controllerName =>
         string.Equals(currentController, controllerName, StringComparison.OrdinalIgnoreCase)
@@ -101,23 +106,12 @@
                             </a>
                         </li>
 
+                        @* Valuer + Sector Manager: day-to-day working inboxes *@
                         @if (canSeeSectorInbox)
                         {
                             <li class="nav-item">
                                 <a class="nav-link @navActive("SectorInbox")" asp-area="" asp-controller="SectorInbox" asp-action="Index">
-                                    Sector Inbox
-                                </a>
-                            </li>
-                        }
-
-                        @if (canSeeSectorManagerQa)
-                        {
-                            <li class="nav-item">
-                                <a class="nav-link @navActive("SectorManagerQa")"
-                                       asp-area=""
-                                       asp-controller="SectorManagerQa"
-                                       asp-action="Index">
-                                    Sector Manager QA
+                                    Work Queue
                                 </a>
                             </li>
                         }
@@ -126,11 +120,25 @@
                         {
                             <li class="nav-item">
                                 <a class="nav-link @navActive("ValuerInbox")" asp-area="" asp-controller="ValuerInbox" asp-action="Index">
-                                    Review Inbox
+                                    My Reviews
                                 </a>
                             </li>
                         }
 
+                        @* Sector Manager only *@
+                        @if (canSeeSectorManagerQa)
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link @navActive("SectorManagerQa")"
+                                       asp-area=""
+                                       asp-controller="SectorManagerQa"
+                                       asp-action="Index">
+                                    Team Quality Check
+                                </a>
+                            </li>
+                        }
+
+                        @* Senior Manager only — no longer sees the working inboxes above *@
                         @if (canSeeSeniorManagerQa)
                         {
                             <li class="nav-item">
@@ -138,7 +146,21 @@
                                        asp-area=""
                                        asp-controller="SeniorManagerQa"
                                        asp-action="Index">
-                                    Senior Manager QA
+                                    Final Quality Check
+                                </a>
+                            </li>
+                        }
+
+                        @* Executive / Deputy Director tier *@
+                        @if (canExportStats)
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link @navActiveExact("Home", "ExportExecutiveStats")"
+                                       asp-area=""
+                                       asp-controller="Home"
+                                       asp-action="ExportExecutiveStats">
+                                    <i class="fa-solid fa-file-arrow-down" style="font-size:12px;margin-right:5px;"></i>
+                                    Export Stats
                                 </a>
                             </li>
                         }

@@ -1,11 +1,23 @@
 @model List<AIVS.Models.ViewModels.ValuerInbox.ValuerInboxItemVm>
 @using System.Globalization
 @using AIVS.Workflow
+@inject AIVS.Services.Interface.IUserManagementService UserManagementService
+@inject AIVS.Services.Interface.IAivsRoleAccessService RoleAccess
 
 @{
-    ViewData["Title"] = "Review Inbox";
+    ViewData["Title"] = "My Reviews";
 
-    string StatusText(string? status) => AttributeWorkflowStatus.Display(status);
+    var currentUser = await UserManagementService.GetCurrentUserAsync(User);
+
+    // "Processor" never means anything to the person looking at the
+    // screen — on this page the assignee is always whoever is logged
+    // in, so swap it for their actual role label everywhere it appears.
+    var selfRoleLabel = RoleAccess.IsSectorManager(currentUser)
+        ? "Sector Manager"
+        : "Valuer";
+
+    string StatusText(string? status) =>
+        AttributeWorkflowStatus.Display(status).Replace("Processor", selfRoleLabel);
 
     string StatusBadgeClass(string? status) => (status?.Trim()) switch
     {
@@ -27,6 +39,28 @@
         "OvvioExtracted" => "vi-badge-extracted",
 
         _ => "vi-badge-default"
+    };
+
+    string StatusIcon(string? status) => (status?.Trim()) switch
+    {
+        "Claimed" => "fa-inbox",
+        "ValuerReview" => "fa-magnifying-glass",
+
+        "ReturnedToClient" => "fa-rotate-left",
+        "Resubmitted" => "fa-arrow-rotate-right",
+        "ReturnedToValuer" => "fa-triangle-exclamation",
+
+        "InspectionRequired" => "fa-clock",
+        "InspectionConfirmed" => "fa-calendar-check",
+        "InspectionDetailsSent" => "fa-paper-plane",
+        "InspectionCompleted" => "fa-circle-check",
+        "InspectionExpired" => "fa-clock-rotate-left",
+
+        "SectorManagerQa" => "fa-user-shield",
+        "ReadyForOvvioExtract" => "fa-circle-check",
+        "OvvioExtracted" => "fa-box-archive",
+
+        _ => "fa-circle"
     };
 
     string StatusColor(string? status) => (status?.Trim()) switch
@@ -67,12 +101,13 @@
         "InspectionCompleted" => "Continue Review",
         "InspectionExpired" => "Send New Dates",
 
-        "SectorManagerQa" => "Awaiting Sector QA",
+        "SectorManagerQa" => "Awaiting Team QA",
         "ReadyForOvvioExtract" => "View Finalised Review",
         "OvvioExtracted" => "View Extracted Review",
 
         _ => item.ReviewStarted ? "Continue Review" : "Open Review"
     };
+
     var allItems = Model ?? new List<AIVS.Models.ViewModels.ValuerInbox.ValuerInboxItemVm>();
 
     var orderedItems = allItems
@@ -86,6 +121,7 @@
         {
             StatusKey = g.Key,
             Label = StatusText(g.Key),
+            Icon = StatusIcon(g.Key),
             Count = g.Count(),
             Priority = StatusPriority(g.Key)
         })
@@ -93,8 +129,11 @@
         .ToList();
 
     var expiredCount = orderedItems.Count(x => (x.Status?.Trim()) == "InspectionExpired");
+    var returnedCount = orderedItems.Count(x => (x.Status?.Trim()) is "ReturnedToValuer" or "Resubmitted");
 }
 
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.dataTables.min.css" />
 <link href="~/css/valuer-inbox.css" rel="stylesheet" asp-append-version="true" />
 
 <div class="vi-page">
@@ -114,24 +153,49 @@
         </div>
     }
 
-    <div class="aivs-page-header">
-        <h1 class="aivs-page-title">My Review Inbox</h1>
-        <div class="aivs-page-subtitle">
-            These are the attribute submissions assigned to you for review and physical inspection follow-up.
+    <div class="vi-hero">
+        <div class="vi-hero-icon">
+            <i class="fa-solid fa-clipboard-check"></i>
         </div>
-        <div class="vi-header-stats">
-            <div class="vi-header-stat"><strong>@orderedItems.Count</strong> assigned to you</div>
-            @if (expiredCount > 0)
+        <div class="vi-hero-text">
+            <span class="vi-hero-eyebrow">@selfRoleLabel Workbench</span>
+            <h1>My Reviews</h1>
+            <p>Attribute submissions assigned to you for review and physical inspection follow-up.</p>
+        </div>
+        <div class="vi-hero-stats">
+            <div class="vi-hero-stat">
+                <span class="vi-hero-stat-num">@orderedItems.Count</span>
+                <span class="vi-hero-stat-label">Assigned to you</span>
+            </div>
+
+            @if (returnedCount > 0)
             {
-                <div class="vi-header-stat is-urgent"><strong>@expiredCount</strong> inspection request(s) expired</div>
+                <div class="vi-hero-stat vi-hero-stat-warn">
+                    <span class="vi-hero-stat-num">@returnedCount</span>
+                    <span class="vi-hero-stat-label">Needs your attention</span>
+                </div>
             }
         </div>
     </div>
 
+    @if (expiredCount > 0)
+    {
+        <div class="vi-urgent-alert">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <div>
+                <strong>@expiredCount inspection request@(expiredCount == 1 ? "" : "s")</strong>
+                expired without a client response.
+                Send new inspection dates to keep @(expiredCount == 1 ? "it" : "them") moving.
+            </div>
+        </div>
+    }
+
     @if (!orderedItems.Any())
     {
         <div class="vi-empty">
-            No assigned attribute submissions found in your inbox.
+            <i class="fa-solid fa-mug-hot"></i>
+            <h3>Nothing waiting on you right now</h3>
+            <p>New assignments will appear here as soon as they're routed to you.</p>
         </div>
     }
     else
@@ -150,11 +214,6 @@
                     </button>
                 }
             </div>
-
-            <div class="vi-search">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2" /><path d="M21 21l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
-                <input type="text" id="viSearchInput" placeholder="Search reference, property, township..." />
-            </div>
         </div>
 
         <div class="vi-card">
@@ -163,8 +222,8 @@
                 <div class="vi-card-title-count"><span id="viVisibleCount">@orderedItems.Count</span> item(s)</div>
             </div>
 
-            <div class="vi-table-scroll">
-                <table class="vi-table">
+            <div class="table-responsive">
+                <table class="vi-table" id="viResultsTable">
                     <thead>
                         <tr>
                             <th>Reference No</th>
@@ -182,12 +241,7 @@
                     <tbody>
                         @foreach (var item in orderedItems)
                         {
-                            var searchText = string.Join(" ", new[]
-                            {
-                                item.AttrNo, item.PropertyDescription, item.Township, item.Sector, item.AssignedBy
-                            }).ToLowerInvariant();
-
-                            <tr data-status="@item.Status" data-search="@searchText">
+                            <tr data-status="@item.Status">
                                 <td class="vi-ref" style="box-shadow: inset 4px 0 0 @StatusColor(item.Status);">@item.AttrNo</td>
 
                                 <td>
@@ -223,12 +277,17 @@
                                     }
                                 </td>
 
-                                <td class="vi-muted">@(item.AssignedDate?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
+                                <td class="vi-muted" data-order="@(item.AssignedDate?.Ticks ?? 0)">
+                                    @(item.AssignedDate?.ToString("yyyy-MM-dd HH:mm") ?? "-")
+                                </td>
 
                                 <td>@item.EvidenceCount</td>
 
                                 <td>
-                                    <span class="vi-badge @StatusBadgeClass(item.Status)">@StatusText(item.Status)</span>
+                                    <span class="vi-badge @StatusBadgeClass(item.Status)">
+                                        <i class="fa-solid @StatusIcon(item.Status)"></i>
+                                        @StatusText(item.Status)
+                                    </span>
                                 </td>
 
                                 <td>
@@ -255,53 +314,76 @@
                     </tbody>
                 </table>
             </div>
-
-            <div id="viNoResults" class="vi-empty vi-empty-inline" style="display:none;">
-                No records match your filters.
-            </div>
         </div>
     }
 </div>
 
 @section Scripts {
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
     <script>
         (function () {
-            var chips = document.querySelectorAll('[data-filter-chip]');
-            var searchInput = document.getElementById('viSearchInput');
-            var rows = Array.from(document.querySelectorAll('.vi-table tbody tr'));
-            var visibleCountEl = document.getElementById('viVisibleCount');
-            var noResultsEl = document.getElementById('viNoResults');
-            var activeStatus = '';
+        var table = null;
+        var activeStatus = '';
 
-            function applyFilters() {
-                var term = (searchInput && searchInput.value || '').trim().toLowerCase();
-                var visible = 0;
+        $(function () {
+        if ($('#viResultsTable').length && !$.fn.DataTable.isDataTable('#viResultsTable')) {
+        table = $('#viResultsTable').DataTable({
+        responsive: {
+        breakpoints: [
+        { name: 'desktop', width: Infinity },
+        { name: 'phone', width: 640 }
+        ]
+        },
+        dom: '<"vi-dt-top"lf>rt<"vi-dt-bottom"ip>',
+        lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
+        pageLength: 25,
+        order: [],
+        columnDefs: [
+        { targets: 0, className: 'all' },
+        { targets: -1, orderable: false, className: 'all' }
+        ],
+        language: {
+        search: '_INPUT_',
+        searchPlaceholder: 'Search reference, property, township…',
+        emptyTable: 'No records match your filters.'
+        },
+        drawCallback: function () {
+        var info = table.page.info();
+        var el = document.getElementById('viVisibleCount');
+        if (el) el.textContent = info.recordsDisplay;
+        }
+        });
+        }
 
-                rows.forEach(function (row) {
-                    var matchesStatus = !activeStatus || row.getAttribute('data-status') === activeStatus;
-                    var matchesSearch = !term || (row.getAttribute('data-search') || '').indexOf(term) !== -1;
-                    var show = matchesStatus && matchesSearch;
+        var chips = document.querySelectorAll('[data-filter-chip]');
 
-                    row.classList.toggle('vi-row-hidden', !show);
-                    if (show) visible++;
-                });
+        chips.forEach(function (chip) {
+        chip.addEventListener('click', function () {
+        chips.forEach(function (c) { c.classList.remove('active'); });
+        chip.classList.add('active');
+        activeStatus = chip.getAttribute('data-filter-status') || '';
 
-                if (visibleCountEl) visibleCountEl.textContent = visible;
-                if (noResultsEl) noResultsEl.style.display = visible === 0 ? 'block' : 'none';
-            }
+        if (table) {
+        // Status column shows the friendly label with an
+        // icon, not the raw status key — filter on the
+        // row's data-status attribute instead via a
+        // custom search function scoped to this table.
+        $.fn.dataTable.ext.search.pop();
 
-            chips.forEach(function (chip) {
-                chip.addEventListener('click', function () {
-                    chips.forEach(function (c) { c.classList.remove('active'); });
-                    chip.classList.add('active');
-                    activeStatus = chip.getAttribute('data-filter-status') || '';
-                    applyFilters();
-                });
-            });
+        if (activeStatus) {
+        $.fn.dataTable.ext.search.push(function (settings, data, rowIndex) {
+        if (settings.nTable.id !== 'viResultsTable') return true;
+        var row = table.row(rowIndex).node();
+        return row && row.getAttribute('data-status') === activeStatus;
+        });
+        }
 
-            if (searchInput) {
-                searchInput.addEventListener('input', applyFilters);
-            }
+        table.draw();
+        }
+        });
+        });
+        });
         })();
     </script>
 }

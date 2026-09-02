@@ -345,10 +345,95 @@
     }
 
 /* ---------- Table ---------- */
-.si-table-scroll {
-    max-height: 560px;
-    overflow: auto;
+.si-dt-top,
+.si-dt-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 18px;
 }
+
+    .si-dt-top label,
+    .si-dt-bottom label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--aivs-text-muted);
+        margin: 0;
+    }
+
+    .si-dt-top select {
+        padding: 6px 26px 6px 10px;
+        border: 1px solid var(--aivs-border);
+        border-radius: var(--aivs-radius-sm);
+        font-family: var(--aivs-font);
+        font-size: 12.5px;
+        background: var(--aivs-white);
+    }
+
+    .si-dt-top input[type="search"] {
+        padding: 7px 12px;
+        border: 1px solid var(--aivs-border);
+        border-radius: var(--aivs-radius-sm);
+        font-family: var(--aivs-font);
+        font-size: 12.5px;
+        min-width: 220px;
+    }
+
+        .si-dt-top input[type="search"]:focus,
+        .si-dt-top select:focus {
+            outline: none;
+            border-color: var(--aivs-gold);
+        }
+
+    .si-dt-bottom .dataTables_info {
+        font-size: 12px;
+        color: var(--aivs-text-muted);
+    }
+
+    .si-dt-bottom .dataTables_paginate {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+    }
+
+    .si-dt-bottom .paginate_button {
+        padding: 6px 12px;
+        border-radius: var(--aivs-radius-sm);
+        border: 1px solid var(--aivs-border) !important;
+        background: var(--aivs-white) !important;
+        color: var(--aivs-text) !important;
+        font-family: var(--aivs-font);
+        font-size: 12.5px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+        .si-dt-bottom .paginate_button:hover {
+            background: var(--aivs-gold-light) !important;
+            border-color: rgba(230,176,0,.4) !important;
+            color: var(--aivs-black) !important;
+        }
+
+        .si-dt-bottom .paginate_button.current,
+        .si-dt-bottom .paginate_button.current:hover {
+            background: var(--aivs-black-soft) !important;
+            border-color: var(--aivs-black-soft) !important;
+            color: var(--aivs-gold) !important;
+        }
+
+        .si-dt-bottom .paginate_button.disabled,
+        .si-dt-bottom .paginate_button.disabled:hover {
+            background: #f7f7f5 !important;
+            border-color: var(--aivs-border) !important;
+            color: var(--aivs-text-muted) !important;
+            cursor: not-allowed;
+            opacity: .6;
+        }
 
 .si-table {
     width: 100%;

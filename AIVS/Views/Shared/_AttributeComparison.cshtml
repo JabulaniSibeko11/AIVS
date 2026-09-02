@@ -2,6 +2,8 @@
 @{
     var tab1 = Model.ComparisonSections.Where(x => x.TabNumber == 1).ToList();
     var tab2 = Model.ComparisonSections.Where(x => x.TabNumber == 2).ToList();
+    var allSections = tab1.Concat(tab2).ToList();
+
     var property = Model.SubmittedForm?.PropertyDetails;
     var owner = Model.SubmittedForm?.ContactInfos?
         .FirstOrDefault(x => string.Equals(x.ContactType, "Owner", StringComparison.OrdinalIgnoreCase))
@@ -11,29 +13,182 @@
         : (!string.IsNullOrWhiteSpace(owner.CompanyName)
             ? owner.CompanyName
             : string.Join(" ", new[] { owner.FirstNames, owner.LastName }.Where(x => !string.IsNullOrWhiteSpace(x))));
+
+    Microsoft.AspNetCore.Html.IHtmlContent Disp(object? value)
+    {
+        var text = value?.ToString();
+        return new Microsoft.AspNetCore.Html.HtmlString(
+            string.IsNullOrWhiteSpace(text) ? "Not supplied" : System.Net.WebUtility.HtmlEncode(text));
+    }
 }
 
 <section class="cmp-shell" id="attributeComparison">
     <fieldset disabled="@(Model.IsLockedByAnotherUser ? "disabled" : null)">
+
+        <!-- ══ STEP 1 — Confirm the property ══════════════════════════ -->
+        <div class="cmp-step-head">
+            <span class="cmp-step-num">1</span>
+            <div>
+                <h2>Confirm the property</h2>
+                <p>Make sure this submission belongs to the correct City property before reviewing anything else.</p>
+            </div>
+        </div>
+
         <div class="cmp-overview-card">
-            <div class="cmp-overview-title">
-                <strong>Property and owner details</strong>
-                <span>Confirm that the submission belongs to the correct City property before reviewing the attributes.</span>
+            <div class="cmp-overview-grid cmp-overview-grid-compact">
+                <div><small>Property description</small><strong>@Disp(Model.PropertyDescription ?? property?.PropertyDesc)</strong></div>
+                <div><small>Premise ID</small><strong>@Disp(property?.PremiseId)</strong></div>
+                <div><small>Township</small><strong>@Disp(Model.Township ?? property?.Township)</strong></div>
+                <div><small>Client name / company</small><strong>@Disp(ownerName)</strong></div>
+                <div><small>Email address</small><strong>@Disp(owner?.Email)</strong></div>
+                <div><small>Contact number</small><strong>@Disp(owner?.CellNo)</strong></div>
             </div>
-            <div class="cmp-overview-grid">
-                <div><small>Property description</small><strong>@(Model.PropertyDescription ?? property?.PropertyDesc ?? "Not supplied")</strong></div>
-                <div><small>Premise ID</small><strong>@(property?.PremiseId ?? "Not supplied")</strong></div>
-                <div><small>Township</small><strong>@(Model.Township ?? property?.Township ?? "Not supplied")</strong></div>
-                <div><small>Erf</small><strong>@(property?.Erf ?? "Not supplied")</strong></div>
-                <div><small>Property address</small><strong>@(property?.Address ?? "Not supplied")</strong></div>
-                <div><small>Extent</small><strong>@(property?.Extent ?? "Not supplied")</strong></div>
-                <div><small>Owner / applicant</small><strong>@(string.IsNullOrWhiteSpace(ownerName) ? "Not supplied" : ownerName)</strong></div>
-                <div><small>Company registration no.</small><strong>@(owner?.CompanyRegistrationNumber ?? "Not supplied")</strong></div>
-                <div><small>Email</small><strong>@(owner?.Email ?? "Not supplied")</strong></div>
-                <div><small>Cell number</small><strong>@(owner?.CellNo ?? "Not supplied")</strong></div>
-                <div><small>Physical address</small><strong>@(owner?.PhysicalAddress ?? "Not supplied")</strong></div>
-                <div><small>Postal address</small><strong>@(owner?.PostalAddress ?? "Not supplied")</strong></div>
-            </div>
+        </div>
+
+        <!-- 1.1 Lodged evidence (was "Client Uploaded Evidence") -->
+        <div class="cmp-substep" id="uploaded-evidence">
+            @{
+                var lodgedCount = Model.EvidenceFiles?.Count ?? 0;
+            }
+            @if (lodgedCount == 0)
+            {
+                <div class="cmp-substep-toggle cmp-substep-static">
+                    <div class="cmp-substep-left">
+                        <span class="cmp-substep-num">1.1</span>
+                        <strong>Lodged evidence</strong>
+                    </div>
+                    <span class="cmp-substep-empty-label">No evidence uploaded</span>
+                </div>
+            }
+            else
+            {
+                <button type="button" class="cmp-substep-toggle open" data-substep-toggle="lodged">
+                    <div class="cmp-substep-left">
+                        <span class="cmp-substep-num">1.1</span>
+                        <strong>Lodged evidence</strong>
+                        <span class="cmp-substep-sub">@lodgedCount file(s)</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-down cmp-substep-chevron"></i>
+                </button>
+
+                <div class="cmp-substep-body" id="substep-lodged">
+                    <div class="cmp-substep-actions">
+                        <a class="rv-evidence-zip" asp-controller="ValuerInbox" asp-action="DownloadEvidenceZip" asp-route-attrId="@Model.AttrId" asp-route-kind="client">
+                            <i class="fa-solid fa-file-zipper"></i> Download All
+                        </a>
+                    </div>
+                    <div class="rv-evidence-grid">
+                        @foreach (var file in Model.EvidenceFiles!)
+                        {
+                            <article class="rv-evidence-file-card">
+                                <div class="rv-evidence-file-icon">
+                                    <i class="@(string.Equals(file.FileType, "application/pdf", StringComparison.OrdinalIgnoreCase) ? "fa-solid fa-file-pdf" : "fa-solid fa-file-image")"></i>
+                                </div>
+                                <div class="rv-evidence-file-info">
+                                    <div class="rv-evidence-file-name" title="@file.FileName">@Disp(file.FileName)</div>
+                                    <div class="rv-evidence-file-meta">
+                                        @(file.UploadedDateTime?.ToString("dd MMM yyyy HH:mm") ?? "Date unavailable")
+                                        @if (file.FileSize.HasValue)
+                                        {
+                                            <span> · @((file.FileSize.Value / 1024.0).ToString("N0")) KB</span>
+                                        }
+                                    </div>
+                                </div>
+                                <div class="rv-evidence-file-actions">
+                                    <a class="rv-evidence-view"
+                                           asp-controller="ValuerInbox"
+                                           asp-action="ClientEvidenceFile"
+                                           asp-route-attrId="@Model.AttrId"
+                                           asp-route-evidenceKey="@file.EvidenceKey"
+                                           asp-route-download="false"
+                                           target="_blank" rel="noopener">
+                                        <i class="fa-solid fa-eye"></i> View
+                                    </a>
+                                    <a class="rv-evidence-download"
+                                           asp-controller="ValuerInbox"
+                                           asp-action="ClientEvidenceFile"
+                                           asp-route-attrId="@Model.AttrId"
+                                           asp-route-evidenceKey="@file.EvidenceKey"
+                                           asp-route-download="true">
+                                        <i class="fa-solid fa-download"></i> Download
+                                    </a>
+                                </div>
+                            </article>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- 1.2 Inspection evidence -->
+        <div class="cmp-substep" id="inspection-evidence">
+            @{
+                var inspectionCount = Model.PhysicalInspectionEvidenceFiles?.Count ?? 0;
+            }
+            @if (inspectionCount == 0)
+            {
+                <div class="cmp-substep-toggle cmp-substep-static">
+                    <div class="cmp-substep-left">
+                        <span class="cmp-substep-num">1.2</span>
+                        <strong>Inspection evidence</strong>
+                    </div>
+                    <span class="cmp-substep-empty-label">No evidence uploaded</span>
+                </div>
+            }
+            else
+            {
+                <button type="button" class="cmp-substep-toggle" data-substep-toggle="inspection">
+                    <div class="cmp-substep-left">
+                        <span class="cmp-substep-num">1.2</span>
+                        <strong>Inspection evidence</strong>
+                        <span class="cmp-substep-sub">@inspectionCount file(s)</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-down cmp-substep-chevron"></i>
+                </button>
+
+                <div class="cmp-substep-body" id="substep-inspection" hidden>
+                    <div class="rv-evidence-grid">
+                        @foreach (var file in Model.PhysicalInspectionEvidenceFiles!)
+                        {
+                            <article class="rv-evidence-file-card">
+                                <div class="rv-evidence-file-icon">
+                                    <i class="@(file.IsImage ? "fa-solid fa-file-image" : "fa-solid fa-file")"></i>
+                                </div>
+                                <div class="rv-evidence-file-info">
+                                    <div class="rv-evidence-file-name" title="@file.FileName">@Disp(file.FileName)</div>
+                                    <div class="rv-evidence-file-meta">
+                                        @file.UploadedAt.ToString("dd MMM yyyy HH:mm")
+                                        <span> · @(file.UploadedByName ?? file.UploadedBySapNumber ?? "Valuer / Sector Manager")</span>
+                                        <span> · @file.FileSizeDisplay</span>
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(file.EvidenceComment))
+                                    {
+                                        <div class="rv-block-note" style="margin-top:8px;">
+                                            <strong>Inspection note:</strong> @Disp(file.EvidenceComment)
+                                        </div>
+                                    }
+                                </div>
+                                <div class="rv-evidence-file-actions">
+                                    <a class="rv-evidence-view"
+                                           asp-controller="ValuerInbox"
+                                           asp-action="PhysicalInspectionEvidenceFile"
+                                           asp-route-id="@file.Id"
+                                           target="_blank" rel="noopener">
+                                        <i class="fa-solid fa-eye"></i> View
+                                    </a>
+                                    <a class="rv-evidence-download"
+                                           asp-controller="ValuerInbox"
+                                           asp-action="PhysicalInspectionEvidenceFile"
+                                           asp-route-id="@file.Id"
+                                           asp-route-download="true">
+                                        <i class="fa-solid fa-download"></i> Download
+                                    </a>
+                                </div>
+                            </article>
+                        }
+                    </div>
+                </div>
+            }
         </div>
 
         @if (!Model.HasCityData)
@@ -45,13 +200,18 @@
             </div>
         }
 
-        @if (Model.ComparisonSections.Any())
+        <!-- ══ STEP 2 — Compare fields (no tabs, one continuous view) ═══ -->
+        @if (allSections.Any())
         {
-            <div class="cmp-toolbar">
-                <div class="cmp-tabs" role="tablist" aria-label="Attribute comparison sections">
-                    <button type="button" class="cmp-tab active" data-cmp-tab="1">1. Property and valuation</button>
-                    <button type="button" class="cmp-tab" data-cmp-tab="2">2. Submitted attributes</button>
+            <div class="cmp-step-head">
+                <span class="cmp-step-num">2</span>
+                <div>
+                    <h2>Compare fields</h2>
+                    <p>Client submission against the City record, section by section.</p>
                 </div>
+            </div>
+
+            <div class="cmp-toolbar cmp-toolbar-simple">
                 <div class="cmp-counts">
                     @if (Model.HasCityData)
                     {
@@ -63,89 +223,106 @@
                 <label class="cmp-toggle"><input type="checkbox" id="cmpDifferencesOnly" checked="@Model.DifferencesOnly" /> Show differences only</label>
             </div>
 
-            <div class="cmp-panel active" data-cmp-panel="1">
-                @await Html.PartialAsync("_AttributeComparisonSections", tab1)
-            </div>
-            <div class="cmp-panel" data-cmp-panel="2">
-                @await Html.PartialAsync("_AttributeComparisonSections", tab2)
+            <div class="cmp-panel active" data-cmp-panel="all">
+                @await Html.PartialAsync("_AttributeComparisonSections", allSections)
             </div>
         }
 
-        <div class="rv-internal-evidence" id="processor-evidence">
-            <div class="rv-internal-evidence-head">
-                <strong><i class="fa-solid fa-shield-halved"></i> Internal Processor Evidence</strong>
-                <span>Upload before recording the final comment or requesting a physical inspection</span>
+        <!-- ══ STEP 3 — Record your decision ═══════════════════════════ -->
+        <div class="cmp-step-head">
+            <span class="cmp-step-num">3</span>
+            <div>
+                <h2>Record your decision</h2>
+                <p>Add internal evidence if you used any, leave a comment, then choose what happens next.</p>
             </div>
-
-            <div class="rv-small-text mb-2">
-                Upload the internal evidence used to verify the client's submitted attributes. This may include PDF files, Excel workbooks, CSV files and screenshots.
-                The original filename is kept and the evidence is saved under <strong>\Processor\Evidence</strong> for the audit trail.
-            </div>
-
-            <div class="rv-internal-evidence-form" id="processorEvidenceCapture">
-                <label class="fw-bold mb-1" style="font-size:13px;">Internal evidence files</label>
-                <input type="file" id="processorEvidenceFiles" multiple
-                       accept=".pdf,.xlsx,.xls,.csv,.png,.jpg,.jpeg"
-                       class="form-control mb-2" />
-
-                <label class="fw-bold mb-1" style="font-size:13px;">Evidence note</label>
-                <textarea id="processorEvidenceComment" class="form-control mb-2" rows="2" maxlength="2000"
-                          placeholder="Explain what this evidence was used to verify or why the physical inspection is required."></textarea>
-
-                <div class="rv-small-text" id="processorEvidenceActionHint">
-                    <i class="fa-solid fa-circle-info"></i>
-                    Evidence is saved automatically when you choose <strong>Require physical inspection</strong>,
-                    <strong>Return selected fields to client</strong> or <strong>Submit for OVVIO</strong>.
-                </div>
-            </div>
-
-            @if (Model.ProcessorEvidenceFiles == null || !Model.ProcessorEvidenceFiles.Any())
-            {
-                <div class="rv-block-note mt-2" id="processorEvidenceEmptyNote">
-                    No internal processor evidence has been saved yet. Select a file above; it will be saved with the action you choose below.
-                </div>
-            }
-            else
-            {
-                <div class="rv-ok-note mt-2">
-                    <strong>@Model.ProcessorEvidenceFiles.Count internal evidence file(s) recorded.</strong>
-                </div>
-
-                @foreach (var file in Model.ProcessorEvidenceFiles)
-                {
-                    <div class="rv-evidence-item">
-                        <div class="rv-evidence-name">@file.FileName</div>
-                        <div class="rv-evidence-meta">
-                            @(file.UploadedByName ?? "Processor") · @file.UploadedAt.ToString("yyyy-MM-dd HH:mm")
-                            @if (!string.IsNullOrWhiteSpace(file.UploadedByRole))
-                            {
-                                <text> · @file.UploadedByRole</text>
-                            }
-                            @if (!string.IsNullOrWhiteSpace(file.EvidenceStage))
-                            {
-                                <text> · @file.EvidenceStage</text>
-                            }
-                        </div>
-                        @if (!string.IsNullOrWhiteSpace(file.EvidenceComment))
-                        {
-                            <div class="rv-small-text">@file.EvidenceComment</div>
-                        }
-                        <div class="mt-1">
-                            <a asp-controller="ValuerInbox" asp-action="ProcessorEvidenceFile"
-                               asp-route-attrId="@Model.AttrId" asp-route-evidenceId="@file.Id" target="_blank">View</a>
-                            <span> · </span>
-                            <a asp-controller="ValuerInbox" asp-action="ProcessorEvidenceFile"
-                               asp-route-attrId="@Model.AttrId" asp-route-evidenceId="@file.Id" asp-route-download="true">Download</a>
-                        </div>
-                    </div>
-                }
-            }
         </div>
 
-        <div class="cmp-comments-grid">
+        <div class="cmp-substep" id="processor-evidence">
+            <button type="button" class="cmp-substep-toggle" id="processorEvidenceToggle" aria-expanded="false">
+                <div class="cmp-substep-left">
+                    <i class="fa-solid fa-shield-halved" style="color:var(--aivs-gold);"></i>
+                    <strong>Internal evidence</strong>
+                    <span class="cmp-substep-sub" id="processorEvidenceToggleSub">
+                        @(Model.ProcessorEvidenceFiles != null && Model.ProcessorEvidenceFiles.Any()
+                            ? $"{Model.ProcessorEvidenceFiles.Count} file(s) already saved"
+                            : "Optional — add if you used any to verify this submission")
+                    </span>
+                </div>
+                <i class="fa-solid fa-chevron-down cmp-substep-chevron"></i>
+            </button>
+
+            <div class="cmp-substep-body" id="processorEvidenceBody" hidden>
+                <div class="rv-small-text mb-2">
+                    Upload the internal evidence used to verify the client's submitted attributes. This may include PDF files, Excel workbooks, CSV files and screenshots.
+                    The original filename is kept and the evidence is saved under <strong>\Processor\Evidence</strong> for the audit trail.
+                </div>
+
+                <div class="rv-internal-evidence-form" id="processorEvidenceCapture">
+                    <label class="fw-bold mb-1" style="font-size:13px;">Internal evidence files</label>
+                    <input type="file" id="processorEvidenceFiles" multiple
+                           accept=".pdf,.xlsx,.xls,.csv,.png,.jpg,.jpeg"
+                           class="form-control mb-2" />
+
+                    <label class="fw-bold mb-1" style="font-size:13px;">Evidence note</label>
+                    <textarea id="processorEvidenceComment" class="form-control mb-2" rows="2" maxlength="2000"
+                              placeholder="Explain what this evidence was used to verify or why the physical inspection is required."></textarea>
+
+                    <div class="rv-small-text" id="processorEvidenceActionHint">
+                        <i class="fa-solid fa-circle-info"></i>
+                        Evidence is saved automatically when you choose <strong>Require physical inspection</strong>,
+                        <strong>Return selected fields to client</strong> or <strong>Submit for OVVIO</strong>.
+                    </div>
+                </div>
+
+                @if (Model.ProcessorEvidenceFiles == null || !Model.ProcessorEvidenceFiles.Any())
+                {
+                    <div class="rv-block-note mt-2" id="processorEvidenceEmptyNote">
+                        No internal processor evidence has been saved yet. Select a file above; it will be saved with the action you choose below.
+                    </div>
+                }
+                else
+                {
+                    <div class="rv-ok-note mt-2">
+                        <strong>@Model.ProcessorEvidenceFiles.Count internal evidence file(s) recorded.</strong>
+                    </div>
+
+                    @foreach (var file in Model.ProcessorEvidenceFiles)
+                    {
+                        <div class="rv-evidence-item">
+                            <div class="rv-evidence-name">@file.FileName</div>
+                            <div class="rv-evidence-meta">
+                                @(file.UploadedByName ?? "Processor") · @file.UploadedAt.ToString("yyyy-MM-dd HH:mm")
+                                @if (!string.IsNullOrWhiteSpace(file.UploadedByRole))
+                                {
+                                    <text> · @file.UploadedByRole</text>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(file.EvidenceStage))
+                                {
+                                    <text> · @file.EvidenceStage</text>
+                                }
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(file.EvidenceComment))
+                            {
+                                <div class="rv-small-text">@file.EvidenceComment</div>
+                            }
+                            <div class="mt-1">
+                                <a asp-controller="ValuerInbox" asp-action="ProcessorEvidenceFile"
+                                   asp-route-attrId="@Model.AttrId" asp-route-evidenceId="@file.Id" target="_blank">View</a>
+                                <span> · </span>
+                                <a asp-controller="ValuerInbox" asp-action="ProcessorEvidenceFile"
+                                   asp-route-attrId="@Model.AttrId" asp-route-evidenceId="@file.Id" asp-route-download="true">Download</a>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+
+        <div class="cmp-comments-grid cmp-comments-grid-compact">
             <div class="cmp-comment-card">
-                <label for="cmpFinalComment">Valuer comment</label>
-                <textarea id="cmpFinalComment" placeholder="Record the review outcome, differences found and any action required...">@Model.FinalComment</textarea>
+                <label for="cmpFinalComment">Your comment</label>
+                <textarea id="cmpFinalComment" rows="3" placeholder="e.g.&#10;- Carport count differs, client submitted 2&#10;- Quality rating needs inspection to confirm">@Model.FinalComment</textarea>
+                <div class="cmp-comment-hint">Short notes or bullet points are fine — this doesn't need to be a full paragraph.</div>
             </div>
             <div class="cmp-comment-card muted">
                 <label>Sector manager comment</label>
@@ -157,6 +334,7 @@
             @if (Model.ActiveInspectionRequest == null)
             {
                 <button type="button" class="cmp-action inspection" id="cmpInspection">
+                    <i class="fa-solid fa-house-circle-check"></i>
                     Require physical inspection
                 </button>
             }
@@ -164,6 +342,7 @@
             {
                 <button type="button" class="cmp-action inspection" disabled
                         title="The client must first select and confirm one of the proposed inspection dates.">
+                    <i class="fa-solid fa-hourglass-half"></i>
                     Waiting for client to confirm date
                 </button>
             }
@@ -179,6 +358,7 @@
                     <input type="hidden" name="inspectionRequestId" value="@Model.ActiveInspectionRequest.Id" />
                     <input type="hidden" name="attrId" value="@Model.AttrId" />
                     <button type="submit" class="cmp-action inspection">
+                        <i class="fa-solid fa-key"></i>
                         Generate inspection PIN
                     </button>
                 </form>
@@ -188,28 +368,33 @@
             {
                 <button type="button" class="cmp-action inspection" disabled
                         title="The inspection PIN and valuer details have already been sent to the client.">
+                    <i class="fa-solid fa-circle-check"></i>
                     Inspection PIN generated
                 </button>
             }
             else if (string.Equals(Model.ActiveInspectionRequest.Status, "Expired", StringComparison.OrdinalIgnoreCase))
             {
                 <button type="button" class="cmp-action inspection" id="cmpInspection">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
                     Send new inspection dates
                 </button>
             }
             else
             {
                 <button type="button" class="cmp-action inspection" disabled>
+                    <i class="fa-solid fa-hourglass-half"></i>
                     Inspection request in progress
                 </button>
             }
 
             <button type="button" class="cmp-action return" id="cmpReturn"
                     disabled="@(string.Equals(Model.Status, "ReadyForOvvioExtract", StringComparison.OrdinalIgnoreCase))">
+                <i class="fa-solid fa-rotate-left"></i>
                 Return selected fields to client
             </button>
             <button type="button" class="cmp-action ovvio" id="cmpOvvio"
                     disabled="@(!Model.CanSubmitToOvvio || string.Equals(Model.Status, "ReadyForOvvioExtract", StringComparison.OrdinalIgnoreCase))">
+                <i class="fa-solid fa-paper-plane"></i>
                 Submit for OVVIO
             </button>
         </div>
@@ -237,12 +422,51 @@
         const shell = document.getElementById('attributeComparison');
         if (!shell) return;
 
-        let activeTab = '@Model.ActiveTab', saveTimer, pendingDecision;
+        let saveTimer, pendingDecision;
         const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
         const processorEvidenceFiles = document.getElementById('processorEvidenceFiles');
         const processorEvidenceComment = document.getElementById('processorEvidenceComment');
         let hasProcessorEvidence = @((Model.ProcessorEvidenceFiles != null && Model.ProcessorEvidenceFiles.Any()).ToString().ToLowerInvariant());
         let evidenceUploadInProgress = false;
+
+        // ── Generic collapsible toggles: 1.1 Lodged evidence, 1.2
+        //    Inspection evidence — same open/close behaviour, driven by
+        //    data-substep-toggle on each trigger button. ──
+        document.querySelectorAll('[data-substep-toggle]').forEach(function (toggle) {
+            var key = toggle.getAttribute('data-substep-toggle');
+            var body = document.getElementById('substep-' + key);
+            if (!body) return;
+
+            toggle.addEventListener('click', function () {
+                var isOpen = !body.hidden;
+                body.hidden = isOpen;
+                toggle.classList.toggle('open', !isOpen);
+            });
+        });
+
+        var procToggle = document.getElementById('processorEvidenceToggle');
+        var procBody = document.getElementById('processorEvidenceBody');
+        if (procToggle && procBody) {
+            if (hasProcessorEvidence) {
+                procBody.hidden = false;
+                procToggle.setAttribute('aria-expanded', 'true');
+                procToggle.classList.add('open');
+            }
+            procToggle.addEventListener('click', function () {
+                var isOpen = !procBody.hidden;
+                procBody.hidden = isOpen;
+                procToggle.setAttribute('aria-expanded', (!isOpen).toString());
+                procToggle.classList.toggle('open', !isOpen);
+            });
+        }
+
+        function openProcessorEvidencePanel() {
+            if (procBody && procBody.hidden) {
+                procBody.hidden = false;
+                procToggle?.setAttribute('aria-expanded', 'true');
+                procToggle?.classList.add('open');
+            }
+        }
 
         async function saveProcessorEvidenceForAction(requireEvidence) {
             if (evidenceUploadInProgress) return false;
@@ -252,6 +476,7 @@
 
             if (!hasSelectedFiles) {
                 if (requireEvidence && !hasProcessorEvidence) {
+                    openProcessorEvidencePanel();
                     alert('Select at least one Internal Processor Evidence file before requesting a physical inspection. The evidence will be saved automatically with the inspection request.');
                     processorEvidenceFiles?.focus();
                     return false;
@@ -291,6 +516,9 @@
                 if (processorEvidenceFiles) processorEvidenceFiles.value = '';
                 if (processorEvidenceComment) processorEvidenceComment.value = '';
 
+                const subLabel = document.getElementById('processorEvidenceToggleSub');
+                if (subLabel) subLabel.textContent = 'Evidence saved';
+
                 const emptyNote = document.getElementById('processorEvidenceEmptyNote');
                 if (emptyNote) {
                     emptyNote.className = 'rv-ok-note mt-2';
@@ -310,19 +538,9 @@
             }
         }
 
-        function applyTab(tab) {
-            activeTab = tab;
-            shell.querySelectorAll('[data-cmp-tab]').forEach(x => x.classList.toggle('active', x.dataset.cmpTab === tab));
-            shell.querySelectorAll('[data-cmp-panel]').forEach(x => x.classList.toggle('active', x.dataset.cmpPanel === tab));
-            scheduleSave();
-        }
-
-        shell.querySelectorAll('[data-cmp-tab]').forEach(button =>
-            button.addEventListener('click', () => applyTab(button.dataset.cmpTab)));
-
         const toggle = document.getElementById('cmpDifferencesOnly');
         function applyFilter() {
-            shell.querySelectorAll('.cmp-row').forEach(row => {
+            shell.querySelectorAll('.cmp-field-card').forEach(row => {
                 row.hidden = !!toggle?.checked && row.dataset.result === 'matching';
             });
         }
@@ -340,7 +558,7 @@
                 await fetch('@Url.Action("AutoSaveDraft", "ValuerInbox")', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
-                    body: JSON.stringify({ reviewId: @Model.ReviewId, attrId: @Model.AttrId, activeTab, valuerComment: cmpComment?.value || '', differencesOnly: toggle?.checked || false })
+                    body: JSON.stringify({ reviewId: @Model.ReviewId, attrId: @Model.AttrId, activeTab: '@Model.ActiveTab', valuerComment: cmpComment?.value || '', differencesOnly: toggle?.checked || false })
                 });
             } catch (e) { console.warn('Review autosave failed.', e); }
         }
@@ -358,7 +576,7 @@
 
         shell.querySelectorAll('.cmp-rating-btn').forEach(button => button.addEventListener('click', async function () {
             const host = button.closest('.cmp-rating-resolution');
-            const row = button.closest('.cmp-row');
+            const row = button.closest('.cmp-field-card');
             if (!host || !row) return;
 
             const decision = button.dataset.ratingDecision;
@@ -455,7 +673,5 @@
         document.getElementById('cmpPreviewClose')?.addEventListener('click', function () {
             preview.hidden = true; frame.src = 'about:blank'; image.removeAttribute('src');
         });
-
-        applyTab(activeTab === '2' ? '2' : '1');
     });
 </script>

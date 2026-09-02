@@ -41,22 +41,33 @@
 
 <div class="rv-page">
 
-    <div class="rv-actions">
+    <div class="rv-topbar">
         <a class="rv-btn-back"
                asp-controller="ValuerInbox"
                asp-action="Index">
-            Back to Review Inbox
+            <i class="fa-solid fa-arrow-left"></i> Back to My Reviews
         </a>
 
-        <div class="rv-top-badges">
-            <span class="rv-badge">
-                Review Status: @AttributeWorkflowStatus.Display(Model.ReviewStatus)
-            </span>
-
-            <span class="rv-badge rv-badge-dark">
-                @Model.AttrNo
-            </span>
+        <div class="rv-topbar-chips">
+            <div class="rv-chip">
+                <span class="rv-chip-label">Sector</span>
+                <span class="rv-chip-value">@Display(Model.Sector)</span>
+            </div>
+            <div class="rv-chip rv-chip-warn">
+                <span class="rv-chip-label">Status</span>
+                <span class="rv-chip-value">@FriendlyStatus(Model.Status)</span>
+            </div>
+            <div class="rv-chip">
+                <span class="rv-chip-label">Form Type</span>
+                <span class="rv-chip-value">@Display(Model.FormType)</span>
+            </div>
+            <div class="rv-chip">
+                <span class="rv-chip-label">Review Started</span>
+                <span class="rv-chip-value">@Model.StartedAt.ToString("yyyy-MM-dd HH:mm")</span>
+            </div>
         </div>
+
+        <span class="rv-topbar-ref">@Model.AttrNo</span>
     </div>
 
     @if (TempData["Success"] != null)
@@ -80,482 +91,308 @@
         <div class="rv-alert rv-alert-danger">This review is currently being edited by @Model.LockedByName until @Model.LockExpiresAt?.ToString("HH:mm"). The page is read-only.</div>
     }
 
-    <div class="rv-header">
-        <div class="rv-title-row">
-            <div>
-                <h1 class="rv-title">Review: @Model.AttrNo</h1>
+    @await Html.PartialAsync("_AttributeComparison", Model)
 
-                <div class="rv-subtitle">
-                    Review the submitted attribute form section by section. Record a decision and comment, then choose the appropriate final action.
-                </div>
-            </div>
+    <details class="rv-advanced">
+        <summary>
+            <i class="fa-solid fa-list-check"></i>
+            Detailed section-by-section tools
+            <span class="rv-advanced-sub">Section navigator, review progress, reviewed PDF, and older inspection controls</span>
+            <i class="fa-solid fa-chevron-down rv-advanced-chevron"></i>
+        </summary>
 
-            <span class="rv-badge">
-                @Display(Model.FormType)
-            </span>
-        </div>
-
-        <div class="rv-progress-track">
-            <div class="rv-progress-fill" style="width:@(progressPct.ToString("0.###", CultureInfo.InvariantCulture))%;"></div>
-        </div>
-        <div class="rv-progress-label">@Model.ReviewedSections of @Model.TotalSections sections reviewed</div>
-
-        <div class="rv-grid">
-            <div class="rv-box">
-                <div class="rv-label">Sector</div>
-                <div class="rv-value">@Display(Model.Sector)</div>
-            </div>
-
-            <div class="rv-box">
-                <div class="rv-label">Status</div>
-                <div class="rv-value">@FriendlyStatus(Model.Status)</div>
-            </div>
-
-            <div class="rv-box">
-                <div class="rv-label">Form Type</div>
-                <div class="rv-value">@Display(Model.FormType)</div>
-            </div>
-
-            <div class="rv-box rv-box-evidence">
-                <div class="rv-label">Client Evidence</div>
-                <div class="rv-value">@Model.EvidenceCount file(s)</div>
-            </div>
-
-            <div class="rv-box">
-                <div class="rv-label">Review Started</div>
-                <div class="rv-value">@Model.StartedAt.ToString("yyyy-MM-dd HH:mm")</div>
-            </div>
-        </div>
-    </div>
-
-    @if (Model.EvidenceFiles != null && Model.EvidenceFiles.Any())
-    {
-        <a class="rv-evidence-attention" href="#uploaded-evidence">
-            <span class="rv-evidence-attention-icon"><i class="fa-solid fa-paperclip"></i></span>
-            <span class="rv-evidence-attention-copy">
-                <strong>Client evidence requires your attention</strong>
-                <span>@Model.EvidenceFiles.Count file(s) were submitted with this attribute request. Review the evidence before completing the assessment.</span>
-            </span>
-            <span class="rv-evidence-attention-action">Review evidence <i class="fa-solid fa-arrow-right"></i></span>
-        </a>
-    }
-
-    <section class="rv-evidence-panel" id="uploaded-evidence">
-        <div class="rv-evidence-panel-head">
-            <div>
-                <div class="rv-evidence-panel-title"><i class="fa-solid fa-paperclip"></i> Client Uploaded Evidence</div>
-                <div class="rv-evidence-panel-subtitle">Open each supporting document before completing the attribute assessment.</div>
-            </div>
-            @if (Model.EvidenceFiles != null && Model.EvidenceFiles.Any())
-            {
-                <a class="rv-evidence-zip" asp-controller="ValuerInbox" asp-action="DownloadEvidenceZip" asp-route-attrId="@Model.AttrId" asp-route-kind="client">
-                    <i class="fa-solid fa-file-zipper"></i> Download All
-                </a>
-            }
-        </div>
-
-        @if (Model.EvidenceFiles == null || !Model.EvidenceFiles.Any())
-        {
-            <div class="rv-evidence-empty">No client evidence files were found for this submission.</div>
-        }
-        else
-        {
-            <div class="rv-evidence-grid">
-                @foreach (var file in Model.EvidenceFiles)
+        <div class="rv-review-layout rv-legacy-review-layout">
+            <main class="rv-main">
+                @if (Model.SubmittedForm != null)
                 {
-                    <article class="rv-evidence-file-card">
-                        <div class="rv-evidence-file-icon">
-                            <i class="@(string.Equals(file.FileType, "application/pdf", StringComparison.OrdinalIgnoreCase) ? "fa-solid fa-file-pdf" : "fa-solid fa-file-image")"></i>
+                    @await Html.PartialAsync("_SubmittedAttributeFormReadOnly", Model)
+                }
+                else
+                {
+                    <div class="rv-warning">
+                        Submitted form values could not be loaded.
+                    </div>
+                }
+
+                @if (Model.Sections == null || !Model.Sections.Any())
+                {
+                    <div class="rv-warning">
+                        No review sections were created for this submission.
+                    </div>
+                }
+            </main>
+
+            <aside class="rv-side">
+                @if (sections.Any())
+                {
+                    <div class="rv-side-card">
+                        <div class="rv-side-head">
+                            Section <span>Navigator</span>
                         </div>
-                        <div class="rv-evidence-file-info">
-                            <div class="rv-evidence-file-name" title="@file.FileName">@Display(file.FileName)</div>
-                            <div class="rv-evidence-file-meta">
-                                @(file.UploadedDateTime?.ToString("dd MMM yyyy HH:mm") ?? "Date unavailable")
-                                @if (file.FileSize.HasValue)
+
+                        <div class="rv-side-body">
+                            <div class="rv-nav-list">
+                                @foreach (var sec in sections)
                                 {
-                                    <span> · @((file.FileSize.Value / 1024.0).ToString("N0")) KB</span>
+                                    <a class="rv-nav-link" data-nav-target="sec-@sec.SectionCode" href="#sec-@sec.SectionCode">
+                                        <span class="rv-nav-dot" style="background:@SectionDotColor(sec); border-color:@SectionDotColor(sec);"></span>
+                                        @SectionLabel(sec.SectionCode)
+                                    </a>
                                 }
                             </div>
                         </div>
-                        <div class="rv-evidence-file-actions">
-                            <a class="rv-evidence-view"
-                                   asp-controller="ValuerInbox"
-                                   asp-action="ClientEvidenceFile"
-                                   asp-route-attrId="@Model.AttrId"
-                                   asp-route-evidenceKey="@file.EvidenceKey"
-                                   asp-route-download="false"
-                                   target="_blank" rel="noopener">
-                                <i class="fa-solid fa-eye"></i> View
-                            </a>
-                            <a class="rv-evidence-download"
-                                   asp-controller="ValuerInbox"
-                                   asp-action="ClientEvidenceFile"
-                                   asp-route-attrId="@Model.AttrId"
-                                   asp-route-evidenceKey="@file.EvidenceKey"
-                                   asp-route-download="true">
-                                <i class="fa-solid fa-download"></i> Download
-                            </a>
-                        </div>
-                    </article>
+                    </div>
                 }
-            </div>
-        }
-    </section>
 
-    <section class="rv-evidence-panel" id="inspection-evidence">
-        <div class="rv-evidence-panel-head">
-            <div>
-                <div class="rv-evidence-panel-title"><i class="fa-solid fa-camera"></i> Inspection Evidence</div>
-                <div class="rv-evidence-panel-subtitle">Evidence uploaded by the Valuer or Sector Manager during the physical inspection is shown here and forms part of the review record.</div>
-            </div>
-        </div>
-
-        @if (Model.PhysicalInspectionEvidenceFiles == null || !Model.PhysicalInspectionEvidenceFiles.Any())
-        {
-            <div class="rv-evidence-empty">No inspection evidence has been uploaded from Genesis yet.</div>
-        }
-        else
-        {
-            <div class="rv-evidence-grid">
-                @foreach (var file in Model.PhysicalInspectionEvidenceFiles)
-                {
-                    <article class="rv-evidence-file-card">
-                        <div class="rv-evidence-file-icon">
-                            <i class="@(file.IsImage ? "fa-solid fa-file-image" : "fa-solid fa-file")"></i>
-                        </div>
-                        <div class="rv-evidence-file-info">
-                            <div class="rv-evidence-file-name" title="@file.FileName">@Display(file.FileName)</div>
-                            <div class="rv-evidence-file-meta">
-                                @file.UploadedAt.ToString("dd MMM yyyy HH:mm")
-                                <span> · @(file.UploadedByName ?? file.UploadedBySapNumber ?? "Valuer / Sector Manager")</span>
-                                <span> · @file.FileSizeDisplay</span>
-                            </div>
-                            @if (!string.IsNullOrWhiteSpace(file.EvidenceComment))
-                            {
-                                <div class="rv-block-note" style="margin-top:8px;">
-                                    <strong>Inspection note:</strong> @Display(file.EvidenceComment)
-                                </div>
-                            }
-                        </div>
-                        <div class="rv-evidence-file-actions">
-                            <a class="rv-evidence-view"
-                                   asp-controller="ValuerInbox"
-                                   asp-action="PhysicalInspectionEvidenceFile"
-                                   asp-route-id="@file.Id"
-                                   target="_blank" rel="noopener">
-                                <i class="fa-solid fa-eye"></i> View
-                            </a>
-                            <a class="rv-evidence-download"
-                                   asp-controller="ValuerInbox"
-                                   asp-action="PhysicalInspectionEvidenceFile"
-                                   asp-route-id="@file.Id"
-                                   asp-route-download="true">
-                                <i class="fa-solid fa-download"></i> Download
-                            </a>
-                        </div>
-                    </article>
-                }
-            </div>
-        }
-    </section>
-
-    <div class="rv-section-title">
-        City Record Compared with Client Submission
-    </div>
-
-    @await Html.PartialAsync("_AttributeComparison", Model)
-
-    <div class="rv-review-layout rv-legacy-review-layout">
-        <main class="rv-main">
-            @if (Model.SubmittedForm != null)
-            {
-                @await Html.PartialAsync("_SubmittedAttributeFormReadOnly", Model)
-            }
-            else
-            {
-                <div class="rv-warning">
-                    Submitted form values could not be loaded.
-                </div>
-            }
-
-            @if (Model.Sections == null || !Model.Sections.Any())
-            {
-                <div class="rv-warning">
-                    No review sections were created for this submission.
-                </div>
-            }
-        </main>
-
-        <aside class="rv-side">
-            @if (sections.Any())
-            {
                 <div class="rv-side-card">
                     <div class="rv-side-head">
-                        Section <span>Navigator</span>
+                        Review <span>Progress</span>
                     </div>
 
                     <div class="rv-side-body">
-                        <div class="rv-nav-list">
-                            @foreach (var sec in sections)
-                            {
-                                <a class="rv-nav-link" data-nav-target="sec-@sec.SectionCode" href="#sec-@sec.SectionCode">
-                                    <span class="rv-nav-dot" style="background:@SectionDotColor(sec); border-color:@SectionDotColor(sec);"></span>
-                                    @SectionLabel(sec.SectionCode)
-                                </a>
-                            }
+                        <div class="rv-side-stat">
+                            <span>Total Sections</span>
+                            <span>@Model.TotalSections</span>
+                        </div>
+
+                        <div class="rv-side-stat">
+                            <span>Reviewed</span>
+                            <span class="rv-stat-good">@Model.ReviewedSections</span>
+                        </div>
+
+                        <div class="rv-side-stat">
+                            <span>Corrections</span>
+                            <span class="@(Model.CorrectionSections > 0 ? "rv-stat-danger" : "rv-stat-good")">@Model.CorrectionSections</span>
+                        </div>
+
+                        <div class="rv-side-stat">
+                            <span>Inspections</span>
+                            <span class="@(Model.InspectionSections > 0 ? "rv-stat-warn" : "rv-stat-good")">@Model.InspectionSections</span>
                         </div>
                     </div>
                 </div>
-            }
 
-            <div class="rv-side-card">
-                <div class="rv-side-head">
-                    Review <span>Progress</span>
-                </div>
-
-                <div class="rv-side-body">
-                    <div class="rv-side-stat">
-                        <span>Total Sections</span>
-                        <span>@Model.TotalSections</span>
+                <div class="rv-side-card rv-legacy-final-decision">
+                    <div class="rv-side-head">
+                        Final <span>Decision</span>
                     </div>
-
-                    <div class="rv-side-stat">
-                        <span>Reviewed</span>
-                        <span class="rv-stat-good">@Model.ReviewedSections</span>
-                    </div>
-
-                    <div class="rv-side-stat">
-                        <span>Corrections</span>
-                        <span class="@(Model.CorrectionSections > 0 ? "rv-stat-danger" : "rv-stat-good")">@Model.CorrectionSections</span>
-                    </div>
-
-                    <div class="rv-side-stat">
-                        <span>Inspections</span>
-                        <span class="@(Model.InspectionSections > 0 ? "rv-stat-warn" : "rv-stat-good")">@Model.InspectionSections</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="rv-side-card rv-legacy-final-decision">
-                <div class="rv-side-head">
-                    Final <span>Decision</span>
-                </div>
-                <div class="rv-side-body">
-                    @if (string.Equals(Model.Status, "ReadyForOvvioExtract", StringComparison.OrdinalIgnoreCase))
-                    {
-                        <div class="rv-ok-note">
-                            <strong>Accepted / Ready for OVVIO Extract.</strong><br />
-                            This submission has been finalised by the valuer and is waiting for OVVIO extraction.
-                        </div>
-                    }
-                    else if (Model.CanSubmitToOvvio)
-                    {
-                        <div class="rv-ok-note">
-                            Required sections are clear. This review can be submitted to OVVIO.
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="rv-block-note">
-                            Submit to OVVIO is blocked: @Display(Model.SubmitBlockReason)
-                        </div>
-                    }
-
-
-                    <form asp-controller="ValuerInbox"
-                          asp-action="SubmitFinalReview"
-                          method="post"
-                          id="finalReviewForm">
-
-                        @Html.AntiForgeryToken()
-
-                        <input type="hidden" name="AttrId" value="@Model.AttrId" />
-                        <input type="hidden" name="ReviewId" value="@Model.ReviewId" />
-                        <input type="hidden" name="FinalDecision" id="finalDecisionValue" />
-
-                        <label class="fw-bold mb-1" style="font-size:13px;">Final Comment</label>
-
-                        <textarea name="FinalComment"
-                                  class="rv-final-textarea"
-                                  placeholder="Enter final review comment..."
-                                  required>@Model.FinalComment</textarea>
-
-                        <div class="rv-small-text mt-2">
-                            Submit to OVVIO is only available when required review sections have no corrections or inspection requirement.
-                        </div>
-
-                        <button type="submit"
-                                class="rv-final-btn rv-final-btn-ovvio"
-                                onclick="return setFinalDecision('SubmitToOvvio');"
-                                disabled="@(!Model.CanSubmitToOvvio || string.Equals(Model.Status, "ReadyForOvvioExtract", StringComparison.OrdinalIgnoreCase))">
-                            Submit to OVVIO
-                        </button>
-
-                        <button type="submit"
-                                class="rv-final-btn rv-final-btn-return"
-                                onclick="return setFinalDecision('ReturnToClient');"
-                                disabled="@(string.Equals(Model.Status, "ReadyForOvvioExtract", StringComparison.OrdinalIgnoreCase))">
-                            Return to Client for Update
-                        </button>
-                       
-                    </form>
-                </div>
-            </div>
-
-            <div class="rv-side-card">
-                <div class="rv-side-head">
-                    Reviewed <span>PDF</span>
-                </div>
-
-                <div class="rv-side-body">
-                    @if (!string.IsNullOrWhiteSpace(Model.ValuerEvidencePath))
-                    {
-                        <div class="rv-ok-note">
-                            Reviewed form PDF has been generated.
-                        </div>
-
-                        <a class="rv-final-btn rv-final-btn-ovvio"
-                               href="@Url.Action("ReviewedPdf", "ValuerInbox", new { attrId = Model.AttrId })"
-                               target="_blank">
-                            Open Reviewed PDF
-                        </a>
-                    }
-                    else
-                    {
-                        <div class="rv-block-note">
-                            Reviewed PDF will be generated after the final review decision is submitted.
-                        </div>
-                    }
-                </div>
-            </div>
-            <div class="rv-side-card">
-                <div class="rv-side-head">
-                    Physical <span>Inspection</span>
-                </div>
-
-                <div class="rv-side-body">
-                    @if (Model.ActiveInspectionRequest != null)
-                    {
-                        <div class="rv-block-note">
-                            Inspection request status: @AttributeWorkflowStatus.Display(Model.ActiveInspectionRequest.Status)
-                        </div>
-
-                        @foreach (var slot in Model.ActiveInspectionRequest.Slots)
+                    <div class="rv-side-body">
+                        @if (string.Equals(Model.Status, "ReadyForOvvioExtract", StringComparison.OrdinalIgnoreCase))
                         {
-                            <div class="rv-evidence-item">
-                                <div class="rv-evidence-name">
-                                    Option @slot.SlotNo
-                                </div>
-
-                                <div class="rv-evidence-meta">
-                                    @slot.ProposedDateTime.ToString("yyyy-MM-dd HH:mm")
-                                    &middot;
-                                    @AttributeWorkflowStatus.Display(slot.SlotStatus)
-                                </div>
+                            <div class="rv-ok-note">
+                                <strong>Accepted / Ready for OVVIO Extract.</strong><br />
+                                This submission has been finalised by the valuer and is waiting for OVVIO extraction.
                             </div>
                         }
-
-                        @if (string.Equals(Model.ActiveInspectionRequest.Status, "Expired", StringComparison.OrdinalIgnoreCase))
+                        else if (Model.CanSubmitToOvvio)
+                        {
+                            <div class="rv-ok-note">
+                                Required sections are clear. This review can be submitted to OVVIO.
+                            </div>
+                        }
+                        else
                         {
                             <div class="rv-block-note">
-                                The client did not select any of the proposed inspection dates before they expired.
-                                You may send a new set of three inspection date options.
+                                Submit to OVVIO is blocked: @Display(Model.SubmitBlockReason)
+                            </div>
+                        }
+
+
+                        <form asp-controller="ValuerInbox"
+                              asp-action="SubmitFinalReview"
+                              method="post"
+                              id="finalReviewForm">
+
+                            @Html.AntiForgeryToken()
+
+                            <input type="hidden" name="AttrId" value="@Model.AttrId" />
+                            <input type="hidden" name="ReviewId" value="@Model.ReviewId" />
+                            <input type="hidden" name="FinalDecision" id="finalDecisionValue" />
+
+                            <label class="fw-bold mb-1" style="font-size:13px;">Final Comment</label>
+
+                            <textarea name="FinalComment"
+                                      class="rv-final-textarea"
+                                      placeholder="Enter final review comment..."
+                                      required>@Model.FinalComment</textarea>
+
+                            <div class="rv-small-text mt-2">
+                                Submit to OVVIO is only available when required review sections have no corrections or inspection requirement.
                             </div>
 
-                            <button type="button"
-                                    class="rv-final-btn rv-final-btn-inspection"
-                                    onclick="openInspectionModal();">
-                                Send New Inspection Date Options
+                            <button type="submit"
+                                    class="rv-final-btn rv-final-btn-ovvio"
+                                    onclick="return setFinalDecision('SubmitToOvvio');"
+                                    disabled="@(!Model.CanSubmitToOvvio || string.Equals(Model.Status, "ReadyForOvvioExtract", StringComparison.OrdinalIgnoreCase))">
+                                Submit to OVVIO
                             </button>
-                        }
-                        else if (string.Equals(Model.ActiveInspectionRequest.Status, "Confirmed", StringComparison.OrdinalIgnoreCase))
+
+                            <button type="submit"
+                                    class="rv-final-btn rv-final-btn-return"
+                                    onclick="return setFinalDecision('ReturnToClient');"
+                                    disabled="@(string.Equals(Model.Status, "ReadyForOvvioExtract", StringComparison.OrdinalIgnoreCase))">
+                                Return to Client for Update
+                            </button>
+                       
+                        </form>
+                    </div>
+                </div>
+
+                <div class="rv-side-card">
+                    <div class="rv-side-head">
+                        Reviewed <span>PDF</span>
+                    </div>
+
+                    <div class="rv-side-body">
+                        @if (!string.IsNullOrWhiteSpace(Model.ValuerEvidencePath))
                         {
-                            @if (Model.ActiveInspectionRequest.ValuerDetailsSent)
+                            <div class="rv-ok-note">
+                                Reviewed form PDF has been generated.
+                            </div>
+
+                            <a class="rv-final-btn rv-final-btn-ovvio"
+                                   href="@Url.Action("ReviewedPdf", "ValuerInbox", new { attrId = Model.AttrId })"
+                                   target="_blank">
+                                Open Reviewed PDF
+                            </a>
+                        }
+                        else
+                        {
+                            <div class="rv-block-note">
+                                Reviewed PDF will be generated after the final review decision is submitted.
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="rv-side-card">
+                    <div class="rv-side-head">
+                        Physical <span>Inspection</span>
+                    </div>
+
+                    <div class="rv-side-body">
+                        @if (Model.ActiveInspectionRequest != null)
+                        {
+                            <div class="rv-block-note">
+                                Inspection request status: @AttributeWorkflowStatus.Display(Model.ActiveInspectionRequest.Status)
+                            </div>
+
+                            @foreach (var slot in Model.ActiveInspectionRequest.Slots)
                             {
-                                <div class="rv-ok-note">
-                                    Inspection details sent to client on
-                                    @Model.ActiveInspectionRequest.ValuerDetailsSentAt?.ToString("yyyy-MM-dd HH:mm").
-                                    PIN: @Model.ActiveInspectionRequest.InspectionPin
+                                <div class="rv-evidence-item">
+                                    <div class="rv-evidence-name">
+                                        Option @slot.SlotNo
+                                    </div>
+
+                                    <div class="rv-evidence-meta">
+                                        @slot.ProposedDateTime.ToString("yyyy-MM-dd HH:mm")
+                                        &middot;
+                                        @AttributeWorkflowStatus.Display(slot.SlotStatus)
+                                    </div>
                                 </div>
                             }
-                            else
+
+                            @if (string.Equals(Model.ActiveInspectionRequest.Status, "Expired", StringComparison.OrdinalIgnoreCase))
+                            {
+                                <div class="rv-block-note">
+                                    The client did not select any of the proposed inspection dates before they expired.
+                                    You may send a new set of three inspection date options.
+                                </div>
+
+                                <button type="button"
+                                        class="rv-final-btn rv-final-btn-inspection"
+                                        onclick="openInspectionModal();">
+                                    Send New Inspection Date Options
+                                </button>
+                            }
+                            else if (string.Equals(Model.ActiveInspectionRequest.Status, "Confirmed", StringComparison.OrdinalIgnoreCase))
+                            {
+                                @if (Model.ActiveInspectionRequest.ValuerDetailsSent)
+                                {
+                                    <div class="rv-ok-note">
+                                        Inspection details sent to client on
+                                        @Model.ActiveInspectionRequest.ValuerDetailsSentAt?.ToString("yyyy-MM-dd HH:mm").
+                                        PIN: @Model.ActiveInspectionRequest.InspectionPin
+                                    </div>
+                                }
+                                else
+                                {
+                                    <form asp-controller="ValuerInbox"
+                                          asp-action="SendInspectionDetails"
+                                          method="post">
+
+                                        @Html.AntiForgeryToken()
+
+                                        <input type="hidden"
+                                               name="inspectionRequestId"
+                                               value="@Model.ActiveInspectionRequest.Id" />
+
+                                        <input type="hidden"
+                                               name="attrId"
+                                               value="@Model.AttrId" />
+
+                                        <button type="submit"
+                                                class="rv-final-btn rv-final-btn-inspection"
+                                                onclick="return confirm('Generate inspection PIN and prepare valuer details for the client?');">
+                                            Send Valuer Details &amp; PIN to Client
+                                        </button>
+                                    </form>
+                                }
+                            }
+
+                            @if (Model.ActiveInspectionRequest.ConfirmedDateTime != null)
+                            {
+                                <div class="rv-ok-note">
+                                    Confirmed: @Model.ActiveInspectionRequest.ConfirmedDateTime.Value.ToString("yyyy-MM-dd HH:mm")
+                                </div>
+                            }
+
+                            @if (Model.InspectionCompleted || string.Equals(Model.ActiveInspectionRequest.Status, "Completed", StringComparison.OrdinalIgnoreCase))
+                            {
+                                <div class="rv-ok-note" style="margin-top:10px;">
+                                    <strong>Physical inspection completed.</strong><br />
+                                    @Model.PhysicalInspectionEvidenceCount inspection evidence file(s) are attached to this review.
+                                    The Processor can now complete the review and submit it to the QA / OVVIO workflow.
+                                </div>
+                            }
+                            else if (Model.CanCompleteInspection)
                             {
                                 <form asp-controller="ValuerInbox"
-                                      asp-action="SendInspectionDetails"
-                                      method="post">
-
+                                      asp-action="CompleteInspection"
+                                      method="post"
+                                      style="margin-top:10px;">
                                     @Html.AntiForgeryToken()
-
-                                    <input type="hidden"
-                                           name="inspectionRequestId"
-                                           value="@Model.ActiveInspectionRequest.Id" />
-
-                                    <input type="hidden"
-                                           name="attrId"
-                                           value="@Model.AttrId" />
-
+                                    <input type="hidden" name="inspectionRequestId" value="@Model.ActiveInspectionRequest.Id" />
+                                    <input type="hidden" name="attrId" value="@Model.AttrId" />
                                     <button type="submit"
-                                            class="rv-final-btn rv-final-btn-inspection"
-                                            onclick="return confirm('Generate inspection PIN and prepare valuer details for the client?');">
-                                        Send Valuer Details &amp; PIN to Client
+                                            class="rv-final-btn rv-final-btn-ovvio"
+                                            onclick="return confirm('Close this physical inspection? The evidence already received from Genesis will remain attached to the review.');">
+                                        Close Physical Inspection
                                     </button>
                                 </form>
                             }
+                            else if (!string.IsNullOrWhiteSpace(Model.InspectionCompletionBlockReason))
+                            {
+                                <div class="rv-block-note" style="margin-top:10px;">
+                                    @Model.InspectionCompletionBlockReason
+                                </div>
+                            }
                         }
-
-                        @if (Model.ActiveInspectionRequest.ConfirmedDateTime != null)
+                        else
                         {
-                            <div class="rv-ok-note">
-                                Confirmed: @Model.ActiveInspectionRequest.ConfirmedDateTime.Value.ToString("yyyy-MM-dd HH:mm")
+                            <div class="rv-small-text mb-2">
+                                Internal Processor Evidence must be uploaded before a physical inspection can be requested.
                             </div>
+                            <button type="button"
+                                    class="rv-final-btn rv-final-btn-inspection"
+                                    onclick="openInspectionModal();">
+                                Request Physical Inspection
+                            </button>
                         }
-
-                        @if (Model.InspectionCompleted || string.Equals(Model.ActiveInspectionRequest.Status, "Completed", StringComparison.OrdinalIgnoreCase))
-                        {
-                            <div class="rv-ok-note" style="margin-top:10px;">
-                                <strong>Physical inspection completed.</strong><br />
-                                @Model.PhysicalInspectionEvidenceCount inspection evidence file(s) are attached to this review.
-                                The Processor can now complete the review and submit it to the QA / OVVIO workflow.
-                            </div>
-                        }
-                        else if (Model.CanCompleteInspection)
-                        {
-                            <form asp-controller="ValuerInbox"
-                                  asp-action="CompleteInspection"
-                                  method="post"
-                                  style="margin-top:10px;">
-                                @Html.AntiForgeryToken()
-                                <input type="hidden" name="inspectionRequestId" value="@Model.ActiveInspectionRequest.Id" />
-                                <input type="hidden" name="attrId" value="@Model.AttrId" />
-                                <button type="submit"
-                                        class="rv-final-btn rv-final-btn-ovvio"
-                                        onclick="return confirm('Close this physical inspection? The evidence already received from Genesis will remain attached to the review.');">
-                                    Close Physical Inspection
-                                </button>
-                            </form>
-                        }
-                        else if (!string.IsNullOrWhiteSpace(Model.InspectionCompletionBlockReason))
-                        {
-                            <div class="rv-block-note" style="margin-top:10px;">
-                                @Model.InspectionCompletionBlockReason
-                            </div>
-                        }
-                    }
-                    else
-                    {
-                        <div class="rv-small-text mb-2">
-                            Internal Processor Evidence must be uploaded before a physical inspection can be requested.
-                        </div>
-                        <button type="button"
-                                class="rv-final-btn rv-final-btn-inspection"
-                                onclick="openInspectionModal();">
-                            Request Physical Inspection
-                        </button>
-                    }
+                    </div>
                 </div>
-            </div>
-        </aside>
-    </div>
+            </aside>
+        </div>
+    </details>
 </div>
 
 <div id="inspectionModal" class="insp-modal-backdrop" style="display:none;">
