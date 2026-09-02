@@ -468,18 +468,16 @@
             }
         }
 
-        async function saveProcessorEvidenceForAction(requireEvidence) {
+        async function saveProcessorEvidenceForAction() {
             if (evidenceUploadInProgress) return false;
 
             const selectedFiles = processorEvidenceFiles?.files;
             const hasSelectedFiles = selectedFiles && selectedFiles.length > 0;
 
-              if (!hasSelectedFiles) {
-        // Internal Processor Evidence is OPTIONAL for all review actions,
-        // including Require Physical Inspection.
-        // If evidence was already saved, leave it attached to the review.
-        // If no evidence was supplied, continue with the selected action.
-        return await action();
+                if (!hasSelectedFiles) {
+        // Internal Processor Evidence is optional.
+        // Nothing needs to be uploaded, so allow the selected action to continue.
+        return true;
     }
 
 
@@ -637,7 +635,7 @@
 
         document.getElementById('cmpInspection')?.addEventListener('click', async () => {
             // Evidence selected above is saved first, then the inspection workflow continues.
-            if (!await saveProcessorEvidenceForAction(true)) return;
+            if (!await saveProcessorEvidenceForAction(false)) return;
             if (typeof window.openInspectionModal === 'function') window.openInspectionModal();
         });
         document.getElementById('cmpReturn')?.addEventListener('click', async () => {
