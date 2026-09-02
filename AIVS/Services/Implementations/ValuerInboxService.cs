@@ -41,7 +41,7 @@ namespace AIVS.Services.Implementations
             _logger = logger;
             _emailService = emailService;
             _genesisPortalSettings = genesisPortalSettings.Value;
-          
+
             _storageSettings = storageSettings.Value;
             _notificationService = notificationService;
             _valuerReviewPdfService = valuerReviewPdfService;
@@ -50,7 +50,7 @@ namespace AIVS.Services.Implementations
             _userManagementService = userManagementService;
             _demoQa = demoQa.Value;
             _processorFiles = processorFiles;
-            _inspectionCalendarService=inspectionCalendarService;
+            _inspectionCalendarService = inspectionCalendarService;
         }
 
         public async Task<List<ValuerInboxItemVm>> GetMyInboxAsync(AivsCurrentUserVm currentUser)
@@ -2409,6 +2409,14 @@ namespace AIVS.Services.Implementations
 
             var now = DateTime.Now;
             var oldStatus = item.Attr_Status;
+            // The Genesis client calendar supports the current month plus
+            // the next two calendar months. Keep the secure booking link alive
+            // for that full window, with a small grace period.
+            var inspectionBookingTokenExpiry =
+                new DateTime(now.Year, now.Month, 1)
+                    .AddMonths(3)
+                    .AddDays(7);
+
             var request = new AttrInspectionRequest
             {
                 Attr_ID = item.Attr_ID,
@@ -2424,7 +2432,7 @@ namespace AIVS.Services.Implementations
                 Status = "PendingClientResponse",
                 RequestComment = vm.RequestComment?.Trim(),
                 EmailToken = Guid.NewGuid(),
-                EmailTokenExpiresAt = now.AddDays(14),
+                EmailTokenExpiresAt = inspectionBookingTokenExpiry,
                 CreatedBy = currentUser.Username ?? currentUser.WindowsUsername,
                 CreatedDate = now
             };
@@ -2482,16 +2490,19 @@ namespace AIVS.Services.Implementations
         }
 
         public async Task SendInspectionDetailsToClientAsync(
-     long inspectionRequestId,
-     AivsCurrentUserVm currentUser)
+            long inspectionRequestId,
+            AivsCurrentUserVm currentUser)
         {
             if (currentUser.UserId == null)
-                throw new InvalidOperationException("Current AIVS user could not be resolved.");
+                throw new InvalidOperationException(
+                    "Current AIVS user could not be resolved.");
 
             if (string.IsNullOrWhiteSpace(currentUser.SapNumber))
-                throw new InvalidOperationException("Current user SAP number could not be resolved. Please check User Management mapping.");
+                throw new InvalidOperationException(
+                    "Current user SAP number could not be resolved. Please check User Management mapping.");
 
-            await using var transaction = await _context.Database.BeginTransactionAsync();
+            await using var transaction =
+                await _context.Database.BeginTransactionAsync();
 
             var request = await _context.AttrInspectionRequests
                 .Include(x => x.Slots)
@@ -2500,16 +2511,20 @@ namespace AIVS.Services.Implementations
                     x.Status == "Confirmed");
 
             if (request == null)
-                throw new InvalidOperationException("Confirmed inspection request could not be found.");
+                throw new InvalidOperationException(
+                    "Confirmed inspection request could not be found.");
 
             if (request.RequestedByUserId != currentUser.UserId.Value)
-                throw new InvalidOperationException("You can only send inspection details for your own inspection requests.");
+                throw new InvalidOperationException(
+                    "You can only send inspection details for your own inspection requests.");
 
             if (request.ConfirmedDateTime == null)
-                throw new InvalidOperationException("Inspection date has not been confirmed yet.");
+                throw new InvalidOperationException(
+                    "Inspection date has not been confirmed yet.");
 
             if (request.ValuerDetailsSent)
-                throw new InvalidOperationException("Inspection details have already been sent to the client.");
+                throw new InvalidOperationException(
+                    "Inspection details have already been sent to the client.");
 
             var property = await _context.AttrPropertyInfo
                 .Include(x => x.PropertyDetails)
@@ -2518,40 +2533,62 @@ namespace AIVS.Services.Implementations
                     x.IsActive == true);
 
             if (property == null)
-                throw new InvalidOperationException("Attribute property could not be found.");
+                throw new InvalidOperationException(
+                    "Attribute property could not be found.");
 
-            await EnsureCurrentAssignmentAsync(property.Attr_ID, currentUser);
+            await EnsureCurrentAssignmentAsync(
+                property.Attr_ID,
+                currentUser);
 
             if (property.PropertyDetails == null)
-                throw new InvalidOperationException("Property details could not be found.");
+                throw new InvalidOperationException(
+                    "Property details could not be found.");
 
             var contact = await _context.AttrContactInfo
                 .AsNoTracking()
-                .Where(x => x.PropertyDetailsId == property.PropertyDetails.Id)
+                .Where(x =>
+                    x.PropertyDetailsId ==
+                    property.PropertyDetails.Id)
                 .OrderBy(x => x.Id)
                 .FirstOrDefaultAsync();
 
             if (contact == null)
-                throw new InvalidOperationException("Client contact details could not be found.");
+                throw new InvalidOperationException(
+                    "Client contact details could not be found.");
 
-            if (string.IsNullOrWhiteSpace(contact.Email))
-                throw new InvalidOperationException("Client email address could not be found.");
+            var clientEmail =
+                !string.IsNullOrWhiteSpace(request.ClientEmail)
+                    ? request.ClientEmail.Trim()
+                    : contact.Email?.Trim();
+
+            if (string.IsNullOrWhiteSpace(clientEmail))
+                throw new InvalidOperationException(
+                    "Client email address could not be found.");
+
+            var clientName =
+                !string.IsNullOrWhiteSpace(request.ClientName)
+                    ? request.ClientName.Trim()
+                    : BuildClientName(contact);
 
             var sapNumber = currentUser.SapNumber.Trim();
 
-            var valuerDetails = await _context.AttrValuerInspectionDetails
-                .AsNoTracking()
-                .FirstOrDefaultAsync(x =>
-                    x.SapNumber == sapNumber &&
-                    x.IsActive == true);
+            var valuerDetails =
+                await _context.AttrValuerInspectionDetails
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x =>
+                        x.SapNumber == sapNumber &&
+                        x.IsActive == true);
 
             if (valuerDetails == null)
-                throw new InvalidOperationException("Your valuer inspection profile could not be found. Please create your valuer profile first.");
+                throw new InvalidOperationException(
+                    "Your valuer inspection profile could not be found. Please create your valuer profile first.");
 
             var now = DateTime.Now;
 
-            if(string.IsNullOrWhiteSpace(request.InspectionPin))
-{
+            // The PIN must already have been generated by InspectionPinGenerationWorker.
+            // Do not generate a second PIN here.
+            if (string.IsNullOrWhiteSpace(request.InspectionPin))
+            {
                 throw new InvalidOperationException(
                     "The inspection PIN has not been generated yet. " +
                     "The system automatically generates it shortly before the confirmed appointment.");
@@ -2563,16 +2600,18 @@ namespace AIVS.Services.Implementations
                     "The inspection PIN generation record is incomplete.");
             }
 
-            var pin = request.InspectionPin;
+            if (request.PinValidUntil.HasValue &&
+                now > request.PinValidUntil.Value)
+            {
+                throw new InvalidOperationException(
+                    "The inspection PIN has expired. A new inspection arrangement is required.");
+            }
+
+            var pin = request.InspectionPin.Trim();
 
             request.Status = "InspectionDetailsSent";
-            request.ValuerDetailsSent = true;
-            request.ValuerDetailsSentAt = DateTime.Now;
 
-
-
-            request.Status = "InspectionDetailsSent";
-          
+            // Reset any old PIN usage state before the current PIN is released.
             request.PinUsedAt = null;
             request.PinUsedByEmail = null;
             request.PinUsedIpAddress = null;
@@ -2583,43 +2622,78 @@ namespace AIVS.Services.Implementations
 
             request.ValuerDetailsSent = true;
             request.ValuerDetailsSentAt = now;
+            request.ValuerDetailsSentByUserId =
+                currentUser.UserId.Value;
+            request.ValuerDetailsSentByName =
+                currentUser.FullName;
+            request.ValuerSapNumber =
+                sapNumber;
 
-            // Keep the GUID email link alive through the confirmed appointment
-            // so an Administration-captured client can view the released valuer details.
-            var minimumLinkExpiry = request.ConfirmedDateTime.Value.AddDays(1);
-            if (!request.EmailTokenExpiresAt.HasValue || request.EmailTokenExpiresAt.Value < minimumLinkExpiry)
-                request.EmailTokenExpiresAt = minimumLinkExpiry;
-            request.ValuerDetailsSentByUserId = currentUser.UserId.Value;
-            request.ValuerDetailsSentByName = currentUser.FullName;
-            request.ValuerSapNumber = sapNumber;
+            // Keep the secure GUID link alive through the inspection
+            // and for one day afterwards so the client can verify
+            // the authorised valuer details.
+            var minimumLinkExpiry =
+                request.ConfirmedDateTime.Value.AddDays(1);
 
-            request.UpdatedBy = currentUser.Username ?? currentUser.WindowsUsername ?? currentUser.FullName;
+            if (!request.EmailTokenExpiresAt.HasValue ||
+                request.EmailTokenExpiresAt.Value <
+                minimumLinkExpiry)
+            {
+                request.EmailTokenExpiresAt =
+                    minimumLinkExpiry;
+            }
+
+            request.UpdatedBy =
+                currentUser.Username ??
+                currentUser.WindowsUsername ??
+                currentUser.FullName;
+
             request.UpdatedDate = now;
 
             var oldStatus = property.Attr_Status;
 
-            property.Attr_Status = "InspectionDetailsSent";
-            property.Physical_Inspection_Status = "InspectionDetailsSent";
-            property.Inspection_Valuer = valuerDetails.ValuerName;
-            property.Inspection_ValuerUserId = currentUser.UserId.Value.ToString();
-            
+            property.Attr_Status =
+                "InspectionDetailsSent";
+
+            property.Physical_Inspection_Status =
+                "InspectionDetailsSent";
+
+            property.Inspection_Valuer =
+                valuerDetails.ValuerName;
+
+            property.Inspection_ValuerUserId =
+                currentUser.UserId.Value.ToString();
+
+            // Keep compatibility with the existing property-level
+            // inspection PIN tracking.
+            property.Digital_Valuer_ID = pin;
             property.Digital_Valuer_ID_GeneratedDateTime = now;
-            property.UpdatedBy = currentUser.Username ?? currentUser.WindowsUsername ?? currentUser.FullName;
+
+            property.UpdatedBy =
+                currentUser.Username ??
+                currentUser.WindowsUsername ??
+                currentUser.FullName;
+
             property.UpdatedDate = now;
 
-            _context.AttrPropertyInfoAuditTrail.Add(new AttrPropertyInfoAuditTrail
-            {
-                Attr_ID = property.Attr_ID,
-                Attr_No = property.Attr_No,
-                Action = "Inspection Details Sent",
-                OldStatus = oldStatus,
-                NewStatus = "InspectionDetailsSent",
-                ActionByUserId = currentUser.UserId.Value.ToString(),
-                ActionByName = currentUser.FullName,
-                ActionRole = currentUser.Role,
-                Comment = "Inspection PIN and secure appointment instructions sent to client.",
-                ActionDateTime = now
-            });
+            _context.AttrPropertyInfoAuditTrail.Add(
+                new AttrPropertyInfoAuditTrail
+                {
+                    Attr_ID = property.Attr_ID,
+                    Attr_No = property.Attr_No,
+                    Action = "Inspection Details Sent",
+                    OldStatus = oldStatus,
+                    NewStatus = "InspectionDetailsSent",
+                    ActionByUserId =
+                        currentUser.UserId.Value.ToString(),
+                    ActionByName =
+                        currentUser.FullName,
+                    ActionRole =
+                        currentUser.Role,
+                    Comment =
+                        "Inspection PIN and secure appointment instructions sent to client.",
+                    ActionDateTime = now
+                });
 
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
@@ -2627,25 +2701,30 @@ namespace AIVS.Services.Implementations
             try
             {
                 await _emailService.SendInspectionDetailsEmailAsync(
-    request.ClientEmail!,
-    request.ClientName,
-    request.Attr_No ?? property.Attr_No ?? "-",
-    property.Property_Desc,
-    request.ConfirmedDateTime.Value,
-    pin,
-    valuerDetails.ValuerName,
-    valuerDetails.EmailAddress,
-    valuerDetails.CellNumber,
-    valuerDetails.VehicleRegistration,
-    valuerDetails.VehicleMake,
-    valuerDetails.VehicleColour,
-    valuerDetails.PhotoFileName,
-  
-                BuildGenesisInspectionLink(property, request.EmailToken, "valuer"));
+                    clientEmail,
+                    clientName,
+                    request.Attr_No ??
+                        property.Attr_No ??
+                        "-",
+                    property.Property_Desc,
+                    request.ConfirmedDateTime.Value,
+                    pin,
+                    valuerDetails.ValuerName,
+                    valuerDetails.EmailAddress,
+                    valuerDetails.CellNumber,
+                    valuerDetails.VehicleRegistration,
+                    valuerDetails.VehicleMake,
+                    valuerDetails.VehicleColour,
+                    valuerDetails.PhotoFileName,
+                    BuildGenesisInspectionLink(
+                        property,
+                        request.EmailToken,
+                        "valuer"));
 
                 await _notificationService.CreateNotificationAsync(
                     currentUser.UserId,
-                    currentUser.Username ?? currentUser.WindowsUsername,
+                    currentUser.Username ??
+                        currentUser.WindowsUsername,
                     currentUser.Role,
                     "Inspection details sent",
                     $"Inspection PIN and secure appointment instructions were sent to the client for {property.Attr_No}.",
