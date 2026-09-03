@@ -18,6 +18,8 @@
 
         public string? InspectionPin { get; set; }
 
+        public DateTime? InspectionPinGeneratedAt { get; set; }
+
         public List<InspectionSlotVm> Slots { get; set; } = new();
     }
 

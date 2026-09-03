@@ -314,8 +314,31 @@
                                         PIN: @Model.ActiveInspectionRequest.InspectionPin
                                     </div>
                                 }
+                                else if (string.IsNullOrWhiteSpace(Model.ActiveInspectionRequest.InspectionPin))
+                                {
+                                    <div class="rv-block-note">
+                                        <strong>Waiting for automatic PIN generation.</strong><br />
+                                        The inspection PIN will be generated automatically by the background job
+                                        shortly before the confirmed appointment.
+                                    </div>
+
+                                    <button type="button"
+                                            class="rv-final-btn rv-final-btn-inspection"
+                                            disabled
+                                            title="PIN generation is automatic. No manual PIN generation is required.">
+                                        <i class="fa-solid fa-clock"></i>
+                                        Waiting for Automatic PIN
+                                    </button>
+                                }
                                 else
                                 {
+                                    <div class="rv-ok-note">
+                                        <strong>Inspection PIN generated automatically.</strong><br />
+                                        Generated:
+                                        @(Model.ActiveInspectionRequest.InspectionPinGeneratedAt?.ToString("yyyy-MM-dd HH:mm") ?? "Available").
+                                        The PIN has not yet been released to the client.
+                                    </div>
+
                                     <form asp-controller="ValuerInbox"
                                           asp-action="SendInspectionDetails"
                                           method="post">
@@ -332,7 +355,8 @@
 
                                         <button type="submit"
                                                 class="rv-final-btn rv-final-btn-inspection"
-                                                onclick="return confirm('Generate inspection PIN and prepare valuer details for the client?');">
+                                                onclick="return confirm('The PIN has already been generated automatically. Send the PIN and authorised valuer details to the client now?');">
+                                            <i class="fa-solid fa-paper-plane"></i>
                                             Send Valuer Details &amp; PIN to Client
                                         </button>
                                     </form>

@@ -347,31 +347,57 @@
                 </button>
             }
             else if (string.Equals(Model.ActiveInspectionRequest.Status, "Confirmed", StringComparison.OrdinalIgnoreCase)
-                     && !Model.ActiveInspectionRequest.ValuerDetailsSent)
+                   && !Model.ActiveInspectionRequest.ValuerDetailsSent)
             {
-                <form asp-controller="ValuerInbox"
-                      asp-action="SendInspectionDetails"
-                      method="post"
-                      class="cmp-inline-action-form"
-                      onsubmit="return confirm('Generate the inspection PIN and email it to the client?');">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="inspectionRequestId" value="@Model.ActiveInspectionRequest.Id" />
-                    <input type="hidden" name="attrId" value="@Model.AttrId" />
-                    <button type="submit" class="cmp-action inspection">
-                        <i class="fa-solid fa-key"></i>
-                        Generate inspection PIN
+                @if (string.IsNullOrWhiteSpace(Model.ActiveInspectionRequest.InspectionPin))
+                {
+                    <button type="button"
+                            class="cmp-action inspection"
+                            disabled
+                            title="The inspection PIN is generated automatically by the background job shortly before the confirmed appointment.">
+                        <i class="fa-solid fa-clock"></i>
+                        Waiting for automatic PIN
                     </button>
-                </form>
+                }
+                else
+                {
+                    <form asp-controller="ValuerInbox"
+                          asp-action="SendInspectionDetails"
+                          method="post"
+                          class="cmp-inline-action-form"
+                          onsubmit="return confirm('The inspection PIN has been generated automatically. Send the PIN and authorised valuer details to the client now?');">
+
+                        @Html.AntiForgeryToken()
+
+                        <input type="hidden"
+                               name="inspectionRequestId"
+                               value="@Model.ActiveInspectionRequest.Id" />
+
+                        <input type="hidden"
+                               name="attrId"
+                               value="@Model.AttrId" />
+
+                        <button type="submit"
+                                class="cmp-action inspection"
+                                title="The PIN has been generated automatically and is ready to be released to the client.">
+                            <i class="fa-solid fa-paper-plane"></i>
+                            PIN Generated - Send Details
+                        </button>
+                    </form>
+                }
             }
             else if (string.Equals(Model.ActiveInspectionRequest.Status, "InspectionDetailsSent", StringComparison.OrdinalIgnoreCase)
                      || Model.ActiveInspectionRequest.ValuerDetailsSent)
             {
-                <button type="button" class="cmp-action inspection" disabled
-                        title="The inspection PIN and valuer details have already been sent to the client.">
+                <button type="button"
+                        class="cmp-action inspection"
+                        disabled
+                        title="The inspection PIN and authorised valuer details have already been sent to the client.">
                     <i class="fa-solid fa-circle-check"></i>
-                    Inspection PIN generated
+                    PIN &amp; Valuer Details Sent
                 </button>
             }
+
             else if (string.Equals(Model.ActiveInspectionRequest.Status, "Expired", StringComparison.OrdinalIgnoreCase))
             {
                 <button type="button" class="cmp-action inspection" id="cmpInspection">

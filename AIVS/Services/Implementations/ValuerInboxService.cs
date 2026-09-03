@@ -418,6 +418,7 @@ namespace AIVS.Services.Implementations
                     ValuerDetailsSent = x.ValuerDetailsSent,
                     ValuerDetailsSentAt = x.ValuerDetailsSentAt,
                     InspectionPin = x.InspectionPin,
+                    InspectionPinGeneratedAt = x.InspectionPinGeneratedAt,
                     Slots = x.Slots
                         .OrderBy(s => s.SlotNo)
                         .Select(s => new InspectionSlotVm
