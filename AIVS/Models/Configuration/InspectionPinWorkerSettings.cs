@@ -5,22 +5,24 @@ namespace AIVS.Models.Configuration
     {
         public bool Enabled { get; set; } = true;
 
-        // Worker wakes up on this interval.
+        // Production interval.
         public int CheckEveryMinutes { get; set; } = 5;
 
-        // Production/default behaviour:
-        // generate the PIN this many hours before the appointment.
+        // UAT/demo override. When > 0 this takes priority over CheckEveryMinutes.
+        public int CheckEverySeconds { get; set; } = 0;
+
+        // Production/default behaviour.
         public int GenerateHoursBefore { get; set; } = 2;
 
-        // UAT/testing override.
-        // When > 0, this takes priority over GenerateHoursBefore.
-        // Keep at 0 in production to use the hour-based setting.
+        // Optional UAT minute override.
         public int GenerateMinutesBefore { get; set; } = 0;
 
-        // PIN becomes usable shortly before arrival.
-        public int PinValidMinutesBefore { get; set; } = 30;
+        // DEMO ONLY:
+        // When true, any future Confirmed appointment without a PIN is eligible
+        // immediately, regardless of how far away the appointment is.
+        public bool DemoGenerateImmediately { get; set; } = false;
 
-        // PIN remains usable after appointment start for this many minutes.
+        public int PinValidMinutesBefore { get; set; } = 30;
         public int PinValidMinutesAfter { get; set; } = 120;
     }
 }

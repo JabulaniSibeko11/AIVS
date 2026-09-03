@@ -2,8 +2,8 @@ using AIVS.Data;
 using AIVS.Models.Configuration;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using System.Security.Cryptography;
 using System.Globalization;
+using System.Security.Cryptography;
 
 namespace AIVS.Services.Hosted
 {
@@ -28,79 +28,83 @@ namespace AIVS.Services.Hosted
         {
             if (!_settings.Enabled)
             {
-                _logger.LogInformation(
-                    "Inspection PIN worker is disabled.");
+                _logger.LogInformation("Inspection PIN worker is disabled.");
                 return;
             }
 
-            var interval = TimeSpan.FromMinutes(
-                Math.Max(1, _settings.CheckEveryMinutes));
-
-            var configuredLeadTime =
-                ResolveGenerationLeadTime();
+            var interval = ResolveCheckInterval();
 
             _logger.LogInformation(
-                "Inspection PIN worker started. CheckEvery={CheckEveryMinutes} minute(s), GenerateBefore={GenerateBefore}.",
-                Math.Max(1, _settings.CheckEveryMinutes),
-                configuredLeadTime);
+                "Inspection PIN worker started. Interval={Interval}. DemoImmediate={DemoImmediate}. LeadTime={LeadTime}.",
+                interval,
+                _settings.DemoGenerateImmediately,
+                ResolveGenerationLeadTime());
+
+            // Run once immediately at application start before waiting.
+            await RunSafeCycleAsync(stoppingToken);
 
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
-                    await GenerateDuePinsAsync(stoppingToken);
+                    await Task.Delay(interval, stoppingToken);
                 }
                 catch (OperationCanceledException)
                     when (stoppingToken.IsCancellationRequested)
                 {
                     break;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(
-                        ex,
-                        "Inspection PIN generation worker failed during this cycle.");
                 }
 
-                try
-                {
-                    await Task.Delay(
-                        interval,
-                        stoppingToken);
-                }
-                catch (OperationCanceledException)
-                    when (stoppingToken.IsCancellationRequested)
-                {
-                    break;
-                }
+                await RunSafeCycleAsync(stoppingToken);
+            }
+        }
+
+        private async Task RunSafeCycleAsync(
+            CancellationToken stoppingToken)
+        {
+            try
+            {
+                await GenerateDuePinsAsync(stoppingToken);
+            }
+            catch (OperationCanceledException)
+                when (stoppingToken.IsCancellationRequested)
+            {
+                // Normal shutdown.
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Inspection PIN generation worker failed during this cycle.");
             }
         }
 
         private async Task GenerateDuePinsAsync(
             CancellationToken cancellationToken)
         {
-            using var scope =
-                _scopeFactory.CreateScope();
+            using var scope = _scopeFactory.CreateScope();
 
             var db = scope.ServiceProvider
                 .GetRequiredService<AttributesDbContext>();
 
             var now = DateTime.Now;
+            var leadTime = ResolveGenerationLeadTime();
+            var dueUntil = now.Add(leadTime);
 
-            var leadTime =
-                ResolveGenerationLeadTime();
-
-            var dueUntil =
-                now.Add(leadTime);
-
-            var requests = await db.AttrInspectionRequests
+            var query = db.AttrInspectionRequests
                 .Where(x =>
                     x.Status == "Confirmed" &&
                     x.ConfirmedDateTime != null &&
                     x.ConfirmedDateTime > now &&
-                    x.ConfirmedDateTime <= dueUntil &&
-                    (x.InspectionPin == null ||
-                     x.InspectionPin == ""))
+                    (x.InspectionPin == null || x.InspectionPin == ""));
+
+            if (!_settings.DemoGenerateImmediately)
+            {
+                query = query.Where(x =>
+                    x.ConfirmedDateTime <= dueUntil);
+            }
+
+            var requests = await query
                 .OrderBy(x => x.ConfirmedDateTime)
                 .Take(100)
                 .ToListAsync(cancellationToken);
@@ -110,69 +114,74 @@ namespace AIVS.Services.Hosted
 
             foreach (var request in requests)
             {
-                var appointment =
-                    request.ConfirmedDateTime!.Value;
+                var appointment = request.ConfirmedDateTime!.Value;
 
-                request.InspectionPin =
-                    GeneratePin();
+                request.InspectionPin = GeneratePin();
+                request.InspectionPinGeneratedAt = now;
 
-                request.InspectionPinGeneratedAt =
-                    now;
-
+                // In demo mode make the PIN usable immediately so the full
+                // Generate -> Send Details -> Client Verify flow can be shown.
                 request.PinValidFrom =
-                    appointment.AddMinutes(
-                        -Math.Max(
-                            0,
-                            _settings.PinValidMinutesBefore));
+                    _settings.DemoGenerateImmediately
+                        ? now
+                        : appointment.AddMinutes(
+                            -Math.Max(0, _settings.PinValidMinutesBefore));
 
                 request.PinValidUntil =
                     appointment.AddMinutes(
-                        Math.Max(
-                            1,
-                            _settings.PinValidMinutesAfter));
+                        Math.Max(1, _settings.PinValidMinutesAfter));
 
-                request.UpdatedBy =
-                    "InspectionPinGenerationWorker";
+                // If a demo appointment was selected far in the future, ensure
+                // the PIN does not expire before the presentation can verify it.
+                if (_settings.DemoGenerateImmediately &&
+                    request.PinValidUntil <= now)
+                {
+                    request.PinValidUntil =
+                        now.AddMinutes(
+                            Math.Max(30, _settings.PinValidMinutesAfter));
+                }
 
-                request.UpdatedDate =
-                    now;
+                request.UpdatedBy = "InspectionPinGenerationWorker";
+                request.UpdatedDate = now;
             }
 
-            await db.SaveChangesAsync(
-                cancellationToken);
+            await db.SaveChangesAsync(cancellationToken);
 
             _logger.LogInformation(
-                "Generated {Count} inspection PIN(s). LeadTime={LeadTime}.",
+                "Generated {Count} inspection PIN(s). DemoImmediate={DemoImmediate}.",
                 requests.Count,
-                leadTime);
+                _settings.DemoGenerateImmediately);
+        }
+
+        private TimeSpan ResolveCheckInterval()
+        {
+            if (_settings.CheckEverySeconds > 0)
+            {
+                return TimeSpan.FromSeconds(
+                    Math.Max(1, _settings.CheckEverySeconds));
+            }
+
+            return TimeSpan.FromMinutes(
+                Math.Max(1, _settings.CheckEveryMinutes));
         }
 
         private TimeSpan ResolveGenerationLeadTime()
         {
-            // UAT/testing: minutes take priority when configured.
             if (_settings.GenerateMinutesBefore > 0)
             {
                 return TimeSpan.FromMinutes(
-                    Math.Max(
-                        1,
-                        _settings.GenerateMinutesBefore));
+                    Math.Max(1, _settings.GenerateMinutesBefore));
             }
 
-            // Production/default.
             return TimeSpan.FromHours(
-                Math.Max(
-                    1,
-                    _settings.GenerateHoursBefore));
+                Math.Max(1, _settings.GenerateHoursBefore));
         }
 
         private static string GeneratePin()
         {
-            // Preserve the existing 4-digit business workflow,
-            // but use a cryptographically secure generator.
             return RandomNumberGenerator
                 .GetInt32(1000, 10000)
-                .ToString(
-                    CultureInfo.InvariantCulture);
+                .ToString(CultureInfo.InvariantCulture);
         }
     }
 }
