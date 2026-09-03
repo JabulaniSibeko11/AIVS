@@ -8,8 +8,14 @@ namespace AIVS.Models.Configuration
         // Worker wakes up on this interval.
         public int CheckEveryMinutes { get; set; } = 5;
 
-        // Generate the PIN this many hours before the confirmed appointment.
+        // Production/default behaviour:
+        // generate the PIN this many hours before the appointment.
         public int GenerateHoursBefore { get; set; } = 2;
+
+        // UAT/testing override.
+        // When > 0, this takes priority over GenerateHoursBefore.
+        // Keep at 0 in production to use the hour-based setting.
+        public int GenerateMinutesBefore { get; set; } = 0;
 
         // PIN becomes usable shortly before arrival.
         public int PinValidMinutesBefore { get; set; } = 30;

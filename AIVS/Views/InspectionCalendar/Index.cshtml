@@ -5,20 +5,241 @@
     var next = Model.MonthStart.AddMonths(1);
     var currentMonthStart = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
 }
-<link href="~/css/calender-css.css" rel="stylesheet" asp-append-version="true"/>
+<link href="~/css/calender-css.css" rel="stylesheet" asp-append-version="true" />
+
 <div class="ic-page">
- <div class="ic-head"><div><h1>My Inspection Calendar</h1><div class="ic-sub">@Model.UserDisplayName · Default inspection hours @Model.DefaultWorkingDayStart.ToString(@"hh\:mm")–@Model.DefaultWorkingDayEnd.ToString(@"hh\:mm"). All slots are available unless blocked.</div></div>
- <div class="ic-nav"><a class="@(previous < currentMonthStart ? "disabled" : "")" asp-action="Index" asp-route-year="@previous.Year" asp-route-month="@previous.Month">‹ Previous</a><div class="ic-month">@Model.MonthLabel</div><a asp-action="Index" asp-route-year="@next.Year" asp-route-month="@next.Month">Next ›</a></div></div>
- @if(TempData["Success"]!=null){<div class="alert alert-success">@TempData["Success"]</div>} @if(TempData["Error"]!=null){<div class="alert alert-danger">@TempData["Error"]</div>}
- <div class="ic-grid">
-  @foreach(var d in new[]{"Mon","Tue","Wed","Thu","Fri","Sat","Sun"}){<div class="ic-dow">@d</div>}
-  @foreach(var day in Model.Days){var cls=!day.IsCurrentMonth?"outside":day.IsPast?"past":day.IsWholeDayBlocked?"blocked-day":"";<div class="ic-day @cls"><div class="ic-date">@day.Date.Day</div>
-   @if(day.IsWeekend){<div class="ic-status">Weekend</div>}else if(day.IsPast){<div class="ic-status">Past</div>}else if(day.IsWholeDayBlocked){<div class="ic-status" style="color:#b42318">Whole day blocked</div>}else if(day.HasAnyAvailability){<div class="ic-status" style="color:#027a48">Available</div>}
-   @if(!day.IsWeekend && day.IsCurrentMonth && !day.IsPast){<div class="ic-slots">@foreach(var s in day.Slots){<span class="ic-slot @(s.IsAvailable?"":"off")" title="@s.Status">@s.Start.ToString("HH:mm")</span>}</div><button class="ic-edit" type="button" onclick="openDay('@day.Date.ToString("yyyy-MM-dd")')">Set availability</button>}
-   @if(day.Blocks.Any()){<div class="ic-blocks">@foreach(var b in day.Blocks){<div>@(b.IsWholeDay?"Blocked: whole day":$"Blocked {b.BlockedFrom:HH:mm}–{b.BlockedTo:HH:mm}") <form asp-action="RemoveBlock" method="post">@Html.AntiForgeryToken()<input type="hidden" name="blockId" value="@b.Id"/><input type="hidden" name="returnYear" value="@Model.Year"/><input type="hidden" name="returnMonth" value="@Model.Month"/><button class="ic-remove" type="submit">remove</button></form></div>}</div>}
-   @if(day.Bookings.Any()){<div class="ic-blocks" style="color:#b54708">@foreach(var b in day.Bookings){<div>Booked @b.Start.ToString("HH:mm") @b.AttrNo</div>}</div>}
-  </div>}
- </div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+        <button type="button"
+                onclick="history.back()"
+                style="min-height:42px;padding:8px 16px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;font-weight:800;color:#0d3036;cursor:pointer;">
+            ← Back
+        </button>
+
+        <div style="flex:1;min-width:280px;padding:10px 14px;border:1px solid #b7dec1;border-left:4px solid #16833f;border-radius:8px;background:#eef8f2;color:#155b2c;">
+            <strong>Calendar saving:</strong>
+            Your change is saved immediately when you click
+            <strong>Save calendar</strong> or <strong>remove</strong>.
+            There is no separate Save button for the whole month.
+        </div>
+    </div>
+
+    <div class="ic-head">
+        <div>
+            <h1>My Inspection Calendar</h1>
+            <div class="ic-sub">
+                @Model.UserDisplayName · Default inspection hours
+                @Model.DefaultWorkingDayStart.ToString(@"hh\:mm")–@Model.DefaultWorkingDayEnd.ToString(@"hh\:mm").
+                All slots are available unless blocked.
+            </div>
+        </div>
+
+        <div class="ic-nav">
+            <a class="@(previous < currentMonthStart ? "disabled" : "")"
+               asp-action="Index"
+               asp-route-year="@previous.Year"
+               asp-route-month="@previous.Month">‹ Previous</a>
+
+            <div class="ic-month">@Model.MonthLabel</div>
+
+            <a asp-action="Index"
+               asp-route-year="@next.Year"
+               asp-route-month="@next.Month">Next ›</a>
+        </div>
+    </div>
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success">@TempData["Success"]</div>
+    }
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger">@TempData["Error"]</div>
+    }
+
+    <div class="ic-grid">
+        @foreach (var d in new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" })
+        {
+            <div class="ic-dow">@d</div>
+        }
+
+        @foreach (var day in Model.Days)
+        {
+            var cls = !day.IsCurrentMonth
+                ? "outside"
+                : day.IsPast
+                    ? "past"
+                    : day.IsWholeDayBlocked
+                        ? "blocked-day"
+                        : "";
+
+            <div class="ic-day @cls">
+                <div class="ic-date">@day.Date.Day</div>
+
+                @if (day.IsWeekend)
+                {
+                    <div class="ic-status">Weekend</div>
+                }
+                else if (day.IsPast)
+                {
+                    <div class="ic-status">Past</div>
+                }
+                else if (day.IsWholeDayBlocked)
+                {
+                    <div class="ic-status" style="color:#b42318">Whole day blocked</div>
+                }
+                else if (day.HasAnyAvailability)
+                {
+                    <div class="ic-status" style="color:#027a48">Available</div>
+                }
+
+                @if (!day.IsWeekend && day.IsCurrentMonth && !day.IsPast)
+                {
+                    <div class="ic-slots">
+                        @foreach (var s in day.Slots)
+                        {
+                            <span class="ic-slot @(s.IsAvailable ? "" : "off")"
+                                  title="@s.Status">@s.Start.ToString("HH:mm")</span>
+                        }
+                    </div>
+
+                    <button class="ic-edit"
+                            type="button"
+                            onclick="openDay('@day.Date.ToString("yyyy-MM-dd")')">
+                        Set availability
+                    </button>
+                }
+
+                @if (day.Blocks.Any())
+                {
+                    <div class="ic-blocks">
+                        @foreach (var b in day.Blocks)
+                        {
+                            <div>
+                                @(b.IsWholeDay
+                                    ? "Blocked: whole day"
+                                    : $"Blocked {b.BlockedFrom:HH:mm}–{b.BlockedTo:HH:mm}")
+
+                                <form asp-action="RemoveBlock" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="blockId" value="@b.Id" />
+                                    <input type="hidden" name="returnYear" value="@Model.Year" />
+                                    <input type="hidden" name="returnMonth" value="@Model.Month" />
+                                    <button class="ic-remove" type="submit">remove</button>
+                                </form>
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (day.Bookings.Any())
+                {
+                    <div class="ic-blocks" style="color:#b54708">
+                        @foreach (var b in day.Bookings)
+                        {
+                            <div>Booked @b.Start.ToString("HH:mm") @b.AttrNo</div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
 </div>
-<div id="dayModal" class="ic-modal-bg"><div class="ic-modal"><div class="ic-modal-head"><span>Set inspection availability</span><button type="button" onclick="closeDay()" style="background:none;border:0;color:white;font-size:22px">×</button></div><form asp-action="SetDayAvailability" method="post">@Html.AntiForgeryToken()<input type="hidden" name="returnYear" value="@Model.Year"/><input type="hidden" name="returnMonth" value="@Model.Month"/><input type="hidden" id="calDate" name="Date"/><div class="ic-modal-body"><div class="ic-field"><label>Date</label><input id="calDateText" readonly/></div><label><input type="checkbox" id="wholeDay" onchange="toggleWhole()"/> Unavailable for the whole day</label><div id="times" style="margin-top:12px"><div class="ic-field"><label>Available from</label><input type="time" id="fromTime" name="AvailableFrom" value="@Model.DefaultWorkingDayStart.ToString(@"hh\:mm")"/></div><div class="ic-field"><label>Available until</label><input type="time" id="toTime" name="AvailableTo" value="@Model.DefaultWorkingDayEnd.ToString(@"hh\:mm")"/></div></div><div class="ic-field"><label>Reason / note (optional)</label><textarea name="Reason" rows="2" maxlength="250"></textarea></div></div><div class="ic-footer"><button type="button" onclick="closeDay()">Cancel</button> <button class="ic-save" type="submit">Save calendar</button></div></form></div></div>
-<script>function openDay(d){document.getElementById('calDate').value=d;document.getElementById('calDateText').value=d;document.getElementById('wholeDay').checked=false;toggleWhole();document.getElementById('dayModal').style.display='flex'}function closeDay(){document.getElementById('dayModal').style.display='none'}function toggleWhole(){let w=document.getElementById('wholeDay').checked,f=document.getElementById('fromTime'),t=document.getElementById('toTime');f.disabled=w;t.disabled=w;if(w){f.removeAttribute('name');t.removeAttribute('name')}else{f.setAttribute('name','AvailableFrom');t.setAttribute('name','AvailableTo')}}</script>
+
+<div id="dayModal" class="ic-modal-bg">
+    <div class="ic-modal">
+        <div class="ic-modal-head">
+            <span>Set inspection availability</span>
+            <button type="button"
+                    onclick="closeDay()"
+                    style="background:none;border:0;color:white;font-size:22px">
+                ×
+            </button>
+        </div>
+
+        <form asp-action="SetDayAvailability" method="post">
+            @Html.AntiForgeryToken()
+
+            <input type="hidden" name="returnYear" value="@Model.Year" />
+            <input type="hidden" name="returnMonth" value="@Model.Month" />
+            <input type="hidden" id="calDate" name="Date" />
+
+            <div class="ic-modal-body">
+                <div style="margin-bottom:12px;padding:9px 11px;background:#eef8f2;border-left:4px solid #16833f;border-radius:6px;color:#155b2c;font-size:13px;">
+                    ✓ Clicking <strong>Save calendar</strong> saves this change immediately.
+                </div>
+
+                <div class="ic-field">
+                    <label>Date</label>
+                    <input id="calDateText" readonly />
+                </div>
+
+                <label>
+                    <input type="checkbox"
+                           id="wholeDay"
+                           onchange="toggleWhole()" />
+                    Unavailable for the whole day
+                </label>
+
+                <div id="times" style="margin-top:12px">
+                    <div class="ic-field">
+                        <label>Available from</label>
+                        <input type="time"
+                               id="fromTime"
+                               name="AvailableFrom"
+                               value="@Model.DefaultWorkingDayStart.ToString(@"hh\:mm")" />
+                    </div>
+
+                    <div class="ic-field">
+                        <label>Available until</label>
+                        <input type="time"
+                               id="toTime"
+                               name="AvailableTo"
+                               value="@Model.DefaultWorkingDayEnd.ToString(@"hh\:mm")" />
+                    </div>
+                </div>
+
+                <div class="ic-field">
+                    <label>Reason / note (optional)</label>
+                    <textarea name="Reason" rows="2" maxlength="250"></textarea>
+                </div>
+            </div>
+
+            <div class="ic-footer">
+                <button type="button" onclick="closeDay()">Cancel</button>
+                <button class="ic-save" type="submit">Save calendar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openDay(d) {
+        document.getElementById('calDate').value = d;
+        document.getElementById('calDateText').value = d;
+        document.getElementById('wholeDay').checked = false;
+        toggleWhole();
+        document.getElementById('dayModal').style.display = 'flex';
+    }
+
+    function closeDay() {
+        document.getElementById('dayModal').style.display = 'none';
+    }
+
+    function toggleWhole() {
+        let w = document.getElementById('wholeDay').checked;
+        let f = document.getElementById('fromTime');
+        let t = document.getElementById('toTime');
+
+        f.disabled = w;
+        t.disabled = w;
+
+        if (w) {
+            f.removeAttribute('name');
+            t.removeAttribute('name');
+        } else {
+            f.setAttribute('name', 'AvailableFrom');
+            t.setAttribute('name', 'AvailableTo');
+        }
+    }
+</script>
